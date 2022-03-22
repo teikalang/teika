@@ -1,5 +1,5 @@
 {
-  "checksum": "47efdff11172275acde1fb3ade9e46f4",
+  "checksum": "78db59180eeb35ccf71a9c6c226b97af",
   "root": "not-named-yet@link-dev:./esy.json",
   "node": {
     "ocaml@4.13.1000@d41d8cd9": {
@@ -31,7 +31,8 @@
       "devDependencies": [
         "@opam/ocamlformat-rpc@opam:0.19.0@8b101245",
         "@opam/ocamlformat@opam:0.20.0@c60fe68b",
-        "@opam/ocaml-lsp-server@opam:1.10.3@c6767d5c"
+        "@opam/ocaml-lsp-server@opam:1.10.3@c6767d5c",
+        "@opam/alcotest@opam:1.5.0@338d9572"
       ]
     },
     "@opam/yojson@opam:1.7.0@69d87312": {
@@ -814,6 +815,31 @@
         "ocaml@4.13.1000@d41d8cd9", "@opam/dune@opam:2.9.3@f57a6d69"
       ]
     },
+    "@opam/ocaml-syntax-shims@opam:1.0.0@9f361fbb": {
+      "id": "@opam/ocaml-syntax-shims@opam:1.0.0@9f361fbb",
+      "name": "@opam/ocaml-syntax-shims",
+      "version": "opam:1.0.0",
+      "source": {
+        "type": "install",
+        "source": [
+          "archive:https://opam.ocaml.org/cache/sha256/89/89b2e193e90a0c168b6ec5ddf6fef09033681bdcb64e11913c97440a2722e8c8#sha256:89b2e193e90a0c168b6ec5ddf6fef09033681bdcb64e11913c97440a2722e8c8",
+          "archive:https://github.com/ocaml-ppx/ocaml-syntax-shims/releases/download/1.0.0/ocaml-syntax-shims-1.0.0.tbz#sha256:89b2e193e90a0c168b6ec5ddf6fef09033681bdcb64e11913c97440a2722e8c8"
+        ],
+        "opam": {
+          "name": "ocaml-syntax-shims",
+          "version": "1.0.0",
+          "path": "esy.lock/opam/ocaml-syntax-shims.1.0.0"
+        }
+      },
+      "overrides": [],
+      "dependencies": [
+        "ocaml@4.13.1000@d41d8cd9", "@opam/dune@opam:2.9.3@f57a6d69",
+        "@esy-ocaml/substs@0.0.1@d41d8cd9"
+      ],
+      "devDependencies": [
+        "ocaml@4.13.1000@d41d8cd9", "@opam/dune@opam:2.9.3@f57a6d69"
+      ]
+    },
     "@opam/ocaml-lsp-server@opam:1.10.3@c6767d5c": {
       "id": "@opam/ocaml-lsp-server@opam:1.10.3@c6767d5c",
       "name": "@opam/ocaml-lsp-server",
@@ -1014,6 +1040,33 @@
       "devDependencies": [
         "ocaml@4.13.1000@d41d8cd9", "@opam/astring@opam:0.8.5@1300cee8"
       ]
+    },
+    "@opam/fmt@opam:0.9.0@87213963": {
+      "id": "@opam/fmt@opam:0.9.0@87213963",
+      "name": "@opam/fmt",
+      "version": "opam:0.9.0",
+      "source": {
+        "type": "install",
+        "source": [
+          "archive:https://opam.ocaml.org/cache/sha512/66/66cf4b8bb92232a091dfda5e94d1c178486a358cdc34b1eec516d48ea5acb6209c0dfcb416f0c516c50ddbddb3c94549a45e4a6d5c5fd1c81d3374dec823a83b#sha512:66cf4b8bb92232a091dfda5e94d1c178486a358cdc34b1eec516d48ea5acb6209c0dfcb416f0c516c50ddbddb3c94549a45e4a6d5c5fd1c81d3374dec823a83b",
+          "archive:https://erratique.ch/software/fmt/releases/fmt-0.9.0.tbz#sha512:66cf4b8bb92232a091dfda5e94d1c178486a358cdc34b1eec516d48ea5acb6209c0dfcb416f0c516c50ddbddb3c94549a45e4a6d5c5fd1c81d3374dec823a83b"
+        ],
+        "opam": {
+          "name": "fmt",
+          "version": "0.9.0",
+          "path": "esy.lock/opam/fmt.0.9.0"
+        }
+      },
+      "overrides": [],
+      "dependencies": [
+        "ocaml@4.13.1000@d41d8cd9", "@opam/topkg@opam:1.0.5@0aa59f51",
+        "@opam/ocamlfind@opam:1.9.3@781b30f3",
+        "@opam/ocamlbuild@opam:0.14.1@ead10f40",
+        "@opam/cmdliner@opam:1.0.4@93208aac",
+        "@opam/base-unix@opam:base@87d0b2eb",
+        "@esy-ocaml/substs@0.0.1@d41d8cd9"
+      ],
+      "devDependencies": [ "ocaml@4.13.1000@d41d8cd9" ]
     },
     "@opam/fix@opam:20220121@17b9a1a4": {
       "id": "@opam/fix@opam:20220121@17b9a1a4",
@@ -1371,6 +1424,43 @@
         "@esy-ocaml/substs@0.0.1@d41d8cd9"
       ],
       "devDependencies": [ "ocaml@4.13.1000@d41d8cd9" ]
+    },
+    "@opam/alcotest@opam:1.5.0@338d9572": {
+      "id": "@opam/alcotest@opam:1.5.0@338d9572",
+      "name": "@opam/alcotest",
+      "version": "opam:1.5.0",
+      "source": {
+        "type": "install",
+        "source": [
+          "archive:https://opam.ocaml.org/cache/sha256/54/54281907e02d78995df246dc2e10ed182828294ad2059347a1e3a13354848f6c#sha256:54281907e02d78995df246dc2e10ed182828294ad2059347a1e3a13354848f6c",
+          "archive:https://github.com/mirage/alcotest/releases/download/1.5.0/alcotest-js-1.5.0.tbz#sha256:54281907e02d78995df246dc2e10ed182828294ad2059347a1e3a13354848f6c"
+        ],
+        "opam": {
+          "name": "alcotest",
+          "version": "1.5.0",
+          "path": "esy.lock/opam/alcotest.1.5.0"
+        }
+      },
+      "overrides": [],
+      "dependencies": [
+        "ocaml@4.13.1000@d41d8cd9", "@opam/uutf@opam:1.0.3@47c95a18",
+        "@opam/stdlib-shims@opam:0.3.0@72c7bc98",
+        "@opam/re@opam:1.10.3@0585c65d",
+        "@opam/ocaml-syntax-shims@opam:1.0.0@9f361fbb",
+        "@opam/fmt@opam:0.9.0@87213963", "@opam/dune@opam:2.9.3@f57a6d69",
+        "@opam/cmdliner@opam:1.0.4@93208aac",
+        "@opam/astring@opam:0.8.5@1300cee8",
+        "@esy-ocaml/substs@0.0.1@d41d8cd9"
+      ],
+      "devDependencies": [
+        "ocaml@4.13.1000@d41d8cd9", "@opam/uutf@opam:1.0.3@47c95a18",
+        "@opam/stdlib-shims@opam:0.3.0@72c7bc98",
+        "@opam/re@opam:1.10.3@0585c65d",
+        "@opam/ocaml-syntax-shims@opam:1.0.0@9f361fbb",
+        "@opam/fmt@opam:0.9.0@87213963", "@opam/dune@opam:2.9.3@f57a6d69",
+        "@opam/cmdliner@opam:1.0.4@93208aac",
+        "@opam/astring@opam:0.8.5@1300cee8"
+      ]
     },
     "@esy-ocaml/substs@0.0.1@d41d8cd9": {
       "id": "@esy-ocaml/substs@0.0.1@d41d8cd9",
