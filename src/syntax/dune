@@ -1,0 +1,26 @@
+(library
+ (name syntax)
+ (libraries menhirLib compiler-libs.common)
+ (modules
+  (:standard \ Test))
+ (modules_without_implementation token)
+ (preprocess
+  (pps sedlex.ppx)))
+
+(menhir
+ (modules parser)
+ (flags --explain --external-tokens Token))
+
+(executable
+ (name test)
+ (modules Test)
+ (libraries alcotest syntax)
+ (preprocess
+  (pps ppx_deriving.show)))
+
+(rule
+ (alias runtest)
+ (deps
+  (:exe ./test.exe))
+ (action
+  (run %{exe})))
