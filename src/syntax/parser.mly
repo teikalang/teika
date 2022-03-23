@@ -26,15 +26,15 @@ let make location description = {
 
 %token EOF
 
-%start <Tree.syntax option> value_opt
+%start <Tree.term option> value_opt
 
 %%
 
 let value_opt :=
   | EOF;
     { None }
-  | syntax = value; EOF;
-    { Some syntax }
+  | term = value; EOF;
+    { Some term }
 
 (* WARNING: when changing this any of the rules,
     read the comment above it, in many cases it will be duplicated *)

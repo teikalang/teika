@@ -1,15 +1,15 @@
 type identifier = string
 
-type syntax = { s_location : Location.t; s_description : syntax_description }
+type term = { s_location : Location.t; s_description : term_description }
 
-and syntax_description =
+and term_description =
   | S_variable of identifier
-  | S_lambda of { parameter : syntax; body : syntax }
-  | S_apply of { lambda : syntax; argument : syntax }
-  | S_binding of { pattern : syntax; value : syntax; body : syntax option }
-  | S_structure of syntax option
-  | S_field of { structure : syntax; field : syntax }
-  | S_match of { value : syntax; pattern : syntax; body : syntax }
-  | S_constraint of { value : syntax; type_ : syntax }
+  | S_lambda of { parameter : term; body : term }
+  | S_apply of { lambda : term; argument : term }
+  | S_binding of { pattern : term; value : term; body : term option }
+  | S_structure of term option
+  | S_field of { structure : term; field : term }
+  | S_match of { value : term; pattern : term; body : term }
+  | S_constraint of { value : term; type_ : term }
 
-val value_from_string : string -> syntax option
+val value_from_string : string -> term option
