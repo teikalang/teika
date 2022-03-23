@@ -23,6 +23,7 @@ module Utils = struct
     | S_binding of { pattern : syntax; value : syntax; body : syntax option }
     | S_structure of syntax option
     | S_field of { structure : syntax; field : syntax }
+    | S_match of { value : syntax; pattern : syntax; body : syntax }
     | S_constraint of { value : syntax; type_ : syntax }
   [@@deriving show { with_path = false }]
 end
@@ -37,6 +38,7 @@ let fall param body = make (S_forall { parameter = param; body })
 let let_ pat value body = make (S_binding { pattern = pat; value; body })
 let struct_ content = make (S_structure content)
 let field struct_ field = make (S_field { structure = struct_; field })
+let match_ value pat body = make (S_match { value; pattern = pat; body })
 let constr value type_ = make (S_constraint { value; type_ })
 
 module Simple = struct
@@ -54,6 +56,7 @@ module Simple = struct
   let structure_empty = ("structure_empty", "{}", struct_ None)
   let structure_var = ("structure_var", "{ x }", struct_ (Some (var "x")))
   let field = ("field", "x.y", field (var "x") (var "y"))
+  let match_ = ("match", "x | y -> z", match_ (var "x") (var "y") (var "z"))
   let constraint_ = ("constraint", "(x: int)", constr (var "x") (var "int"))
 
   let tests =
@@ -67,6 +70,7 @@ module Simple = struct
       structure_empty;
       structure_var;
       field;
+      match_;
       constraint_;
     ]
 end
@@ -88,13 +92,33 @@ module Parens = struct
       "M.X = y;",
       let_ (field (var "M") (var "X")) (var "y") None )
 
+  let multiple_match =
+    ( "multiple_match",
+      "x | a -> y | b -> z",
+      match_ (match_ (var "x") (var "a") (var "y")) (var "b") (var "z") )
+
+  (* TODO: problem is match on lambdas and bindings *)
+  (* let match_arrow =
+     ( "match_arrow",
+       "x | a -> b -> a",
+       match_ (var "x") (var "a") (lam (var "b") (var "a")) ) *)
+
   (* TODO: problem is bindings on lambdas and constraint *)
   (* let binding_constraint =
      ( "binding_constraint",
        "x: a -> a = y;",
        let_ (constr (var "x") (lam (var "a") (var "a"))) (var "y") None ) *)
 
-  let tests = [ lambda_binding; multiple_apply; multiple_field; field_binding ]
+  let tests =
+    [
+      lambda_binding;
+      multiple_apply;
+      multiple_field;
+      field_binding;
+      multiple_match
+      (* match_arrow; *)
+      (* binding_constraint; *);
+    ]
 end
 
 let syntax =

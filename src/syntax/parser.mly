@@ -18,7 +18,7 @@ let make location description = {
 %token SEMICOLON
 %token FORALL_DOT
 %token FIELD_DOT
-
+%token PIPE
 (* TODO: {LEFT,RIGHT}_PARENTHESIS???? *)
 %token LEFT_PARENS
 %token RIGHT_PARENS
@@ -42,19 +42,20 @@ let value_opt :=
 
 
 (* all rules that never needs parens
-   WARNING: check also at s_field_field *)
+   WARNING: check also at field_field *)
 let delimited_ ==
   | s_variable
   | s_field
   | s_structure
   | parens
 
-(* all except constraint *)
+(* all except constraint  *)
 let value :=
   | s_lambda
   | s_apply
   | s_forall
   | s_binding
+  | s_match
   | delimited_
 
 let parens :=
@@ -104,13 +105,21 @@ let s_structure ==
 
 let s_field :=
   (* TODO: field could be value? *)
-  | structure = delimited_; FIELD_DOT; field = s_field_field;
+  | structure = delimited_; FIELD_DOT; field = field_field;
     { make $loc (S_field ({ structure; field }) )}
-let s_field_field ==
+let field_field ==
   | s_variable
   | s_structure
   | parens
 
+let s_match :=
+  | value = match_value; PIPE; pattern = delimited_; ARROW; body = delimited_;
+    { make $loc (S_match { value; pattern; body }) }
+let match_value ==
+  | s_match
+  | delimited_
+
 let s_constraint ==
   | value = value; COLON; type_ = value;
     { make $loc (S_constraint { value; type_ }) }
+

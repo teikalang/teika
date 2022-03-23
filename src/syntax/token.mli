@@ -13,6 +13,8 @@ type t =
   | FORALL_DOT
   (* . *)
   | FIELD_DOT
+  (* | *)
+  | PIPE
   (* ( *)
   | LEFT_PARENS
   (* ) *)

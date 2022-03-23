@@ -38,10 +38,10 @@ and syntax_description =
   | S_apply of { lambda : syntax; argument : syntax }
   | S_forall of { parameter : syntax; body : syntax }
   (* TODO: binding or let *)
+  (* TODO: is being recursive a good idea? *)
   | S_binding of { pattern : syntax; value : syntax; body : syntax option }
   | S_structure of syntax option
-  (* TODO: should field by syntax? *)
   | S_field of { structure : syntax; field : syntax }
-  (* TODO: field *)
-  (* TODO: match *)
+  (* TODO: is being recursive a good idea? *)
+  | S_match of { value : syntax; pattern : syntax; body : syntax }
   | S_constraint of { value : syntax; type_ : syntax }

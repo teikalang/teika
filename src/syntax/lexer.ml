@@ -17,6 +17,7 @@ let rec tokenizer buf =
   | ";" -> SEMICOLON
   | ".", whitespace -> FORALL_DOT
   | "." -> FIELD_DOT
+  | "|" -> PIPE
   | "(" -> LEFT_PARENS
   | ")" -> RIGHT_PARENS
   | "{" -> LEFT_BRACE
