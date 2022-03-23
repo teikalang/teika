@@ -32,17 +32,27 @@ Cons:
 - invalid code may be parsed
 - not clear where parens are needed
 - no syntatical indication of current contex
-- field and forall syntax kind of mixed
 
 ```rust
 Syntax =
   | Identifier // variable
   | Syntax -> Syntax // lambda
   | Syntax Syntax // apply
-  | Syntax. Syntax // forall
   | Syntax = Syntax; | Syntax = Syntax; Syntax // binding
   | { Syntax } // structure
   | Syntax : Syntax // constraint
   | Syntax.Syntax // field
   | (Syntax) // parens
 ```
+
+## Implicit Argument
+
+Initially `A. Syntax` was the thought way to do implicit parameters, but this lead to a couple weird syntax properties, such `A.Eq` and `A. Eq` being two different things.
+
+Also that completely prevented binding + function syntax `id x = x`, which may be desirable in the future.
+
+So for the syntax argument it is currently using `{A: M}` which was an already supported syntax.
+
+## Single Parameter Match
+
+<!-- TODO: TLDR f = | x -> y -->
