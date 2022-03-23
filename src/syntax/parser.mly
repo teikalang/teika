@@ -95,21 +95,18 @@ let s_forall ==
     { make $loc (S_forall { parameter; body }) }
 
 let s_binding ==
-  | pattern = binding_pattern; EQUAL; value = value; SEMICOLON;
+  | pattern = delimited_; EQUAL; value = value; SEMICOLON;
     { make $loc (S_binding { pattern; value; body = None }) }
-  | pattern = binding_pattern; EQUAL; value = value; SEMICOLON;
+  | pattern = delimited_; EQUAL; value = value; SEMICOLON;
     body = value;
     { make $loc (S_binding { pattern; value; body = Some body }) }
-let binding_pattern ==
-  | s_constraint
-  | delimited_
-
-let s_constraint ==
-  | value = delimited_; COLON; type_ = delimited_;
-    { make $loc (S_constraint { value; type_ }) }
 
 let s_structure ==
   | LEFT_BRACE; RIGHT_BRACE;
     { make $loc (S_structure None) }
   | LEFT_BRACE; content = value; RIGHT_BRACE;
     { make $loc (S_structure (Some content)) }
+
+let s_constraint ==
+  | value = value; COLON; type_ = value;
+    { make $loc (S_constraint { value; type_ }) }

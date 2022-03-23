@@ -67,20 +67,37 @@ module Simple = struct
     ]
 end
 
+module Parens = struct
+  let lambda_binding =
+    ( "lambda_binding",
+      "x -> y = x; y",
+      lam (var "x") (let_ (var "y") (var "x") (Some (var "y"))) )
+
+  let multiple_apply =
+    ("multiple_apply", "f a b", app (app (var "f") (var "a")) (var "b"))
+
+  (* TODO: problem is bindings on lambdas and constraint *)
+  (* let binding_constraint =
+     ( "binding_constraint",
+       "x: a -> a = y;",
+       let_ (constr (var "x") (lam (var "a") (var "a"))) (var "y") None ) *)
+
+  let tests = [ lambda_binding; multiple_apply ]
+end
+
 let syntax =
   Alcotest.testable Utils.pp_syntax (fun a b ->
       let a = Format.asprintf "%a" Utils.pp_syntax a in
       let b = Format.asprintf "%a" Utils.pp_syntax b in
       String.equal a b)
 
-let simple =
-  List.map
-    (fun (name, code, expected) ->
-      let check () =
-        let received = value_from_string code |> Option.get in
-        Alcotest.(check syntax code expected received)
-      in
-      Alcotest.test_case name `Quick check)
-    Simple.tests
+let test (name, code, expected) =
+  let check () =
+    let received = value_from_string code |> Option.get in
+    Alcotest.(check syntax code expected received)
+  in
+  Alcotest.test_case name `Quick check
 
-let () = Alcotest.run "Syntax" [ ("simple", simple) ]
+let simple = ("simple", List.map test Simple.tests)
+let parens = ("parens", List.map test Parens.tests)
+let () = Alcotest.run "Syntax" [ simple; parens ]
