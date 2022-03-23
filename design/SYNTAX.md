@@ -38,7 +38,10 @@ Syntax =
   | Identifier // variable
   | Syntax -> Syntax // lambda
   | Syntax Syntax // apply
-  | Syntax = Syntax; | Syntax = Syntax; Syntax // binding
+  | Syntax = Syntax;
+  | Syntax = Syntax; Syntax // binding
+  | Syntax Syntax[] = Syntax;
+  | Syntax Syntax[] = Syntax; Syntax // binding + lambda
   | { Syntax } // structure
   | Syntax : Syntax // constraint
   | Syntax.Syntax // field
@@ -52,6 +55,23 @@ Initially `A. Syntax` was the thought way to do implicit parameters, but this le
 Also that completely prevented binding + function syntax `id x = x`, which may be desirable in the future.
 
 So for the syntax argument it is currently using `{A: M}` which was an already supported syntax.
+
+## Binding Lambda
+
+A common feature in languages such OCaml and Haskell is to support a fusion syntax for lambdas and binding, in the form of `add a b = a + b`.
+
+The advantages of this is that it's way more succinct for most functions and it's a common feature in other programming languages.
+
+The disadvantage is that it's not straightforward to explain to users that `f = x -> x` is the same as `f x = x`.
+
+This was decided to be a reasonable choice due to type constructors.
+
+```rust
+Packet {A} = {
+  id: Nat;
+  data: A;
+};
+```
 
 ## Single Parameter Match
 
