@@ -9,8 +9,10 @@ type t =
   | COLON
   (* ; *)
   | SEMICOLON
+  (* .<whitespace> *)
+  | FORALL_DOT
   (* . *)
-  | DOT
+  | FIELD_DOT
   (* ( *)
   | LEFT_PARENS
   (* ) *)

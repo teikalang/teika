@@ -16,7 +16,8 @@ let make location description = {
 %token EQUAL
 %token COLON
 %token SEMICOLON
-%token DOT
+%token FORALL_DOT
+%token FIELD_DOT
 
 (* TODO: {LEFT,RIGHT}_PARENTHESIS???? *)
 %token LEFT_PARENS
@@ -36,30 +37,15 @@ let value_opt :=
   | syntax = value; EOF;
     { Some syntax }
 
-(* WARNING: when changing this, think about the relationship below:
-  - parens_content: what goes inside of a parens, can be anything.
-    - parens
-  - delimited: all syntax that never needs parens.
-    - lambda, forall, apply, let
-  - value: for top-level, forall / lambda body.
-    - lambda, forall, let, constraint, structure
-  - type_: for constraint type_
-  - binding
-  - , type_ and parameter, pattern *)
-let parens_content ==
-  | s_variable
-  | s_lambda
-  | s_apply
-  | s_forall
-  | s_binding
-  | s_structure
-  // | field
-  | s_constraint
+(* WARNING: when changing this any of the rules,
+    read the comment above it, in many cases it will be duplicated *)
 
+
+(* all rules that never needs parens
+   WARNING: check also at s_field_field *)
 let delimited_ ==
   | s_variable
-  (* TODO: should f = A.X -> 1 and A.X = 1 be allowed? *)
-  // | field
+  | s_field
   | s_structure
   | parens
 
@@ -74,6 +60,15 @@ let value :=
 let parens :=
   | LEFT_PARENS; syntax = parens_content; RIGHT_PARENS;
     { syntax }
+let parens_content ==
+  | s_variable
+  | s_lambda
+  | s_apply
+  | s_forall
+  | s_binding
+  | s_structure
+  | s_field
+  | s_constraint
 
 let s_variable ==
   | variable = VARIABLE;
@@ -91,7 +86,7 @@ let apply_lambda ==
   | delimited_
 
 let s_forall ==
-  | parameter = delimited_; DOT; body = value;
+  | parameter = delimited_; FORALL_DOT; body = value;
     { make $loc (S_forall { parameter; body }) }
 
 let s_binding ==
@@ -106,6 +101,15 @@ let s_structure ==
     { make $loc (S_structure None) }
   | LEFT_BRACE; content = value; RIGHT_BRACE;
     { make $loc (S_structure (Some content)) }
+
+let s_field :=
+  (* TODO: field could be value? *)
+  | structure = delimited_; FIELD_DOT; field = s_field_field;
+    { make $loc (S_field ({ structure; field }) )}
+let s_field_field ==
+  | s_variable
+  | s_structure
+  | parens
 
 let s_constraint ==
   | value = value; COLON; type_ = value;

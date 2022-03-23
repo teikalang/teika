@@ -40,6 +40,8 @@ and syntax_description =
   (* TODO: binding or let *)
   | S_binding of { pattern : syntax; value : syntax; body : syntax option }
   | S_structure of syntax option
+  (* TODO: should field by syntax? *)
+  | S_field of { structure : syntax; field : syntax }
   (* TODO: field *)
   (* TODO: match *)
   | S_constraint of { value : syntax; type_ : syntax }

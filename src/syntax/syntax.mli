@@ -9,6 +9,7 @@ and syntax_description =
   | S_forall of { parameter : syntax; body : syntax }
   | S_binding of { pattern : syntax; value : syntax; body : syntax option }
   | S_structure of syntax option
+  | S_field of { structure : syntax; field : syntax }
   | S_constraint of { value : syntax; type_ : syntax }
 
 val value_from_string : string -> syntax option

@@ -32,6 +32,7 @@ Cons:
 - invalid code may be parsed
 - not clear where parens are needed
 - no syntatical indication of current contex
+- field and forall syntax kind of mixed
 
 ```rust
 Syntax =
@@ -42,5 +43,6 @@ Syntax =
   | Syntax = Syntax; | Syntax = Syntax; Syntax // binding
   | { Syntax } // structure
   | Syntax : Syntax // constraint
+  | Syntax.Syntax // field
   | (Syntax) // parens
 ```
