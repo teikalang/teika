@@ -16,8 +16,7 @@ let make location description = {
 %token EQUAL
 %token COLON
 %token SEMICOLON
-%token FORALL_DOT
-%token FIELD_DOT
+%token DOT
 %token PIPE
 (* TODO: {LEFT,RIGHT}_PARENTHESIS???? *)
 %token LEFT_PARENS
@@ -53,7 +52,6 @@ let delimited_ ==
 let value :=
   | s_lambda
   | s_apply
-  | s_forall
   | s_binding
   | s_match
   | delimited_
@@ -65,7 +63,6 @@ let parens_content ==
   | s_variable
   | s_lambda
   | s_apply
-  | s_forall
   | s_binding
   | s_structure
   | s_field
@@ -86,10 +83,6 @@ let apply_lambda ==
   | s_apply
   | delimited_
 
-let s_forall ==
-  | parameter = delimited_; FORALL_DOT; body = value;
-    { make $loc (S_forall { parameter; body }) }
-
 let s_binding ==
   | pattern = delimited_; EQUAL; value = value; SEMICOLON;
     { make $loc (S_binding { pattern; value; body = None }) }
@@ -97,15 +90,15 @@ let s_binding ==
     body = value;
     { make $loc (S_binding { pattern; value; body = Some body }) }
 
-let s_structure ==
+let s_structure :=
   | LEFT_BRACE; RIGHT_BRACE;
     { make $loc (S_structure None) }
-  | LEFT_BRACE; content = value; RIGHT_BRACE;
+  | LEFT_BRACE; content = parens_content; RIGHT_BRACE;
     { make $loc (S_structure (Some content)) }
 
 let s_field :=
   (* TODO: field could be value? *)
-  | structure = delimited_; FIELD_DOT; field = field_field;
+  | structure = delimited_; DOT; field = field_field;
     { make $loc (S_field ({ structure; field }) )}
 let field_field ==
   | s_variable

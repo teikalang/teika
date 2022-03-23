@@ -15,8 +15,7 @@ let rec tokenizer buf =
   | "=" -> EQUAL
   | ":" -> COLON
   | ";" -> SEMICOLON
-  | ".", whitespace -> FORALL_DOT
-  | "." -> FIELD_DOT
+  | "." -> DOT
   | "|" -> PIPE
   | "(" -> LEFT_PARENS
   | ")" -> RIGHT_PARENS

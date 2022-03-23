@@ -19,7 +19,6 @@ module Utils = struct
     | S_variable of identifier
     | S_lambda of { parameter : syntax; body : syntax }
     | S_apply of { lambda : syntax; argument : syntax }
-    | S_forall of { parameter : syntax; body : syntax }
     | S_binding of { pattern : syntax; value : syntax; body : syntax option }
     | S_structure of syntax option
     | S_field of { structure : syntax; field : syntax }
@@ -34,7 +33,6 @@ let make description =
 let var name = make (S_variable name)
 let lam param body = make (S_lambda { parameter = param; body })
 let app lam arg = make (S_apply { lambda = lam; argument = arg })
-let fall param body = make (S_forall { parameter = param; body })
 let let_ pat value body = make (S_binding { pattern = pat; value; body })
 let struct_ content = make (S_structure content)
 let field struct_ field = make (S_field { structure = struct_; field })
@@ -45,7 +43,6 @@ module Simple = struct
   let variable = ("variable", "x", var "x")
   let lambda = ("lambda", "x -> x", lam (var "x") (var "x"))
   let apply = ("apply", "f x", app (var "f") (var "x"))
-  let forall = ("forall", "a. a", fall (var "a") (var "a"))
 
   (* TODO: semicolon *)
   let binding_none = ("binding_none", "x = y;", let_ (var "x") (var "y") None)
@@ -64,7 +61,6 @@ module Simple = struct
       variable;
       lambda;
       apply;
-      forall;
       binding_none;
       binding_body;
       structure_empty;
@@ -97,6 +93,10 @@ module Parens = struct
       "x | a -> y | b -> z",
       match_ (match_ (var "x") (var "a") (var "y")) (var "b") (var "z") )
 
+  let constraint_on_structure =
+    ( "constraint_on_structure",
+      "{ M: Monad }",
+      struct_ (Some (constr (var "M") (var "Monad"))) )
   (* TODO: problem is match on lambdas and bindings *)
   (* let match_arrow =
      ( "match_arrow",
@@ -115,7 +115,8 @@ module Parens = struct
       multiple_apply;
       multiple_field;
       field_binding;
-      multiple_match
+      multiple_match;
+      constraint_on_structure
       (* match_arrow; *)
       (* binding_constraint; *);
     ]

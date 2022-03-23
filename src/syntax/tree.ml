@@ -36,7 +36,6 @@ and syntax_description =
   | S_variable of identifier
   | S_lambda of { parameter : syntax; body : syntax }
   | S_apply of { lambda : syntax; argument : syntax }
-  | S_forall of { parameter : syntax; body : syntax }
   (* TODO: binding or let *)
   (* TODO: is being recursive a good idea? *)
   | S_binding of { pattern : syntax; value : syntax; body : syntax option }
@@ -45,3 +44,5 @@ and syntax_description =
   (* TODO: is being recursive a good idea? *)
   | S_match of { value : syntax; pattern : syntax; body : syntax }
   | S_constraint of { value : syntax; type_ : syntax }
+(* TODO: syntax for importing and exporting? *)
+(* TODO: extension point + attributes aka ppx *)
