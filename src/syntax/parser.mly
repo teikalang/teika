@@ -42,7 +42,7 @@ let value_opt :=
 
 (* all rules that never needs parens
    WARNING: check also at field_field *)
-let delimited_ ==
+let atom ==
   | s_variable
   | s_field
   | s_structure
@@ -54,7 +54,7 @@ let value :=
   | s_apply
   | s_binding
   | s_match
-  | delimited_
+  | atom
 
 let parens :=
   | LEFT_PARENS; syntax = parens_content; RIGHT_PARENS;
@@ -73,20 +73,20 @@ let s_variable ==
     { make $loc (S_variable variable) }
 
 let s_lambda ==
-  | parameter = delimited_; ARROW; body = value;
+  | parameter = atom; ARROW; body = value;
     { make $loc (S_lambda { parameter; body }) }
 
 let s_apply :=
-  | lambda = apply_lambda; argument = delimited_;
+  | lambda = apply_lambda; argument = atom;
     { make $loc (S_apply { lambda; argument }) }
 let apply_lambda ==
   | s_apply
-  | delimited_
+  | atom
 
 let s_binding ==
-  | pattern = delimited_; EQUAL; value = value; SEMICOLON;
+  | pattern = atom; EQUAL; value = value; SEMICOLON;
     { make $loc (S_binding { pattern; value; body = None }) }
-  | pattern = delimited_; EQUAL; value = value; SEMICOLON;
+  | pattern = atom; EQUAL; value = value; SEMICOLON;
     body = value;
     { make $loc (S_binding { pattern; value; body = Some body }) }
 
@@ -98,7 +98,7 @@ let s_structure :=
 
 let s_field :=
   (* TODO: field could be value? *)
-  | structure = delimited_; DOT; field = field_field;
+  | structure = atom; DOT; field = field_field;
     { make $loc (S_field ({ structure; field }) )}
 let field_field ==
   | s_variable
@@ -106,11 +106,11 @@ let field_field ==
   | parens
 
 let s_match :=
-  | value = match_value; PIPE; pattern = delimited_; ARROW; body = delimited_;
+  | value = match_value; PIPE; pattern = atom; ARROW; body = atom;
     { make $loc (S_match { value; pattern; body }) }
 let match_value ==
   | s_match
-  | delimited_
+  | atom
 
 let s_constraint ==
   | value = value; COLON; type_ = value;
