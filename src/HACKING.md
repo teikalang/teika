@@ -58,19 +58,24 @@ https://en.wikipedia.org/wiki/Type_constructor
 
 https://en.wikipedia.org/wiki/Expression_(computer_science)
 
-### Constraint
+### Annotation
 
-In general it will be used in the direction of a type constraint,
+In general it will be used in the direction of a type annotation,
 
-The syntax for a constraint has the format of `received_value : expected_type`.
+The syntax for an annotation has the format of `received_value : expected_type`.
 
 ## Abbreviations
 
 To avoid noise, this code uses quite a bit of abbreviations.
 
-| abbrev | meaning    | uses                |
-| ------ | ---------- | ------------------- |
-| ident  | identifier | `add` is an ident   |
-| struct | structure  | `{}` is a struct    |
-| constr | constraint | constr = `(x: int)` |
-| expr   | expression | expr = a + b        |
+| abbrev | meaning     | uses               |
+| ------ | ----------- | ------------------ |
+| ident  | identifier  | `add` is an ident  |
+| struct | structure   | `{}` is a struct   |
+| annot  | annotation  | annot = `(x: int)` |
+| expr   | expression  | expr = a + b       |
+| param  | parameter   | param -> body      |
+| arg    | argument    | f arg              |
+| loc    | location    | `add`.s_loc = None |
+| desc   | description | term_desc          |
+| pat    | pattern     | x \| pat -> y      |
