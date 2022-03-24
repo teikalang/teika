@@ -56,6 +56,8 @@ Also that completely prevented binding + function syntax `id x = x`, which may b
 
 So for the syntax argument it is currently using `{A: M}` which was an already supported syntax.
 
+- https://agda.readthedocs.io/en/v2.6.1/language/implicit-arguments.html
+
 ## Binding Lambda
 
 A common feature in languages such OCaml and Haskell is to support a fusion syntax for lambdas and binding, in the form of `add a b = a + b`.
