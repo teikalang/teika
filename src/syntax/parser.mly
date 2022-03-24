@@ -1,38 +1,38 @@
 %{
 open Tree
 
-let make_location (loc_start, loc_end) =
+let make_loc (loc_start, loc_end) =
   Location.{ loc_start; loc_end; loc_ghost = false }
 
-let make location description = {
-  s_location = make_location location;
-  s_description = description;
+let make loc desc = {
+  s_loc = make_loc loc;
+  s_desc = desc;
 }
 
-let make_apply ~lambda ~arguments =
+let make_apply ~lambda ~args =
   List.fold_left
-    (fun lambda argument ->
+    (fun lambda arg ->
       (* TODO: is this loc right? *)
-      let loc_start = lambda.s_location.loc_start in
-      let loc_end = argument.s_location.loc_end in
-      make (loc_start, loc_end) (S_apply { lambda; argument })
+      let loc_start = lambda.s_loc.loc_start in
+      let loc_end = arg.s_loc.loc_end in
+      make (loc_start, loc_end) (S_apply { lambda; arg })
     )
     lambda
-    arguments
+    args
 
-let make_binding loc ~pattern ~parameters ~value ~body =
+let make_bind loc ~bound ~params ~value ~body =
   let value =
     (* TODO: fold_right bad *)
     List.fold_right
-      (fun parameter body ->
+      (fun param body ->
         (* TODO: is this loc right? *)
-        let loc_start = parameter.s_location.loc_start in
-        let loc_end = body.s_location.loc_end in
-        make (loc_start, loc_end) (S_lambda { parameter; body })
+        let loc_start = param.s_loc.loc_start in
+        let loc_end = body.s_loc.loc_end in
+        make (loc_start, loc_end) (S_lambda { param; body })
       )
-      parameters
+      params
       value in
-  make loc (S_binding { pattern; value; body })
+  make loc (S_bind { bound; value; body })
 %}
 %token <string> IDENT
 
@@ -63,72 +63,72 @@ let term_opt :=
 (* precedence on parens and braces *)
 let term ==
   | term_lambda
-  | constraint_
-let term_lambda == lambda(term_binding)
-let term_binding == binding(term_match)
+  | annot
+let term_lambda == lambda(term_bind)
+let term_bind == bind(term_match)
 let term_match := match_(term_match, apply)
 
 let atom ==
   | ident
   | field
-  | structure
+  | struct_
   | parens
 
 let simple_atom ==
   | ident
-  | structure
+  | struct_
   | parens
 
 (* concrete syntax *)
 let ident :=
   | ident = IDENT;
-    { make $loc (S_variable ident) }
+    { make $loc (S_ident ident) }
 
 let lambda(lower) :=
   | lower
-  | parameter = atom; ARROW; body = lambda(lower);
-    { make $loc (S_lambda { parameter; body }) }
+  | param = atom; ARROW; body = lambda(lower);
+    { make $loc (S_lambda { param; body }) }
 
 let atom_juxtaposition :=
   | first = atom; remaining = list(atom);
     { (first, remaining) }
 let apply :=
-  | (lambda, arguments) = atom_juxtaposition;
-    { make_apply ~lambda ~arguments }
+  | (lambda, args) = atom_juxtaposition;
+    { make_apply ~lambda ~args }
 
-let binding(lower) :=
+let bind(lower) :=
   | lower
-  | pattern = constraint_; EQUAL;
-    value = binding(lower); SEMICOLON;
-    body = option(binding(lower));
-    { make_binding $loc ~pattern ~parameters:[] ~value ~body }
-  | (pattern, parameters) = atom_juxtaposition; EQUAL;
-    value = binding(lower); SEMICOLON;
-    body = option(binding(lower));
-    { make_binding $loc ~pattern ~parameters ~value ~body }
+  | bound = annot; EQUAL;
+    value = bind(lower); SEMICOLON;
+    body = option(bind(lower));
+    { make_bind $loc ~bound ~params:[] ~value ~body }
+  | (bound, params) = atom_juxtaposition; EQUAL;
+    value = bind(lower); SEMICOLON;
+    body = option(bind(lower));
+    { make_bind $loc ~bound ~params ~value ~body }
 
-let structure :=
+let struct_ :=
   | LEFT_BRACE; term = option(term); RIGHT_BRACE;
     (* TODO: should loc include {} here? *)
-    { make $loc (S_structure term) }
+    { make $loc (S_struct term) }
 
 let field :=
-  | structure = atom; DOT; field = simple_atom;
-    { make $loc (S_field ({ structure; field })) }
+  | struct_ = atom; DOT; field = simple_atom;
+    { make $loc (S_field ({ struct_; field })) }
 
 let match_(self, lower) ==
   | lower
   (* TODO: same syntax as lambda *)
-  (* TODO: apply can be more general, maybe allow bindings without match *)
+  (* TODO: apply can be more general, maybe allow binds without match *)
   (* TODO: this body is not looking good *)
-  | value = self; PIPE; pattern = apply; ARROW; body = binding(lambda(lower));
-    { make $loc (S_match { value; pattern; body }) }
+  | value = self; PIPE; pat = apply; ARROW; body = bind(lambda(lower));
+    { make $loc (S_match { value; pat; body }) }
 
-let constraint_ :=
+let annot :=
   (* TODO: value can be more general *)
   (* TODO: type_ can be more general *)
   | value = atom; COLON; type_ = lambda(atom);
-    { make $loc (S_constraint { value; type_ }) }
+    { make $loc (S_annot { value; type_ }) }
   
 let parens ==
   | LEFT_PARENS; term = term; RIGHT_PARENS;

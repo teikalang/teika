@@ -1,15 +1,15 @@
 type identifier = string
 
-type term = { s_location : Location.t; s_description : term_description }
+type term = { s_loc : Location.t; s_desc : term_desc }
 
-and term_description =
-  | S_variable of identifier
-  | S_lambda of { parameter : term; body : term }
-  | S_apply of { lambda : term; argument : term }
-  | S_binding of { pattern : term; value : term; body : term option }
-  | S_structure of term option
-  | S_field of { structure : term; field : term }
-  | S_match of { value : term; pattern : term; body : term }
-  | S_constraint of { value : term; type_ : term }
+and term_desc =
+  | S_ident of identifier
+  | S_lambda of { param : term; body : term }
+  | S_apply of { lambda : term; arg : term }
+  | S_bind of { bound : term; value : term; body : term option }
+  | S_struct of term option
+  | S_field of { struct_ : term; field : term }
+  | S_match of { value : term; pat : term; body : term }
+  | S_annot of { value : term; type_ : term }
 
 val value_from_string : string -> term option
