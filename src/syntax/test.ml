@@ -83,6 +83,12 @@ module Parens = struct
   let multiple_field =
     ("field_binding", "M.X.y", field (field (var "M") (var "X")) (var "y"))
 
+  let multiple_binding =
+    ( "multiple_binding",
+      "x = y; z = x; z",
+      let_ (var "x") (var "y")
+        (Some (let_ (var "z") (var "x") (Some (var "z")))) )
+
   let field_binding =
     ( "field_binding",
       "M.X = y;",
@@ -97,29 +103,44 @@ module Parens = struct
     ( "constraint_on_structure",
       "{ M: Monad }",
       struct_ (Some (constr (var "M") (var "Monad"))) )
-  (* TODO: problem is match on lambdas and bindings *)
-  (* let match_arrow =
-     ( "match_arrow",
-       "x | a -> b -> a",
-       match_ (var "x") (var "a") (lam (var "b") (var "a")) ) *)
 
-  (* TODO: problem is bindings on lambdas and constraint *)
-  (* let binding_constraint =
-     ( "binding_constraint",
-       "x: a -> a = y;",
-       let_ (constr (var "x") (lam (var "a") (var "a"))) (var "y") None ) *)
+  let match_arrow_body =
+    ( "match_arrow",
+      "x | a -> b -> a",
+      match_ (var "x") (var "a") (lam (var "b") (var "a")) )
+
+  let match_let_body =
+    ( "match_let_body",
+      "x | a -> b = a; b",
+      match_ (var "x") (var "a") (let_ (var "b") (var "a") (Some (var "b"))) )
+
+  let binding_constraint =
+    ( "binding_constraint",
+      "x: a -> a = y;",
+      let_ (constr (var "x") (lam (var "a") (var "a"))) (var "y") None )
 
   let tests =
     [
       lambda_binding;
       multiple_apply;
       multiple_field;
+      multiple_binding;
       field_binding;
       multiple_match;
-      constraint_on_structure
-      (* match_arrow; *)
-      (* binding_constraint; *);
+      constraint_on_structure;
+      match_arrow_body;
+      match_let_body;
+      binding_constraint;
     ]
+end
+
+module Sugar = struct
+  let binding_lambda =
+    ( "binding_lambda",
+      "f a b = x;",
+      let_ (var "f") (lam (var "a") (lam (var "b") (var "x"))) None )
+
+  let tests = [ binding_lambda ]
 end
 
 let term =
@@ -130,11 +151,16 @@ let term =
 
 let test (name, code, expected) =
   let check () =
-    let received = value_from_string code |> Option.get in
+    let received =
+      match value_from_string code with
+      | Some received -> received
+      | None -> failwith ("string likely empty: " ^ name)
+    in
     Alcotest.(check term code expected received)
   in
   Alcotest.test_case name `Quick check
 
 let simple = ("simple", List.map test Simple.tests)
 let parens = ("parens", List.map test Parens.tests)
-let () = Alcotest.run "Syntax" [ simple; parens ]
+let sugar = ("sugar", List.map test Sugar.tests)
+let () = Alcotest.run "Syntax" [ simple; parens; sugar ]

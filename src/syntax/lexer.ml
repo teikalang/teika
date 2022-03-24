@@ -4,13 +4,15 @@ open Sedlexing.Utf8
 let whitespace = [%sedlex.regexp? Plus (' ' | '\t' | '\n')]
 let alphabet = [%sedlex.regexp? 'a' .. 'z' | 'A' .. 'Z']
 let digit = [%sedlex.regexp? '0' .. '9']
-let variable = [%sedlex.regexp? (alphabet | '_'), Star (alphabet | digit | '_')]
+
+let identifier =
+  [%sedlex.regexp? (alphabet | '_'), Star (alphabet | digit | '_')]
 
 let rec tokenizer buf =
   match%sedlex buf with
   | whitespace -> tokenizer buf
   (* TODO: emojis?*)
-  | variable -> VARIABLE (lexeme buf)
+  | identifier -> IDENT (lexeme buf)
   | "->" -> ARROW
   | "=" -> EQUAL
   | ":" -> COLON

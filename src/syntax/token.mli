@@ -1,6 +1,6 @@
 type t =
   (* x1 *)
-  | VARIABLE of string
+  | IDENT of string
   (* -> *)
   | ARROW
   (* = *)
