@@ -62,9 +62,9 @@ A common feature in languages such OCaml and Haskell is to support a fusion synt
 
 The advantages of this is that it's way more succinct for most functions and it's a common feature in other programming languages.
 
-The disadvantage is that it's not straightforward to explain to users that `f = x -> x` is the same as `f x = x`.
+The disadvantage is that it's not straightforward to explain to users that `f = x -> x` is the same as `f x = x`, it also doesn't work with binding + constraint such as `x: Int -> Int = x -> x`.
 
-This was decided to be a reasonable choice due to type constructors.
+This was decided to be a reasonable choice due to type constructors. And as constraints + lambda should not be common.
 
 ```rust
 Packet {A} = {
