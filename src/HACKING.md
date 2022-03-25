@@ -73,9 +73,10 @@ To avoid noise, this code uses quite a bit of abbreviations.
 | ident  | identifier  | `add` is an ident  |
 | struct | structure   | `{}` is a struct   |
 | annot  | annotation  | annot = `(x: int)` |
-| expr   | expression  | expr = a + b       |
-| param  | parameter   | param -> body      |
-| arg    | argument    | f arg              |
-| loc    | location    | `add`.s_loc = None |
+| expr   | expression  | expr = `a + b`     |
+| param  | parameter   | `param -> body`    |
+| arg    | argument    | `f arg`            |
+| loc    | location    | add.s_loc == None  |
 | desc   | description | term_desc          |
 | pat    | pattern     | x \| pat -> y      |
+| sig    | signature   | `{ x: Int }`       |
