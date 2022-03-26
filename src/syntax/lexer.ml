@@ -8,11 +8,14 @@ let digit = [%sedlex.regexp? '0' .. '9']
 let identifier =
   [%sedlex.regexp? (alphabet | '_'), Star (alphabet | digit | '_')]
 
+let number = [%sedlex.regexp? Plus digit]
+
 let rec tokenizer buf =
   match%sedlex buf with
   | whitespace -> tokenizer buf
   (* TODO: emojis?*)
   | identifier -> IDENT (lexeme buf)
+  | number -> NUMBER (lexeme buf)
   | "->" -> ARROW
   | "=" -> EQUAL
   | ":" -> COLON

@@ -26,7 +26,11 @@
 *)
 
 (* TODO: location *)
-type identifier = string [@@deriving show]
+(* TODO: escape hatch for invalid identifiers \""*)
+type identifier = string
+
+(* TODO: number being a string is weird it could be fused with identifier  *)
+type number = string
 
 (* TODO: likely simple AST where let and module bindings are fused *)
 (* TODO: maybe make each one of those in it's own modules? *)
@@ -34,6 +38,7 @@ type term = { s_loc : Location.t; s_desc : term_desc }
 
 and term_desc =
   | S_ident of identifier
+  | S_number of number
   | S_lambda of { param : term; body : term }
   | S_apply of { lambda : term; arg : term }
   | S_bind of { bound : term; value : term; body : term option }

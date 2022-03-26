@@ -1,6 +1,8 @@
 type t =
   (* x1 *)
   | IDENT of string
+  (* 123 *)
+  | NUMBER of string
   (* -> *)
   | ARROW
   (* = *)

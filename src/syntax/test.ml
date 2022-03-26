@@ -9,11 +9,13 @@ module Utils = struct
   end
 
   type identifier = string [@@deriving show]
+  type number = string [@@deriving show]
 
   type term = Syntax.term = { s_loc : Location.t; s_desc : term_desc }
 
   and term_desc = Syntax.term_desc =
     | S_ident of identifier
+    | S_number of number
     | S_lambda of { param : term; body : term }
     | S_apply of { lambda : term; arg : term }
     | S_bind of { bound : term; value : term; body : term option }
@@ -26,6 +28,7 @@ end
 
 let make desc = { s_loc = Location.none; s_desc = desc }
 let var name = make (S_ident name)
+let number number = make (S_number number)
 let lam param body = make (S_lambda { param; body })
 let app lambda arg = make (S_apply { lambda; arg })
 let bind bound value body = make (S_bind { bound; value; body })
@@ -36,6 +39,7 @@ let annot value type_ = make (S_annot { value; type_ })
 
 module Simple = struct
   let variable = ("variable", "x", var "x")
+  let number = ("number", "123", number "123")
   let lambda = ("lambda", "x -> x", lam (var "x") (var "x"))
   let apply = ("apply", "f x", app (var "f") (var "x"))
 
@@ -54,6 +58,7 @@ module Simple = struct
   let tests =
     [
       variable;
+      number;
       lambda;
       apply;
       binding_none;

@@ -35,7 +35,7 @@ let make_bind loc ~bound ~params ~value ~body =
   make loc (S_bind { bound; value; body })
 %}
 %token <string> IDENT
-
+%token <string> NUMBER
 %token ARROW
 %token EQUAL
 %token COLON
@@ -69,13 +69,12 @@ let term_bind == bind(term_match)
 let term_match := match_(term_match, apply)
 
 let atom ==
-  | ident
   | field
-  | struct_
-  | parens
+  | simple_atom
 
 let simple_atom ==
   | ident
+  | number
   | struct_
   | parens
 
@@ -83,6 +82,10 @@ let simple_atom ==
 let ident :=
   | ident = IDENT;
     { make $loc (S_ident ident) }
+
+let number :=
+  | number = NUMBER;
+    { make $loc (S_number number) }
 
 let lambda(lower) :=
   | lower
