@@ -41,6 +41,8 @@ Syntax =
   | Syntax Syntax // apply
   | Syntax = Syntax;
   | Syntax = Syntax; Syntax // binding
+  | Syntax : Syntax;
+  | Syntax : Syntax; Syntax // binding signature
   | Syntax Syntax[] = Syntax;
   | Syntax Syntax[] = Syntax; Syntax // binding + lambda
   | { Syntax } // structure
