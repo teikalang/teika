@@ -36,6 +36,7 @@ Cons:
 ```rust
 Syntax =
   | Identifier // variable
+  | Number // number
   | Syntax -> Syntax // lambda
   | Syntax Syntax // apply
   | Syntax = Syntax;
