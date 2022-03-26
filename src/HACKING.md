@@ -80,3 +80,5 @@ To avoid noise, this code uses quite a bit of abbreviations.
 | desc   | description | term_desc          |
 | pat    | pattern     | x \| pat -> y      |
 | sig    | signature   | `{ x: Int }`       |
+| env    | environment | binds on the env   |
+| transl | translate   | transl_type        |
