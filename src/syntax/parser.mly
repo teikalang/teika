@@ -20,7 +20,7 @@ let make_apply ~lambda ~args =
     lambda
     args
 
-let make_bind loc ~bound ~params ~value ~body =
+let make_bind_lambda loc ~bound ~params ~value ~body =
   let value =
     (* TODO: fold_right bad *)
     List.fold_right
@@ -32,7 +32,7 @@ let make_bind loc ~bound ~params ~value ~body =
       )
       params
       value in
-  make loc (S_bind { bound; value; body })
+  make loc (S_bind { bound; value = Some value; body })
 %}
 %token <string> IDENT
 %token <string> NUMBER
@@ -101,14 +101,17 @@ let apply :=
 
 let bind(lower) :=
   | lower
+  | bound = annot; SEMICOLON;
+    body = option(bind(lower));
+    { make $loc (S_bind { bound; value = None; body }) }
   | bound = annot; EQUAL;
     value = bind(lower); SEMICOLON;
     body = option(bind(lower));
-    { make_bind $loc ~bound ~params:[] ~value ~body }
+    { make $loc (S_bind { bound; value = Some value; body }) }
   | (bound, params) = atom_juxtaposition; EQUAL;
     value = bind(lower); SEMICOLON;
     body = option(bind(lower));
-    { make_bind $loc ~bound ~params ~value ~body }
+    { print_endline "b"; make_bind_lambda $loc ~bound ~params ~value ~body }
 
 let struct_ :=
   | LEFT_BRACE; term = option(term); RIGHT_BRACE;
