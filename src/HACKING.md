@@ -82,3 +82,4 @@ To avoid noise, this code uses quite a bit of abbreviations.
 | sig    | signature   | `{ x: Int }`       |
 | env    | environment | binds on the env   |
 | transl | translate   | transl_type        |
+| decl   | declaration | type_decl          |
