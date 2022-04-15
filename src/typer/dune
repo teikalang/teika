@@ -1,0 +1,21 @@
+(library
+ (name typer)
+ (libraries syntax)
+ (modules
+  (:standard \ Test))
+ (preprocess
+  (pps ppx_deriving.show)))
+
+(executable
+ (name test)
+ (modules Test)
+ (libraries alcotest typer)
+ (preprocess
+  (pps ppx_deriving.show)))
+
+(rule
+ (alias runtest)
+ (deps
+  (:exe ./test.exe))
+ (action
+  (run %{exe})))
