@@ -1,4 +1,4 @@
-type t = string
+type t = string [@@deriving show]
 
 let make t = t
 let equal = String.equal

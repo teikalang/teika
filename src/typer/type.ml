@@ -1,4 +1,5 @@
 module Forall_id = Uid
+module Lambda_id = Uid
 
 type type_ = {
   (* TODO: this id is for debugging, can be removed with proper debugging tools *)
@@ -9,8 +10,9 @@ type type_ = {
 and desc =
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_weak_var
-  | T_bound_var of { forall : Forall_id.t }
-  | T_int
+  (* TODO: should we have this name here? It's duplicated from Tree.t *)
+  (* TODO: check name across codebase *)
+  | T_bound_var of { forall : Forall_id.t; name : Name.t option }
   | T_arrow of { param : type_; return : type_ }
   | T_link of type_
 [@@deriving show]
@@ -31,6 +33,5 @@ let link ~to_ type_ =
 let new_type desc = { id = Uid.next (); desc }
 let new_forall forall ~body = new_type (T_forall { forall; body })
 let new_weak_var () = new_type T_weak_var
-let new_bound_var forall = new_type (T_bound_var { forall })
-let new_int () = new_type T_int
+let new_bound_var ~name forall = new_type (T_bound_var { forall; name })
 let new_arrow ~param ~return = new_type (T_arrow { param; return })

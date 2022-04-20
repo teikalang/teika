@@ -1,3 +1,4 @@
+(* TODO: maybe this should be Name.t *)
 type identifier = string
 type number = string
 

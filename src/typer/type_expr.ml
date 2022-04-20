@@ -49,7 +49,7 @@ and type_number ~loc ~number =
     | None -> raise loc Invalid_number
   in
 
-  let type_ = new_int () in
+  let type_ = Env.int_type in
   make loc type_ (Expr_number number)
 
 and type_lambda env ~loc ~param ~body =

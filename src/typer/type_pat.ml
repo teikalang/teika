@@ -18,7 +18,7 @@ let rec type_pat env term =
   | S_ident name ->
       let name = Name.make name in
       let type_ = new_weak_var () in
-      let ident, env = Env.enter loc name type_ env in
+      let ident, env = env |> Env.enter loc name type_ in
       return env loc type_ (Pat_ident ident)
   | S_annot { value; type_ } ->
       let (pat_type, value), env = type_pat env value in

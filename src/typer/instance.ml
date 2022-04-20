@@ -22,7 +22,7 @@ and instance_desc ~forall foralls types weak_vars type_ =
       let body = instance body in
       new_forall forall' ~body
   | T_weak_var -> (* eak not copied *) type_
-  | T_bound_var { forall = var_forall } -> (
+  | T_bound_var { forall = var_forall; name } -> (
       if Forall_id.equal forall var_forall then (
         let weak_var = new_weak_var () in
         weak_vars := weak_var :: !weak_vars;
@@ -33,9 +33,8 @@ and instance_desc ~forall foralls types weak_vars type_ =
             (fun (key, _forall') -> Forall_id.equal key var_forall)
             !foralls
         with
-        | Some (_key, forall') -> new_bound_var forall'
+        | Some (_key, forall') -> new_bound_var ~name forall'
         | None -> (* TODO: isn't this breaking an invariant? *) type_)
-  | T_int -> new_int ()
   | T_arrow { param; return } ->
       let param = instance param in
       let return = instance return in

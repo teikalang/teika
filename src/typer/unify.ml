@@ -25,7 +25,6 @@ type env = {
   weak_vars : (type_ * int) list;
 }
 
-let make_env ~loc = { loc; rank = 0; bound_forall = []; weak_vars = [] }
 let raise env error = raise (Error { loc = env.loc; error })
 
 let with_expected_forall env ~forall =
@@ -41,6 +40,8 @@ let with_received_forall env ~vars =
   let vars = List.map (fun var -> (var, rank)) vars in
   let weak_vars = vars @ weak_vars in
   { loc; rank; bound_forall; weak_vars }
+
+let make_env ~loc = { loc; rank = 0; bound_forall = []; weak_vars = [] }
 
 let forall_rank env ~forall =
   match List.assoc_opt forall env.bound_forall with
@@ -62,9 +63,10 @@ let rec min_bound_forall env foralls min_rank type_ =
     min_bound_forall env foralls min_rank type_
   in
   match desc type_ with
-  | T_int -> min_rank
   | T_weak_var -> min_rank
-  | T_bound_var { forall } -> (
+  (* TODO: remove this *)
+  | T_bound_var _ when Type.same type_ Env.int_type -> min_rank
+  | T_bound_var { forall; name = _ } -> (
       let ignore =
         List.exists (fun forall' -> Forall_id.equal forall forall') foralls
       in
@@ -120,12 +122,11 @@ and unify_desc env ~expected ~received =
       let env = with_received_forall env ~vars in
       unify env ~expected ~received:body
   (* simple *)
-  | T_int, T_int -> ()
   | ( T_arrow { param = expected_param; return = expected_return },
       T_arrow { param = received_param; return = received_return } ) ->
       unify env ~expected:received_param ~received:expected_param;
       unify env ~expected:expected_return ~received:received_return
-  | T_bound_var _, _ | _, T_bound_var _ | T_int, _ | _, T_int ->
+  | T_bound_var _, _ | _, T_bound_var _ ->
       raise env (Type_clash { expected; received })
   | T_link _, _ | _, T_link _ -> assert false
 

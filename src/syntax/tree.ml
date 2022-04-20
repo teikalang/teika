@@ -45,6 +45,8 @@ and term_desc =
   | S_struct of term option
   | S_field of { struct_ : term; field : term }
   | S_match of { value : term; pat : term; body : term }
+  (* TODO: likely this value should be called term*)
+  (* TODO: maybe the type_ can be called annot *)
   | S_annot of { value : term; type_ : term }
 (* TODO: term for importing and exporting? *)
 (* TODO: extension point + attributes aka ppx *)

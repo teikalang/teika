@@ -1,5 +1,5 @@
 (* TODO: maybe ident or name should carry location *)
-type t = { id : Uid.t; name : Name.t }
+type t = { id : Uid.t; name : Name.t } [@@deriving show]
 
 let make name =
   let id = Uid.next () in

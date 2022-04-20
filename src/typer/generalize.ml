@@ -8,7 +8,7 @@ let generalize vars body =
   let forall = Forall_id.next () in
   List.iter
     (fun weak_var ->
-      let bound_var = new_bound_var forall in
+      let bound_var = new_bound_var ~name:None forall in
       (* TODO: is link here okay?
               Also, why not just replace it by bound_var? *)
       link weak_var ~to_:bound_var)

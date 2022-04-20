@@ -28,7 +28,6 @@ let rec pp_type next_name vars fmt type_ =
   in
 
   match desc type_ with
-  | T_int -> fprintf "Int"
   | T_weak_var -> fprintf "_%s" (name type_)
   | T_bound_var _ -> fprintf "%s" (name type_)
   | T_forall { forall; body } ->
@@ -39,7 +38,7 @@ let rec pp_type next_name vars fmt type_ =
   | T_arrow { param; return } ->
       let parens =
         match desc param with
-        | T_int | T_weak_var | T_bound_var _ -> false
+        | T_weak_var | T_bound_var _ -> false
         | T_forall _ | T_arrow _ -> true
         | T_link _ -> assert false
       in

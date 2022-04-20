@@ -1,4 +1,4 @@
-type t
+type t [@@deriving show]
 
 val make : string -> t
 val equal : t -> t -> bool

@@ -111,7 +111,7 @@ let bind(lower) :=
   | (bound, params) = atom_juxtaposition; EQUAL;
     value = bind(lower); SEMICOLON;
     body = option(bind(lower));
-    { print_endline "b"; make_bind_lambda $loc ~bound ~params ~value ~body }
+    { make_bind_lambda $loc ~bound ~params ~value ~body }
 
 let struct_ :=
   | LEFT_BRACE; term = option(term); RIGHT_BRACE;

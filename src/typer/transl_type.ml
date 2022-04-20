@@ -21,14 +21,9 @@ let rec transl_type env term =
   | _ -> raise loc Unimplemented
 
 and transl_ident ~loc env ~name =
-  (* TODO: remove this *)
-  if name = "Int" then
-    let type_ = new_int () in
-    (make loc type_ Type_int, env)
-  else
-    let name = Name.make name in
-    let ident, type_ = Env.lookup loc name env in
-    (make loc type_ (Type_ident ident), env)
+  let name = Name.make name in
+  let ident, type_ = env |> Env.lookup loc name in
+  (make loc type_ (Type_ident ident), env)
 
 and transl_lambda ~loc env ~param ~body =
   match param.s_desc with
@@ -44,9 +39,11 @@ and transl_implicit_lambda ~loc env ~param ~body =
     match param with
     | S_ident name ->
         let name = Name.make name in
-        let type_ = new_bound_var forall in
+        (* TODO: name for variables *)
+        let type_ = new_bound_var ~name:None forall in
         (* TODO: shadowing? or duplicated name error? *)
-        let _ident, env = Env.enter loc name type_ env in
+        (* TODO: also this _ident, use it? *)
+        let _ident, env = env |> Env.enter loc name type_ in
         env
     | _ -> raise loc Unimplemented
   in

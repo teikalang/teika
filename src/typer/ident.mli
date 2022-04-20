@@ -1,4 +1,4 @@
-type t
+type t [@@deriving show]
 
 val make : Name.t -> t
 val name : t -> Name.t

@@ -117,6 +117,9 @@ let choose_id_hm_incr =
             choose_id_hm id incr |}
     ~type_:"Int -> Int"
 
+let number_types =
+  works ~name:"number_types" ~code:"x -> 1" ~type_:"{A} -> A -> Int"
+
 open Typer
 
 let equal_type =
@@ -147,7 +150,7 @@ let value_from_string ~name string =
 
 let test_equal_type ~name ~code ~type_ =
   let check () =
-    let env = Env.empty in
+    let env = Env.base in
     let code = value_from_string ~name code in
     let code, _code = type_expr env code in
 
@@ -160,7 +163,7 @@ let test_equal_type ~name ~code ~type_ =
 
 let test_unify_fails ~name ~code =
   let check () =
-    let env = Env.empty in
+    let env = Env.base in
     let code = value_from_string ~name code in
     let actual =
       try
@@ -190,6 +193,7 @@ let tests =
     choose_id_incr;
     choose_id_hm;
     choose_id_hm_incr;
+    number_types;
   ]
 
 let tests = ("tests", List.map test tests)
