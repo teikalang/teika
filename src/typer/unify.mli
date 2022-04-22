@@ -8,4 +8,4 @@ type error =
 
 exception Error of { loc : Location.t; error : error }
 
-val unify : loc:Location.t -> expected:type_ -> received:type_ -> unit
+val unify : loc:Location.t -> Env.t -> expected:type_ -> received:type_ -> unit

@@ -6,8 +6,14 @@ type t
 val base : t
 val int_ident : Ident.t
 val int_type : Type.t
+
+(* insertion *)
 val enter : Location.t -> Name.t -> Type.t -> t -> Ident.t * t
 val lookup : Location.t -> Name.t -> t -> Ident.t * Type.t
 
-(* TODO: weird API, used on generalization *)
-val types : t -> Type.t list
+(* rank *)
+val current_rank : t -> Rank.t
+val enter_rank : t -> t
+
+(* types *)
+val new_weak_var : t -> Type.t

@@ -1,19 +1,20 @@
 open Type
+open Env
 
 (* TODO: this function is terrible *)
 (* TODO: remove single forall *)
 (* TODO: this makes perfect copy(except link), optimization if avoid generating
    duplicated generics, where weaken on unify can be O(1) *)
-let rec instance ~forall foralls types weak_vars type_ =
+let rec instance env ~forall foralls types type_ =
   match List.find_opt (fun (key, _type') -> same key type_) !types with
   | Some (_key, type') -> type'
   | None ->
-      let type' = instance_desc ~forall foralls types weak_vars type_ in
+      let type' = instance_desc env ~forall foralls types type_ in
       types := (type_, type') :: !types;
       type'
 
-and instance_desc ~forall foralls types weak_vars type_ =
-  let instance type_ = instance ~forall foralls types weak_vars type_ in
+and instance_desc env ~forall foralls types type_ =
+  let instance type_ = instance env ~forall foralls types type_ in
   match desc type_ with
   | T_forall { forall; body } ->
       let forall' = Forall_id.next () in
@@ -21,12 +22,9 @@ and instance_desc ~forall foralls types weak_vars type_ =
 
       let body = instance body in
       new_forall forall' ~body
-  | T_weak_var -> (* eak not copied *) type_
-  | T_bound_var { forall = var_forall; name } -> (
-      if Forall_id.equal forall var_forall then (
-        let weak_var = new_weak_var () in
-        weak_vars := weak_var :: !weak_vars;
-        weak_var)
+  | T_var (Weak _) -> (* weak not copied *) type_
+  | T_var (Bound { forall = var_forall; name }) -> (
+      if Forall_id.equal forall var_forall then new_weak_var env
       else
         match
           List.find_opt
@@ -34,14 +32,13 @@ and instance_desc ~forall foralls types weak_vars type_ =
             !foralls
         with
         | Some (_key, forall') -> new_bound_var ~name forall'
-        | None -> (* TODO: isn't this breaking an invariant? *) type_)
+        | None ->
+            (* TODO: isn't this breaking an invariant? *)
+            type_)
   | T_arrow { param; return } ->
       let param = instance param in
       let return = instance return in
       new_arrow ~param ~return
   | _ -> assert false
 
-let instance ~forall body =
-  let weak_vars = ref [] in
-  let body = instance ~forall (ref []) (ref []) weak_vars body in
-  (body, !weak_vars)
+let instance env ~forall body = instance env ~forall (ref []) (ref []) body

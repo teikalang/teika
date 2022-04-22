@@ -122,26 +122,16 @@ let number_types =
 
 open Typer
 
-let equal_type =
+let equal_type env =
   Alcotest.testable pp_type (fun a b ->
       let open Unify in
       let loc = Location.none in
       (* TODO: only works because there is no weak var  *)
       try
-        unify ~loc ~expected:a ~received:b;
-        unify ~loc ~expected:b ~received:a;
+        unify ~loc env ~expected:a ~received:b;
+        unify ~loc env ~expected:b ~received:a;
         true
       with Unify.Error _ -> false)
-
-let type_fails =
-  Alcotest.testable pp_type (fun a b ->
-      let open Unify in
-      let loc = Location.none in
-      (* TODO: only works because there is no weak var  *)
-      try
-        unify ~loc ~expected:a ~received:b;
-        false
-      with Unify.Error _ -> true)
 
 let value_from_string ~name string =
   match value_from_string string with
@@ -157,7 +147,7 @@ let test_equal_type ~name ~code ~type_ =
     let type_ = value_from_string ~name type_ in
     let type_, _type = transl_type env type_ in
 
-    Alcotest.check equal_type name type_ code
+    Alcotest.check (equal_type env) name type_ code
   in
   Alcotest.test_case name `Quick check
 

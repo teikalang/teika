@@ -1,5 +1,6 @@
 open Syntax
 open Type
+open Env
 open Tree
 open Unify
 open Generalize
@@ -22,7 +23,12 @@ let make loc type_ desc = (type_, { expr_loc = loc; expr_desc = desc })
 (* TODO: likely type_expect? *)
 let rec type_expr env term =
   let { s_loc = loc; s_desc = term } = term in
-  let type_, term = type_desc ~loc env term in
+
+  let type_, term =
+    (* TODO: is this okay? To generalize on every expression *)
+    let env = Env.enter_rank env in
+    type_desc ~loc env term
+  in
   let type_ = generalize env type_ in
   (type_, term)
 
@@ -63,10 +69,10 @@ and type_apply env ~loc ~lambda ~arg =
 
   let arg_type, arg = type_expr env arg in
 
-  let return_type = new_weak_var () in
+  let return_type = new_weak_var env in
   let () =
     let expected = new_arrow ~param:arg_type ~return:return_type in
-    unify ~loc ~expected ~received:lambda_type
+    unify ~loc env ~expected ~received:lambda_type
   in
 
   make loc return_type (Expr_apply { lambda; arg })
@@ -87,7 +93,7 @@ and type_let env ~loc ~bound ~value ~body =
   (* typing: value first to prevent recursion *)
   let value_type, value = type_expr env value in
   let (bound_type, bound), env = type_pat env bound in
-  let () = unify ~loc ~expected:bound_type ~received:value_type in
+  let () = unify ~loc env ~expected:bound_type ~received:value_type in
 
   let body_type, body = type_expr env body in
   make loc body_type (Expr_bind { bound; value; body })
@@ -95,6 +101,6 @@ and type_let env ~loc ~bound ~value ~body =
 and type_annot env ~loc ~value ~type_ =
   let value_type, value = type_expr env value in
   let type_type, type_ = transl_type env type_ in
-  let () = unify ~loc ~expected:type_type ~received:value_type in
+  let () = unify ~loc env ~expected:type_type ~received:value_type in
 
   make loc type_type (Expr_annot { value; type_ })

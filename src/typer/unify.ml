@@ -17,119 +17,120 @@ let () =
     | Error { loc = _; error } -> Some (Format.asprintf "%a\n%!" pp_error error)
     | _ -> None)
 
-(* TODO: this is unify env *)
-type env = {
+(* TODO: this likely should be removed *)
+type ctx = {
   loc : Location.t;
-  rank : int;
-  bound_forall : (Forall_id.t * int) list;
-  weak_vars : (type_ * int) list;
+  env : Env.t;
+  bound_forall : (Forall_id.t * Rank.t) list;
 }
 
-let raise env error = raise (Error { loc = env.loc; error })
+let raise ctx error = raise (Error { loc = ctx.loc; error })
+let instance ctx ~forall type_ = instance ctx.env ~forall type_
 
-let with_expected_forall env ~forall =
-  let { loc; rank; bound_forall; weak_vars } = env in
-  let rank = rank + 1 in
-  (* no bound var at 0 *)
-  (* TODO: is this okay? *)
+let with_expected_forall ctx ~forall =
+  let { loc; env; bound_forall } = ctx in
+  (* no bound var at initial env rank *)
+  let env = Env.enter_rank env in
+  let rank = Env.current_rank env in
   let bound_forall = (forall, rank) :: bound_forall in
-  { loc; rank; bound_forall; weak_vars }
+  { loc; env; bound_forall }
 
-let with_received_forall env ~vars =
-  let { loc; rank; bound_forall; weak_vars } = env in
-  let vars = List.map (fun var -> (var, rank)) vars in
-  let weak_vars = vars @ weak_vars in
-  { loc; rank; bound_forall; weak_vars }
+let forall_rank ctx ~forall = List.assoc_opt forall ctx.bound_forall
 
-let make_env ~loc = { loc; rank = 0; bound_forall = []; weak_vars = [] }
-
-let forall_rank env ~forall =
-  match List.assoc_opt forall env.bound_forall with
+let forall_rank_exn ctx ~forall =
+  match forall_rank ctx ~forall with
   | Some rank -> rank
   | None -> failwith "found forall but not introduced"
 
-let weak_var_rank env ~var =
-  match List.assoc_opt var env.weak_vars with
-  | Some rank -> rank
-  (* TODO: 0 is okay, because expected forall is eliminated first
-     so 0 is before any *)
-  | None -> 0
+let make_env env ~loc = { loc; env; bound_forall = [] }
 
 let occur_check env ~var type_ =
   if in_type ~var type_ then raise env (Occur_check { var; type_ })
 
-let rec min_bound_forall env foralls min_rank type_ =
-  let min_bound_forall foralls min_rank type_ =
-    min_bound_forall env foralls min_rank type_
-  in
+let rec min_rank ctx rank foralls type_ =
+  let min_rank rank foralls type_ = min_rank ctx rank foralls type_ in
+  let min a b = if Rank.(a > b) then b else a in
   match desc type_ with
-  | T_weak_var -> min_rank
+  | T_var (Weak var_rank) -> min rank var_rank
   (* TODO: remove this *)
-  | T_bound_var _ when Type.same type_ Env.int_type -> min_rank
-  | T_bound_var { forall; name = _ } -> (
+  | T_var (Bound _) when Type.same type_ Env.int_type -> rank
+  | T_var (Bound { forall; name = _ }) ->
       let ignore =
         List.exists (fun forall' -> Forall_id.equal forall forall') foralls
       in
-      if ignore then min_rank
+      if ignore then rank
       else
-        let forall_rank = forall_rank env ~forall in
-        match min_rank with
-        | Some min_rank -> Some (min min_rank forall_rank)
-        | None -> Some forall_rank)
+        let var_rank = forall_rank_exn ctx ~forall in
+        min var_rank rank
   | T_forall { forall; body } ->
       let foralls = forall :: foralls in
-      min_bound_forall foralls min_rank body
+      min_rank rank foralls body
   | T_arrow { param; return } ->
-      let min_rank = min_bound_forall foralls min_rank param in
-      min_bound_forall foralls min_rank return
+      let rank = min_rank rank foralls param in
+      min_rank rank foralls return
   | T_link _ -> assert false
 
-let min_bound_forall env type_ = min_bound_forall env [] None type_
+let min_rank ctx rank type_ = min_rank ctx rank [] type_
 
-let escape_check env ~var type_ =
-  let type_rank = min_bound_forall env type_ in
-  let var_rank = weak_var_rank env ~var in
+let rec update_rank ctx ~var ~rank type_ =
+  let update_rank type_ = update_rank ctx ~var ~rank type_ in
+  match desc type_ with
+  | T_var (Weak _) -> lower ~var:type_ rank
+  | T_var (Bound { forall; name = _ }) -> (
+      match forall_rank ctx ~forall with
+      (* None implies this var is not behind *)
+      | None -> ()
+      | Some var_rank ->
+          (* received is introduced after rank is incremented so > *)
+          if Rank.(rank >= var_rank) then ()
+          else raise ctx (Escape_check { var; type_ }))
+  | T_forall { forall = _; body } -> update_rank body
+  | T_arrow { param; return } ->
+      update_rank param;
+      update_rank return
+  | T_link _ -> assert false
 
-  match type_rank with
-  | Some type_rank ->
-      (* received is introduced after rank is incremented so > instead of >=*)
-      if var_rank >= type_rank then ()
-      else raise env (Escape_check { var; type_ })
-  | None -> ()
+(* also escape check *)
+let update_rank ctx ~var type_ =
+  let var_rank =
+    (* TODO: invariant var is weak var *)
+    match desc var with T_var (Weak rank) -> rank | _ -> assert false
+  in
+  let rank = min_rank ctx var_rank type_ in
+  update_rank ctx ~var ~rank type_
 
-let unify_var env ~var type_ =
-  (* TODO: invariant var is var *)
-  occur_check env ~var type_;
-  escape_check env ~var type_;
+let unify_var ctx ~var type_ =
+  occur_check ctx ~var type_;
+  update_rank ctx ~var type_;
+
   link ~to_:type_ var
 
-let rec unify env ~expected ~received =
+let rec unify ctx ~expected ~received =
   (* 1: same  *)
-  if same expected received then () else unify_desc env ~expected ~received
+  if same expected received then () else unify_desc ctx ~expected ~received
 
-and unify_desc env ~expected ~received =
+and unify_desc ctx ~expected ~received =
   match (desc expected, desc received) with
   (* 2: weak vars *)
-  | T_weak_var, _ -> unify_var env ~var:expected received
-  | _, T_weak_var -> unify_var env ~var:received expected
+  | T_var (Weak _), _ -> unify_var ctx ~var:expected received
+  | _, T_var (Weak _) -> unify_var ctx ~var:received expected
   (* 3: expected forall *)
   | T_forall { forall; body }, _ ->
-      let env = with_expected_forall env ~forall in
-      unify env ~expected:body ~received
+      let ctx = with_expected_forall ctx ~forall in
+      unify ctx ~expected:body ~received
   (* 4: received forall *)
   | _, T_forall { forall; body } ->
-      let body, vars = instance ~forall body in
-      let env = with_received_forall env ~vars in
-      unify env ~expected ~received:body
+      let body = instance ctx ~forall body in
+      unify ctx ~expected ~received:body
   (* simple *)
   | ( T_arrow { param = expected_param; return = expected_return },
       T_arrow { param = received_param; return = received_return } ) ->
-      unify env ~expected:received_param ~received:expected_param;
-      unify env ~expected:expected_return ~received:received_return
-  | T_bound_var _, _ | _, T_bound_var _ ->
-      raise env (Type_clash { expected; received })
+      unify ctx ~expected:received_param ~received:expected_param;
+      unify ctx ~expected:expected_return ~received:received_return
+  | T_var (Bound _), _ | _, T_var (Bound _) ->
+      raise ctx (Type_clash { expected; received })
   | T_link _, _ | _, T_link _ -> assert false
 
-let unify ~loc ~expected ~received =
-  let env = make_env ~loc in
-  unify env ~expected ~received
+let unify ~loc env ~expected ~received =
+  let ctx = make_env env ~loc in
+  unify ctx ~expected ~received
