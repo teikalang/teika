@@ -1,53 +1,86 @@
+open Utils
 open Repr
 open Helpers
+open Format
 
 (* TODO: is this function the best that I can do? *)
 
 let rec to_string acc int =
   let diff = int mod 26 in
-  let char = Char.chr (97 + diff) in
+  let char = Char.chr (65 + diff) in
   let acc = char :: acc in
   let next = int / 26 in
   if next > 0 then to_string acc (next - 1) else String.of_seq (List.to_seq acc)
 
 let to_string int = to_string [] int
 
-let rec pp_type next_name vars fmt type_ =
-  let pp_type fmt type_ = pp_type next_name vars fmt type_ in
-  let fprintf s = Format.fprintf fmt s in
-  let name var =
-    match List.find_opt (fun (key, _name) -> same key var) !vars with
-    | Some (_key, name) -> name
-    | None ->
-        let id = !next_name in
-        let name = to_string id in
+(* TODO: print link optionally *)
+(* TODO: print rank optionally *)
+type ctx = {
+  debug : bool;
+  mutable id : int;
+  mutable name : int;
+  mutable types : (type_, string) Mem_map.t;
+}
 
-        next_name := id + 1;
-        vars := (var, name) :: !vars;
-        name
+let new_ctx ~debug = { debug; id = 0; name = 0; types = Mem_map.empty }
+
+let new_name ctx =
+  let name = ctx.name in
+  ctx.name <- name + 1;
+  to_string name
+
+let register_name ctx type_ =
+  let id = ctx.id in
+  ctx.id <- id + 1;
+
+  let name =
+    match desc type_ with
+    | T_forall _ | T_arrow _ -> sprintf "[%d]" id
+    | T_var var ->
+        (* TODO: use bound name *)
+        let prefix = match var with Weak _ -> "_" | Bound _ -> "" in
+        let suffix = if ctx.debug then sprintf "[%d]" id else "" in
+        prefix ^ new_name ctx ^ suffix
   in
+  ctx.types <- Mem_map.add type_ name ctx.types
 
+let rec pp_type ctx fmt type_ =
+  match Mem_map.find type_ ctx.types with
+  | Some name -> fprintf fmt "%s" name
+  | None ->
+      register_name ctx type_;
+      pp_type_desc ctx fmt type_
+
+and pp_type_desc ctx fmt type_ =
+  let pp_type fmt type_ = pp_type ctx fmt type_ in
   match desc type_ with
-  | T_var (Weak _) -> fprintf "_%s" (name type_)
-  | T_var (Bound _) -> fprintf "%s" (name type_)
+  (* just print name *)
+  | T_var _ -> pp_type fmt type_
   | T_forall { forall; body } ->
       let vars = forall_vars ~forall body in
-      let vars = List.rev vars in
-      let vars = List.map name vars |> String.concat " " in
-      fprintf "forall %s. %a" vars pp_type body
+      let vars =
+        (* not rev_map because order matters here *)
+        List.rev vars
+        |> List.map (fun var -> asprintf "{%a}" pp_type var)
+        |> String.concat " -> "
+      in
+      fprintf fmt "%s -> %a" vars pp_type body
   | T_arrow { param; return } ->
       let parens =
         match desc param with
         | T_var _ -> false
         | T_forall _ | T_arrow _ -> true
       in
-      if parens then fprintf "(%a) -> %a" pp_type param pp_type return
-      else fprintf "%a -> %a" pp_type param pp_type return
+      if parens then fprintf fmt "(%a) -> %a" pp_type param pp_type return
+      else fprintf fmt "%a -> %a" pp_type param pp_type return
 
-let with_pp_type f =
-  let next_name = ref 0 in
-  let vars = ref [] in
-  let pp_type = pp_type next_name vars in
+let with_pp_type ?(debug = false) f =
+  let ctx = new_ctx ~debug in
+  let pp_type fmt type_ = pp_type ctx fmt type_ in
   f pp_type
 
-let pp_type fmt type_ = pp_type (ref 0) (ref []) fmt type_
+let pp_type fmt type_ = with_pp_type (fun pp_type -> pp_type fmt type_)
+
+let pp_type_debug fmt type_ =
+  with_pp_type ~debug:true (fun pp_type -> pp_type fmt type_)
