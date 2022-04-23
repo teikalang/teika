@@ -50,7 +50,7 @@ let rec min_rank ctx rank foralls type_ =
   let min_rank rank foralls type_ = min_rank ctx rank foralls type_ in
   let min a b = if Rank.(a > b) then b else a in
   match desc type_ with
-  | T_var (Weak var_rank) -> min rank var_rank
+  | T_var (Weak { rank = var_rank; link = _ }) -> min rank var_rank
   (* TODO: remove this *)
   | T_var (Bound _) when Type.same type_ Env.int_type -> rank
   | T_var (Bound { forall; name = _ }) ->
@@ -91,7 +91,9 @@ let rec update_rank ctx ~var ~rank type_ =
 let update_rank ctx ~var type_ =
   let var_rank =
     (* TODO: invariant var is weak var *)
-    match desc var with T_var (Weak rank) -> rank | _ -> assert false
+    match desc var with
+    | T_var (Weak { rank; link = _ }) -> rank
+    | _ -> assert false
   in
   let rank = min_rank ctx var_rank type_ in
   update_rank ctx ~var ~rank type_

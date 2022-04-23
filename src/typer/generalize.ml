@@ -7,7 +7,7 @@ let free_vars_in_env env type_ =
   List.filter
     (fun var ->
       match desc var with
-      | T_var (Weak var_rank) ->
+      | T_var (Weak { rank = var_rank; link = _ }) ->
           (* TODO: check all rank comparison *)
           Rank.(var_rank > env_rank)
       | _ -> assert false)

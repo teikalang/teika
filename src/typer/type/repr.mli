@@ -5,34 +5,29 @@ module Forall_id : Uid.S
 type type_ [@@deriving show]
 type t = type_ [@@deriving show]
 
-type desc =
+type desc = private
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
 [@@deriving show]
 
-and var =
-  | Weak of Rank.t
+and var = private
+  | Weak of { rank : Rank.t; mutable link : link }
   (* TODO: should we have this name here? It's duplicated from Tree.t *)
   (* TODO: check name across codebase *)
   | Bound of { forall : Forall_id.t; name : Name.t option }
+
+and link
 
 val same : type_ -> type_ -> bool
 (** [same a b] returns true if both types reference the same type
     it is the only comparison that should be done on types *)
 
 val desc : type_ -> desc
+(** [desc type_] the type with all of it's link resolved*)
 
 val link : to_:type_ -> type_ -> unit
 (** [link ~to var] links a var such that `same to var = true` *)
-
-val new_type : desc -> type_
-(** [new_type desc] create a new type *)
-
-(* TODO: maybe ensure this with an exception? *)
-val with_type : (type_ -> desc) -> type_
-(** [with_type f] make a temporary type, to be used on cycles,
-    not function except [same] can be called inside of f on the type_ *)
 
 (* helpers *)
 (* TODO: are those helpers useful? *)
