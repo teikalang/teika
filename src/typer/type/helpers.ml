@@ -1,4 +1,4 @@
-open Type
+open Repr
 
 let rec in_type ~var type_ =
   if same var type_ then true else in_type_desc ~var type_
@@ -41,14 +41,11 @@ let forall_vars ~forall type_ =
       | _ -> assert false)
     (free_vars type_)
 
-let free_vars_in_env env type_ =
-  let env_rank = Env.current_rank env in
+let weak_vars type_ =
   List.filter
     (fun var ->
       match desc var with
-      | T_var (Weak var_rank) ->
-          (* TODO: check all rank comparison *)
-          Rank.(var_rank > env_rank)
+      | T_var (Weak _) -> true
       | T_var (Bound _) -> false
       | _ -> assert false)
     (free_vars type_)

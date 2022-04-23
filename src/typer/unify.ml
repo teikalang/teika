@@ -1,5 +1,4 @@
 open Type
-open Type_utils
 open Instance
 
 type error =
@@ -45,7 +44,7 @@ let forall_rank_exn ctx ~forall =
 let make_env env ~loc = { loc; env; bound_forall = [] }
 
 let occur_check env ~var type_ =
-  if in_type ~var type_ then raise env (Occur_check { var; type_ })
+  if Helpers.in_type ~var type_ then raise env (Occur_check { var; type_ })
 
 let rec min_rank ctx rank foralls type_ =
   let min_rank rank foralls type_ = min_rank ctx rank foralls type_ in

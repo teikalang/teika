@@ -1,5 +1,5 @@
-open Type
-open Type_utils
+open Repr
+open Helpers
 
 (* TODO: is this function the best that I can do? *)
 

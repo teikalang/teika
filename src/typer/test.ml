@@ -123,7 +123,7 @@ let number_types =
 open Typer
 
 let equal_type env =
-  Alcotest.testable pp_type (fun a b ->
+  Alcotest.testable Type.pp_type (fun a b ->
       let open Unify in
       let loc = Location.none in
       (* TODO: only works because there is no weak var  *)
