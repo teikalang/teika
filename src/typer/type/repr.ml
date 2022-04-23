@@ -51,6 +51,13 @@ let new_type desc =
   let desc = of_desc desc in
   { desc }
 
+let with_type f =
+  let temp = T_var (Weak Rank.initial) in
+  let type_ = new_type temp in
+  let desc = of_desc (f type_) in
+  type_.desc <- desc;
+  type_
+
 let new_forall forall ~body = new_type (T_forall { forall; body })
 let new_var var = new_type (T_var var)
 let new_weak_var rank = new_var (Weak rank)

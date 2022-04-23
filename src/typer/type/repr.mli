@@ -29,7 +29,13 @@ val link : to_:type_ -> type_ -> unit
 val new_type : desc -> type_
 (** [new_type desc] create a new type *)
 
+(* TODO: maybe ensure this with an exception? *)
+val with_type : (type_ -> desc) -> type_
+(** [with_type f] make a temporary type, to be used on cycles,
+    not function except [same] can be called inside of f on the type_ *)
+
 (* helpers *)
+(* TODO: are those helpers useful? *)
 val new_forall : Forall_id.t -> body:type_ -> type_
 val new_weak_var : Rank.t -> type_
 val new_bound_var : name:Name.t option -> Forall_id.t -> type_
