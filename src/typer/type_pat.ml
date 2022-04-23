@@ -1,3 +1,4 @@
+open Utils
 open Syntax
 open Tree
 open Env

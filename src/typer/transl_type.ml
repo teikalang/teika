@@ -1,3 +1,4 @@
+open Utils
 open Syntax
 open Type
 open Tree

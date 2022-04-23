@@ -1,3 +1,5 @@
+open Utils
+
 type t [@@deriving show]
 
 val make : Name.t -> t

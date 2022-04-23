@@ -1,3 +1,5 @@
+open Utils
+
 (* TODO: maybe ident or name should carry location *)
 type t = { id : Uid.t; name : Name.t } [@@deriving show]
 

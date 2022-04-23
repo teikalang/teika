@@ -1,3 +1,4 @@
+open Utils
 open Type
 
 type error = Unknown_name of { name : Name.t }

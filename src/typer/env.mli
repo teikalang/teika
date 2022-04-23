@@ -1,3 +1,5 @@
+open Utils
+
 type error = private Unknown_name of { name : Name.t }
 type exn += private Error of { loc : Location.t; error : error }
 type t

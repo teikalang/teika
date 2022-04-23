@@ -1,10 +1,5 @@
-module Forall_id : sig
-  type t
-
-  val next : unit -> t
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-end
+open Utils
+module Forall_id : Uid.S
 
 type type_ [@@deriving show]
 type t = type_ [@@deriving show]
