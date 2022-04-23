@@ -14,7 +14,7 @@ val enter : Location.t -> Name.t -> Type.t -> t -> Ident.t * t
 val lookup : Location.t -> Name.t -> t -> Ident.t * Type.t
 
 (* rank *)
-val current_rank : t -> Rank.t
+val current_rank : t -> Type.Rank.t
 val enter_rank : t -> t
 
 (* types *)

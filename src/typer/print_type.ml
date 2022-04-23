@@ -40,11 +40,9 @@ let rec pp_type next_name vars fmt type_ =
         match desc param with
         | T_var _ -> false
         | T_forall _ | T_arrow _ -> true
-        | T_link _ -> assert false
       in
       if parens then fprintf "(%a) -> %a" pp_type param pp_type return
       else fprintf "%a -> %a" pp_type param pp_type return
-  | T_link _ -> assert false
 
 let with_pp_type f =
   let next_name = ref 0 in

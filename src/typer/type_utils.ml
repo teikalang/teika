@@ -9,7 +9,6 @@ and in_type_desc ~var type_ =
   | T_var _ -> false
   | T_forall { forall = _; body } -> in_type body
   | T_arrow { param; return } -> in_type param || in_type return
-  | T_link _ -> assert false
 
 let in_vars ~var vars = List.exists (fun var' -> same var var') vars
 
@@ -29,7 +28,6 @@ let rec free_vars foralls vars type_ =
   | T_arrow { param; return } ->
       let vars = free_vars foralls vars param in
       free_vars foralls vars return
-  | T_link _ -> assert false
 
 let free_vars type_ = free_vars [] [] type_
 

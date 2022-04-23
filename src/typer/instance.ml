@@ -39,6 +39,5 @@ and instance_desc env ~forall foralls types type_ =
       let param = instance param in
       let return = instance return in
       new_arrow ~param ~return
-  | _ -> assert false
 
 let instance env ~forall body = instance env ~forall (ref []) (ref []) body

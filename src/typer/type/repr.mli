@@ -1,6 +1,7 @@
 open Utils
 module Forall_id : Uid.S
 
+(* WARNING: only physical identities of type_, is safe to use *)
 type type_ [@@deriving show]
 type t = type_ [@@deriving show]
 
@@ -8,7 +9,6 @@ type desc = private
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
-  | T_link of type_
 [@@deriving show]
 
 and var = private

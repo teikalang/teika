@@ -68,7 +68,6 @@ let rec min_rank ctx rank foralls type_ =
   | T_arrow { param; return } ->
       let rank = min_rank rank foralls param in
       min_rank rank foralls return
-  | T_link _ -> assert false
 
 let min_rank ctx rank type_ = min_rank ctx rank [] type_
 
@@ -88,7 +87,6 @@ let rec update_rank ctx ~var ~rank type_ =
   | T_arrow { param; return } ->
       update_rank param;
       update_rank return
-  | T_link _ -> assert false
 
 (* also escape check *)
 let update_rank ctx ~var type_ =
@@ -129,7 +127,6 @@ and unify_desc ctx ~expected ~received =
       unify ctx ~expected:expected_return ~received:received_return
   | T_var (Bound _), _ | _, T_var (Bound _) ->
       raise ctx (Type_clash { expected; received })
-  | T_link _, _ | _, T_link _ -> assert false
 
 let unify ~loc env ~expected ~received =
   let ctx = make_env env ~loc in
