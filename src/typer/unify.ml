@@ -1,6 +1,8 @@
 open Type
 open Instance
 
+let pp_type_ = pp_type_debug
+
 type error =
   | Type_clash of { expected : type_; received : type_ }
   | Occur_check of { var : type_; type_ : type_ }

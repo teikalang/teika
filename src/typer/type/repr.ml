@@ -6,7 +6,6 @@ type type_ =
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
-[@@deriving show]
 
 and var =
   (* when link points to type_ itself, then this is not linked *)
@@ -15,17 +14,16 @@ and var =
   (* TODO: check name across codebase *)
   | Bound of { forall : Forall_id.t; name : Name.t option }
 
-type t = type_ [@@deriving show]
+type t = type_
 
 (* externally not a link *)
 type desc = type_ =
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
-[@@deriving show]
 
 (* externally opaque *)
-type link = type_ [@@deriving show]
+type link = type_
 
 let rec repr type_ =
   (* TODO: path compression *)

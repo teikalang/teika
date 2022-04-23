@@ -2,14 +2,13 @@ open Utils
 module Forall_id : Uid.S
 
 (* WARNING: only physical identity safe to use is on type_ *)
-type type_ [@@deriving show]
-type t = type_ [@@deriving show]
+type type_
+type t = type_
 
 type desc = private
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
-[@@deriving show]
 
 and var = private
   | Weak of { rank : Rank.t; mutable link : link }
