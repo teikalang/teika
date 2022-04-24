@@ -17,6 +17,7 @@ let rec tokenizer buf =
   | identifier -> IDENT (lexeme buf)
   | number -> NUMBER (lexeme buf)
   | "->" -> ARROW
+  | "=>" -> FAT_ARROW
   | "=" -> EQUAL
   | ":" -> COLON
   | ";" -> SEMICOLON

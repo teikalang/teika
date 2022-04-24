@@ -37,6 +37,7 @@ let make_bind_lambda loc ~bound ~params ~value ~body =
 %token <string> IDENT
 %token <string> NUMBER
 %token ARROW
+%token FAT_ARROW
 %token EQUAL
 %token COLON
 %token SEMICOLON
@@ -64,7 +65,7 @@ let term_opt :=
 let term ==
   | term_lambda
   | annot
-let term_lambda == lambda(term_bind)
+let term_lambda == arrows(term_bind)
 let term_bind == bind(term_match)
 let term_match := match_(term_match, apply)
 
@@ -87,9 +88,11 @@ let number :=
   | number = NUMBER;
     { make $loc (S_number number) }
 
-let lambda(lower) :=
+let arrows(lower) :=
   | lower
-  | param = atom; ARROW; body = lambda(lower);
+  | param = atom; ARROW; body = arrows(lower);
+    { make $loc (S_arrow { param; body }) }
+  | param = atom; FAT_ARROW; body = arrows(lower);
     { make $loc (S_lambda { param; body }) }
 
 let atom_juxtaposition :=
@@ -127,13 +130,14 @@ let match_(self, lower) ==
   (* TODO: same syntax as lambda *)
   (* TODO: apply can be more general, maybe allow binds without match *)
   (* TODO: this body is not looking good *)
-  | value = self; PIPE; pat = apply; ARROW; body = bind(lambda(lower));
+  (* TODO: this is a lambda *)
+  | value = self; PIPE; pat = apply; FAT_ARROW; body = bind(arrows(lower));
     { make $loc (S_match { value; pat; body }) }
 
 let annot :=
   (* TODO: value can be more general *)
   (* TODO: type_ can be more general *)
-  | value = atom; COLON; type_ = lambda(atom);
+  | value = atom; COLON; type_ = arrows(atom);
     { make $loc (S_annot { value; type_ }) }
   
 let parens ==

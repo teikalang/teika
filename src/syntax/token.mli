@@ -5,6 +5,8 @@ type t =
   | NUMBER of string
   (* -> *)
   | ARROW
+  (* => *)
+  | FAT_ARROW
   (* = *)
   | EQUAL
   (* : *)

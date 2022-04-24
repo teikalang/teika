@@ -18,7 +18,7 @@ let rec transl_type env term =
   let { s_desc = term; s_loc = loc } = term in
   match term with
   | S_ident name -> transl_ident ~loc env ~name
-  | S_lambda { param; body } -> transl_lambda ~loc env ~param ~body
+  | S_arrow { param; body } -> transl_arrow ~loc env ~param ~body
   | _ -> raise loc Unimplemented
 
 and transl_ident ~loc env ~name =
@@ -26,13 +26,13 @@ and transl_ident ~loc env ~name =
   let ident, type_ = env |> Env.lookup loc name in
   (make loc type_ (Type_ident ident), env)
 
-and transl_lambda ~loc env ~param ~body =
+and transl_arrow ~loc env ~param ~body =
   match param.s_desc with
   (* TODO: what if it's None? *)
-  | S_struct (Some param) -> transl_implicit_lambda ~loc env ~param ~body
-  | _ -> transl_explicit_lambda ~loc env ~param ~body
+  | S_struct (Some param) -> transl_implicit_arrow ~loc env ~param ~body
+  | _ -> transl_explicit_arrow ~loc env ~param ~body
 
-and transl_implicit_lambda ~loc env ~param ~body =
+and transl_implicit_arrow ~loc env ~param ~body =
   let open Type in
   let forall = Forall_id.next () in
   let env =
@@ -52,7 +52,7 @@ and transl_implicit_lambda ~loc env ~param ~body =
   let type_ = new_forall forall ~body:body_type in
   (make loc type_ (Type_implicit_lambda { body }), env)
 
-and transl_explicit_lambda ~loc env ~param ~body =
+and transl_explicit_arrow ~loc env ~param ~body =
   let (param_type, param), env = transl_type env param in
   let (body_type, body), env = transl_type env body in
   let type_ = new_arrow ~param:param_type ~return:body_type in

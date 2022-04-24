@@ -16,6 +16,7 @@ module Utils = struct
   and term_desc = Syntax.term_desc =
     | S_ident of identifier
     | S_number of number
+    | S_arrow of { param : term; body : term }
     | S_lambda of { param : term; body : term }
     | S_apply of { lambda : term; arg : term }
     | S_bind of { bound : term; value : term option; body : term option }
@@ -29,6 +30,7 @@ end
 let make desc = { s_loc = Location.none; s_desc = desc }
 let var name = make (S_ident name)
 let number number = make (S_number number)
+let ( @-> ) param body = make (S_arrow { param; body })
 let lam param body = make (S_lambda { param; body })
 let app lambda arg = make (S_apply { lambda; arg })
 let bind bound value body = make (S_bind { bound; value; body })
@@ -40,7 +42,8 @@ let annot value type_ = make (S_annot { value; type_ })
 module Simple = struct
   let variable = ("variable", "x", var "x")
   let number = ("number", "123", number "123")
-  let lambda = ("lambda", "x -> x", lam (var "x") (var "x"))
+  let arrow = ("arrow", "Int -> Int", var "Int" @-> var "Int")
+  let lambda = ("lambda", "x => x", lam (var "x") (var "x"))
   let apply = ("apply", "f x", app (var "f") (var "x"))
 
   (* TODO: semicolon *)
@@ -65,13 +68,14 @@ module Simple = struct
   let structure_empty = ("structure_empty", "{}", struct_ None)
   let structure_var = ("structure_var", "{ x }", struct_ (Some (var "x")))
   let field = ("field", "x.y", field (var "x") (var "y"))
-  let match_ = ("match", "x | y -> z", match_ (var "x") (var "y") (var "z"))
+  let match_ = ("match", "x | y => z", match_ (var "x") (var "y") (var "z"))
   let annotation = ("annotation", "(x: Int)", annot (var "x") (var "Int"))
 
   let tests =
     [
       variable;
       number;
+      arrow;
       lambda;
       apply;
       binding_no_value_no_body;
@@ -87,9 +91,14 @@ module Simple = struct
 end
 
 module Parens = struct
+  let arrow_binding =
+    ( "arrow_binding",
+      "x -> y = x; y",
+      var "x" @-> bind (var "y") (Some (var "x")) (Some (var "y")) )
+
   let lambda_binding =
     ( "lambda_binding",
-      "x -> y = x; y",
+      "x => y = x; y",
       lam (var "x") (bind (var "y") (Some (var "x")) (Some (var "y"))) )
 
   let multiple_apply =
@@ -112,7 +121,7 @@ module Parens = struct
 
   let multiple_match =
     ( "multiple_match",
-      "x | a -> y | b -> z",
+      "x | a => y | b => z",
       match_ (match_ (var "x") (var "a") (var "y")) (var "b") (var "z") )
 
   let annot_on_structure =
@@ -122,22 +131,28 @@ module Parens = struct
 
   let match_arrow_body =
     ( "match_arrow",
-      "x | a -> b -> a",
+      "x | a => b -> a",
+      match_ (var "x") (var "a") (var "b" @-> var "a") )
+
+  let match_lambda_body =
+    ( "match_lambda",
+      "x | a => b => a",
       match_ (var "x") (var "a") (lam (var "b") (var "a")) )
 
   let match_bindbody =
     ( "match_bindbody",
-      "x | a -> b = a; b",
+      "x | a => b = a; b",
       match_ (var "x") (var "a")
         (bind (var "b") (Some (var "a")) (Some (var "b"))) )
 
   let annot_on_binding =
     ( "annot_on_binding",
       "x: a -> a = y;",
-      bind (annot (var "x") (lam (var "a") (var "a"))) (Some (var "y")) None )
+      bind (annot (var "x") (var "a" @-> var "a")) (Some (var "y")) None )
 
   let tests =
     [
+      arrow_binding;
       lambda_binding;
       multiple_apply;
       multiple_field;
@@ -146,6 +161,7 @@ module Parens = struct
       multiple_match;
       annot_on_structure;
       match_arrow_body;
+      match_lambda_body;
       match_bindbody;
       annot_on_binding;
     ]

@@ -37,7 +37,8 @@ Cons:
 Syntax =
   | Identifier // variable
   | Number // number
-  | Syntax -> Syntax // lambda
+  | Syntax -> Syntax // arrow
+  | Syntax => Syntax // lambda
   | Syntax Syntax // apply
   | Syntax = Syntax;
   | Syntax = Syntax; Syntax // binding
@@ -77,7 +78,3 @@ Packet {A} = {
   data: A;
 };
 ```
-
-## Single Parameter Match
-
-<!-- TODO: TLDR f = | x -> y -->

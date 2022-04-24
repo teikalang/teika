@@ -39,6 +39,7 @@ type term = { s_loc : Location.t; s_desc : term_desc }
 and term_desc =
   | S_ident of identifier
   | S_number of number
+  | S_arrow of { param : term; body : term }
   | S_lambda of { param : term; body : term }
   | S_apply of { lambda : term; arg : term }
   | S_bind of { bound : term; value : term option; body : term option }
