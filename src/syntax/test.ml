@@ -31,7 +31,7 @@ let make desc = { s_loc = Location.none; s_desc = desc }
 let var name = make (S_ident name)
 let number number = make (S_number number)
 let ( @-> ) param body = make (S_arrow { param; body })
-let lam param body = make (S_lambda { param; body })
+let ( @=> ) param body = make (S_lambda { param; body })
 let app lambda arg = make (S_apply { lambda; arg })
 let bind bound value body = make (S_bind { bound; value; body })
 let struct_ content = make (S_struct content)
@@ -43,7 +43,7 @@ module Simple = struct
   let variable = ("variable", "x", var "x")
   let number = ("number", "123", number "123")
   let arrow = ("arrow", "Int -> Int", var "Int" @-> var "Int")
-  let lambda = ("lambda", "x => x", lam (var "x") (var "x"))
+  let lambda = ("lambda", "x => x", var "x" @=> var "x")
   let apply = ("apply", "f x", app (var "f") (var "x"))
 
   (* TODO: semicolon *)
@@ -99,7 +99,17 @@ module Parens = struct
   let lambda_binding =
     ( "lambda_binding",
       "x => y = x; y",
-      lam (var "x") (bind (var "y") (Some (var "x")) (Some (var "y"))) )
+      var "x" @=> bind (var "y") (Some (var "x")) (Some (var "y")) )
+
+  let binding_arrow =
+    ( "binding_arrow",
+      "y = x -> x; y",
+      bind (var "y") (Some (var "x" @-> var "x")) (Some (var "y")) )
+
+  let binding_lambda =
+    ( "binding_lambda",
+      "y = x => x; y",
+      bind (var "y") (Some (var "x" @=> var "x")) (Some (var "y")) )
 
   let multiple_apply =
     ("multiple_apply", "f a b", app (app (var "f") (var "a")) (var "b"))
@@ -137,7 +147,7 @@ module Parens = struct
   let match_lambda_body =
     ( "match_lambda",
       "x | a => b => a",
-      match_ (var "x") (var "a") (lam (var "b") (var "a")) )
+      match_ (var "x") (var "a") (var "b" @=> var "a") )
 
   let match_bindbody =
     ( "match_bindbody",
@@ -154,6 +164,8 @@ module Parens = struct
     [
       arrow_binding;
       lambda_binding;
+      binding_arrow;
+      binding_lambda;
       multiple_apply;
       multiple_field;
       multiple_binding;
@@ -171,7 +183,7 @@ module Sugar = struct
   let binding_lambda =
     ( "binding_lambda",
       "f a b = x;",
-      bind (var "f") (Some (lam (var "a") (lam (var "b") (var "x")))) None )
+      bind (var "f") (Some (var "a" @=> var "b" @=> var "x")) None )
 
   let tests = [ binding_lambda ]
 end

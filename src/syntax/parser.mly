@@ -55,6 +55,7 @@ let make_bind_lambda loc ~bound ~params ~value ~body =
 
 %%
 
+(* difference between term and type is just the precedence *)
 let term_opt :=
   | EOF;
     { None }
@@ -63,81 +64,89 @@ let term_opt :=
 
 (* precedence on parens and braces *)
 let term ==
-  | term_lambda
+  | term_match
   | annot
-let term_lambda == arrows(term_bind)
-let term_bind == bind(term_match)
-let term_match := match_(term_match, apply)
+let term_match :=
+  | term_arrows_and_bind
+  | match_(term_match, term_arrows_and_bind)
+let term_arrows_and_bind :=
+  | apply
+  | bind(term_arrows_and_bind)
+  | arrows(term_arrows_and_bind)
 
-let atom ==
-  | field
+let atom :=
   | simple_atom
+  | field(atom, simple_atom)
 
-let simple_atom ==
+let simple_atom :=
   | ident
   | number
   | struct_
   | parens
 
+let type_ == type_arrows
+let type_arrows :=
+  (* TODO: this could be more generic *)
+  | atom
+  | arrows(type_arrows)
+
 (* concrete syntax *)
-let ident :=
+let ident ==
   | ident = IDENT;
     { make $loc (S_ident ident) }
 
-let number :=
+let number ==
   | number = NUMBER;
     { make $loc (S_number number) }
 
-let arrows(lower) :=
-  | lower
-  | param = atom; ARROW; body = arrows(lower);
+let arrows(self) ==
+  (* TODO: should the two arrows be always identical in precedence? *)
+  | param = atom; ARROW; body = self;
     { make $loc (S_arrow { param; body }) }
-  | param = atom; FAT_ARROW; body = arrows(lower);
+  | param = atom; FAT_ARROW; body = self;
     { make $loc (S_lambda { param; body }) }
 
-let atom_juxtaposition :=
+let atom_juxtaposition ==
   | first = atom; remaining = list(atom);
     { (first, remaining) }
-let apply :=
+let apply ==
   | (lambda, args) = atom_juxtaposition;
     { make_apply ~lambda ~args }
 
-let bind(lower) :=
-  | lower
+let bind(self) ==
   | bound = annot; SEMICOLON;
-    body = option(bind(lower));
+    body = option(self);
     { make $loc (S_bind { bound; value = None; body }) }
   | bound = annot; EQUAL;
-    value = bind(lower); SEMICOLON;
-    body = option(bind(lower));
+    value = self; SEMICOLON;
+    body = option(self);
     { make $loc (S_bind { bound; value = Some value; body }) }
   | (bound, params) = atom_juxtaposition; EQUAL;
-    value = bind(lower); SEMICOLON;
-    body = option(bind(lower));
+    value = self; SEMICOLON;
+    body = option(self);
     { make_bind_lambda $loc ~bound ~params ~value ~body }
 
-let struct_ :=
+let struct_ ==
   | LEFT_BRACE; term = option(term); RIGHT_BRACE;
     (* TODO: should loc include {} here? *)
     { make $loc (S_struct term) }
 
-let field :=
-  | struct_ = atom; DOT; field = simple_atom;
+let field(self, lower) ==
+  | struct_ = self; DOT; field = lower;
     { make $loc (S_field ({ struct_; field })) }
 
 let match_(self, lower) ==
-  | lower
   (* TODO: same syntax as lambda *)
   (* TODO: apply can be more general, maybe allow binds without match *)
   (* TODO: this body is not looking good *)
-  (* TODO: this is a lambda *)
-  | value = self; PIPE; pat = apply; FAT_ARROW; body = bind(arrows(lower));
+  | value = self; PIPE; pat = apply; FAT_ARROW; body = lower;
     { make $loc (S_match { value; pat; body }) }
 
-let annot :=
+
+let annot ==
   (* TODO: value can be more general *)
   (* TODO: type_ can be more general *)
-  | value = atom; COLON; type_ = arrows(atom);
+  | value = atom; COLON; type_ = type_;
     { make $loc (S_annot { value; type_ }) }
   
 let parens ==

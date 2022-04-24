@@ -66,7 +66,7 @@ let choose =
 let choose_id =
   works ~name:"choose_id"
     ~code:
-      {|choose: {A} -> A -> A -> A = (a => b => b);
+      {|choose: {A} -> A -> A -> A = a => b => b;
           id x = x;
           choose id|}
     ~type_:"({A} -> A -> A) -> {A} -> A -> A"
@@ -74,7 +74,7 @@ let choose_id =
 let choose_id_id =
   works ~name:"choose_id_id"
     ~code:
-      {|choose: {A} -> A -> A -> A = (a => b => b);
+      {|choose: {A} -> A -> A -> A = a => b => b;
           id x = x;
           choose_id = choose id;
           choose_id (x => x)|}
@@ -83,7 +83,7 @@ let choose_id_id =
 let choose_id_incr =
   fails ~name:"choose_id_incr"
     ~code:
-      {|choose: {A} -> A -> A -> A = (a => b => b);
+      {|choose: {A} -> A -> A -> A = a => b => b;
               incr (x: Int) = x;
               id x = x;
               choose_id = choose id;
@@ -92,7 +92,7 @@ let choose_id_incr =
 let choose_id_hm =
   works ~name:"choose_id_hm"
     ~code:
-      {|choose: {A} -> A -> A -> A = (a => b => b);
+      {|choose: {A} -> A -> A -> A = a => b => b;
               choose_id_hm: {A} -> (A -> A) -> (A -> A) -> A -> A = choose;
               id x = x;
               choose_id_hm id|}
@@ -101,7 +101,7 @@ let choose_id_hm =
 let choose_id_hm_incr =
   works ~name:"choose_id_incr_hm"
     ~code:
-      {|choose: {A} -> A -> A -> A = (a => b => b);
+      {|choose: {A} -> A -> A -> A = a => b => b;
             choose_id_hm: {A} -> (A -> A) -> (A -> A) -> A -> A = choose;
             incr (x: Int) = x;
             id x = x;
