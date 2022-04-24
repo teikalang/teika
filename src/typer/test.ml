@@ -87,6 +87,10 @@ let number_types =
 let empty_struct_type =
   works ~name:"empty_struct_type" ~code:"(x: {}) => x" ~type_:"({}) -> {}"
 
+let multiple_fields_struct =
+  works ~name:"multiple_fields_struct" ~code:"(m: { x: Int; y: Int; }) => m"
+    ~type_:"({ x: Int; y: Int; }) -> { x: Int; y: Int; }"
+
 open Typer
 
 let equal_type env =
@@ -153,6 +157,7 @@ let tests =
     choose_id_hm_incr;
     number_types;
     empty_struct_type;
+    multiple_fields_struct;
   ]
 
 let tests = ("tests", List.map test tests)

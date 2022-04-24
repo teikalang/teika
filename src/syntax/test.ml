@@ -124,6 +124,14 @@ module Parens = struct
         (Some (var "y"))
         (Some (bind (var "z") (Some (var "x")) (Some (var "z")))) )
 
+  let multiple_binding_annot =
+    ( "multiple_binding_annot",
+      "x: Int; y: Int;",
+      bind
+        (annot (var "x") (var "Int"))
+        None
+        (Some (bind (annot (var "y") (var "Int")) None None)) )
+
   let field_binding =
     ( "field_binding",
       "M.X = y;",
@@ -169,6 +177,7 @@ module Parens = struct
       multiple_apply;
       multiple_field;
       multiple_binding;
+      multiple_binding_annot;
       field_binding;
       multiple_match;
       annot_on_structure;

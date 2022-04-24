@@ -1,3 +1,5 @@
+open Utils
+
 (* TODO: loc first vs loc last *)
 type expr = { expr_loc : Location.t; expr_desc : expr_desc }
 
@@ -27,4 +29,6 @@ and type_desc =
       (* TODO: param = pat *) param : type_;
       body : type_;
     }
-  | Type_struct
+  | Type_struct of type_field list
+
+and type_field = { type_field_name : Name.t; type_field_desc : type_ }

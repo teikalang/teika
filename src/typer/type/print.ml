@@ -76,10 +76,13 @@ and pp_type_desc ctx fmt type_ =
       if parens then fprintf fmt "(%a) -> %a" pp_type param pp_type return
       else fprintf fmt "%a -> %a" pp_type param pp_type return
   | T_struct fields ->
-      List.iter
-        (fun { name; type_ } ->
-          fprintf fmt "%a: %a; " Name.pp name pp_type type_)
-        fields
+      let pp_fields fmt fields =
+        List.iter
+          (fun { name; type_ } ->
+            fprintf fmt "%a: %a; " Name.pp name pp_type type_)
+          fields
+      in
+      fprintf fmt "{%a}" pp_fields fields
 
 let with_pp_type ?(debug = false) f =
   let ctx = new_ctx ~debug in
