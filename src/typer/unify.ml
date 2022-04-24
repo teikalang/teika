@@ -60,6 +60,10 @@ let rec min_rank ctx rank foralls type_ =
   | T_arrow { param; return } ->
       let rank = min_rank rank foralls param in
       min_rank rank foralls return
+  | T_struct fields ->
+      List.fold_left
+        (fun rank { name = _; type_ } -> min_rank rank foralls type_)
+        rank fields
 
 let min_rank ctx rank type_ = min_rank ctx rank [] type_
 
@@ -79,6 +83,8 @@ let rec update_rank ctx ~var ~rank type_ =
   | T_arrow { param; return } ->
       update_rank param;
       update_rank return
+  | T_struct fields ->
+      List.iter (fun { name = _; type_ } -> update_rank type_) fields
 
 (* also escape check *)
 let update_rank ctx ~var type_ =
@@ -119,7 +125,17 @@ and unify_desc ctx ~expected ~received =
       T_arrow { param = received_param; return = received_return } ) ->
       unify ctx ~expected:received_param ~received:expected_param;
       unify ctx ~expected:expected_return ~received:received_return
-  | T_var (Bound _), _ | _, T_var (Bound _) ->
+  | T_struct expected_fields, T_struct received_fields ->
+      if List.length expected_fields <> List.length received_fields then
+        raise ctx (Type_clash { expected; received });
+      (* TODO: proper subtyping *)
+      List.iter2
+        (fun expected_field received_field ->
+          let { name = _; type_ = expected } = expected_field in
+          let { name = _; type_ = received } = received_field in
+          unify ctx ~expected ~received)
+        expected_fields received_fields
+  | T_struct _, _ | _, T_struct _ | T_var (Bound _), _ | _, T_var (Bound _) ->
       raise ctx (Type_clash { expected; received })
 
 let unify ~loc env ~expected ~received =

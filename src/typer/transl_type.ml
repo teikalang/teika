@@ -19,6 +19,7 @@ let rec transl_type env term =
   match term with
   | S_ident name -> transl_ident ~loc env ~name
   | S_arrow { param; body } -> transl_arrow ~loc env ~param ~body
+  | S_struct content -> transl_struct ~loc env ~content
   | _ -> raise loc Unimplemented
 
 and transl_ident ~loc env ~name =
@@ -56,6 +57,13 @@ and transl_explicit_arrow ~loc env ~param ~body =
   let (body_type, body), env = transl_type env body in
   let type_ = new_arrow ~param:param_type ~return:body_type in
   (make loc type_ (Type_explicit_lambda { param; body }), env)
+
+and transl_struct ~loc env ~content =
+  match content with
+  | Some _ -> raise loc Unimplemented
+  | None ->
+      let type_ = new_struct ~fields:[] in
+      (make loc type_ Type_struct, env)
 
 let transl_type env term =
   (* TODO: use this env??? *)

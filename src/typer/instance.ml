@@ -39,5 +39,14 @@ and instance_desc env ~forall foralls types type_ =
       let param = instance param in
       let return = instance return in
       new_arrow ~param ~return
+  | T_struct fields ->
+      let fields =
+        List.map
+          (fun { name; type_ } ->
+            let type_ = instance type_ in
+            { name; type_ })
+          fields
+      in
+      new_struct ~fields
 
 let instance env ~forall body = instance env ~forall (ref []) (ref []) body

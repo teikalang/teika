@@ -27,3 +27,4 @@ and type_desc =
       (* TODO: param = pat *) param : type_;
       body : type_;
     }
+  | Type_struct

@@ -6,6 +6,7 @@ type type_ =
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
+  | T_struct of field list
 
 and var =
   (* when link points to type_ itself, then this is not linked *)
@@ -14,6 +15,8 @@ and var =
   (* TODO: check name across codebase *)
   | Bound of { forall : Forall_id.t; name : Name.t option }
 
+and field = { name : Name.t; type_ : type_ }
+
 type t = type_
 
 (* externally not a link *)
@@ -21,6 +24,7 @@ type desc = type_ =
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
+  | T_struct of field list
 
 (* externally opaque *)
 type link = type_
@@ -47,3 +51,4 @@ let new_weak_var rank =
 
 let new_bound_var ~name forall = T_var (Bound { forall; name })
 let new_arrow ~param ~return = T_arrow { param; return }
+let new_struct ~fields = T_struct fields
