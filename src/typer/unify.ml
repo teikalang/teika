@@ -19,31 +19,27 @@ let () =
     | _ -> None)
 
 (* TODO: this likely should be removed *)
-type ctx = {
-  loc : Location.t;
-  env : Env.t;
-  bound_forall : (Forall_id.t * Rank.t) list;
-}
+type ctx = { loc : Location.t; env : Env.t }
 
 let raise ctx error = raise (Error { loc = ctx.loc; error })
 let instance ctx ~forall type_ = instance ctx.env ~forall type_
 
 let with_expected_forall ctx ~forall =
-  let { loc; env; bound_forall } = ctx in
-  (* no bound var at initial env rank *)
+  let { loc; env } = ctx in
+  (* no bound var at initial env rank? *)
   let env = Env.enter_rank env in
   let rank = Env.current_rank env in
-  let bound_forall = (forall, rank) :: bound_forall in
-  { loc; env; bound_forall }
+  let env = Env.enter_forall ~forall rank env in
+  { loc; env }
 
-let forall_rank ctx ~forall = List.assoc_opt forall ctx.bound_forall
+let forall_rank ctx ~forall = Env.find_forall ~forall ctx.env
 
 let forall_rank_exn ctx ~forall =
   match forall_rank ctx ~forall with
   | Some rank -> rank
   | None -> failwith "found forall but not introduced"
 
-let make_env env ~loc = { loc; env; bound_forall = [] }
+let make_env env ~loc = { loc; env }
 
 let occur_check env ~var type_ =
   if Helpers.in_type ~var type_ then raise env (Occur_check { var; type_ })

@@ -17,17 +17,18 @@ type ident_decl = {
 type t = {
   (* TODO: maybe current_loc here? *)
   names : ident_decl Name.Map.t;
-  rank : Rank.t;
+  foralls : Rank.t Forall_id.Map.t;
+  current_rank : Rank.t;
 }
 
 let insert decl t =
-  let { names; rank } = t in
+  let { names; foralls; current_rank } = t in
   let ident = decl.ident in
   let name = Ident.name ident in
   let names = Name.Map.add name decl names in
-  { names; rank }
+  { names; foralls; current_rank }
 
-let enter loc name type_ t =
+let add loc name type_ t =
   let ident = Ident.make name in
   let decl = { ident; ident_type = type_; ident_loc = loc } in
 
@@ -35,7 +36,7 @@ let enter loc name type_ t =
   (ident, t)
 
 let lookup loc name t =
-  let { names; rank = _ } = t in
+  let { names; foralls = _; current_rank = _ } = t in
   match Name.Map.find_opt name names with
   | Some decl ->
       (* TODO: use loc for something? *)
@@ -45,13 +46,23 @@ let lookup loc name t =
 
 (* rank *)
 let current_rank t =
-  let { names = _; rank } = t in
-  rank
+  let { names = _; foralls = _; current_rank } = t in
+  current_rank
 
 let enter_rank t =
-  let { names; rank } = t in
-  let rank = Rank.next rank in
-  { names; rank }
+  let { names; foralls; current_rank } = t in
+  let current_rank = Rank.next current_rank in
+  { names; foralls; current_rank }
+
+let enter_forall ~forall rank t =
+  let { names; foralls; current_rank } = t in
+  (* TODO: duplicated forall*)
+  let foralls = Forall_id.Map.add forall rank foralls in
+  { names; foralls; current_rank }
+
+let find_forall ~forall t =
+  let { names = _; foralls; current_rank = _ } = t in
+  Forall_id.Map.find_opt forall foralls
 
 let new_weak_var env =
   let rank = current_rank env in
@@ -63,12 +74,18 @@ let base, int_type, int_ident =
        - maybe points to stdlib code when available *)
   let loc = Location.none in
 
-  let base = { names = Name.Map.empty; rank = Rank.initial } in
+  let base =
+    {
+      names = Name.Map.empty;
+      foralls = Forall_id.Map.empty;
+      current_rank = Rank.initial;
+    }
+  in
 
   let forall = Forall_id.next () in
 
   let int_name = Name.make "Int" in
   let int_type = new_bound_var ~name:(Some int_name) forall in
-  let int_ident, base = base |> enter loc int_name int_type in
+  let int_ident, base = base |> add loc int_name int_type in
 
   (base, int_type, int_ident)

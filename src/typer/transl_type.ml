@@ -44,7 +44,7 @@ and transl_implicit_arrow ~loc env ~param ~body =
         let type_ = new_bound_var ~name:None forall in
         (* TODO: shadowing? or duplicated name error? *)
         (* TODO: also this _ident, use it? *)
-        let _ident, env = env |> Env.enter loc name type_ in
+        let _ident, env = env |> Env.add loc name type_ in
         env
     | _ -> raise loc Unimplemented
   in
