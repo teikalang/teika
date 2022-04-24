@@ -46,8 +46,6 @@ let rec min_rank ctx rank foralls type_ =
   let min a b = if Rank.(a > b) then b else a in
   match desc type_ with
   | T_var (Weak { rank = var_rank; link = _ }) -> min rank var_rank
-  (* TODO: remove this *)
-  | T_var (Bound _) when Type.same type_ Env.int_type -> rank
   | T_var (Bound { forall; name = _ }) ->
       let ignore =
         List.exists (fun forall' -> Forall_id.equal forall forall') foralls

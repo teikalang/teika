@@ -87,6 +87,7 @@ let base, int_type, int_ident =
   in
 
   let forall = Forall_id.next () in
+  let base = enter_forall ~forall base in
 
   let int_name = Name.make "Int" in
   let int_type = new_bound_var ~name:(Some int_name) forall in
