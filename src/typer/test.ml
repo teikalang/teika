@@ -1,35 +1,5 @@
 open Syntax
 
-module Utils = struct
-  module Location = struct
-    include Location
-
-    (* TODO: print *)
-    let pp fmt _loc = Format.fprintf fmt "\"loc\""
-  end
-
-  type identifier = string [@@deriving show]
-  type number = string [@@deriving show]
-
-  type term = Syntax.term = { s_loc : Location.t; s_desc : term_desc }
-
-  and term_desc = Syntax.term_desc =
-    | S_ident of identifier
-    | S_number of number
-    | S_arrow of { param : term; body : term }
-    | S_lambda of { param : term; body : term }
-    | S_apply of { lambda : term; arg : term }
-    | S_bind of { bound : term; value : term option; body : term option }
-    | S_struct of term option
-    | S_field of { struct_ : term; field : term }
-    | S_match of { value : term; pat : term; body : term }
-    | S_annot of { value : term; type_ : term }
-  [@@deriving show { with_path = false }]
-end
-
-let parse code = Syntax.value_from_string code |> Option.get
-let env = Env.empty
-
 type test = {
   (* TODO: check also the error *)
   name : string;
@@ -42,6 +12,9 @@ let fails ~name ~code = { name; code; type_ = None }
 
 (* TODO: test ppx *)
 let id = works ~name:"id" ~code:"x => x" ~type_:"{A} -> A -> A"
+
+let explicit_id =
+  works ~name:"explicit_id" ~code:"{A} => (x: A) => x" ~type_:"{A} -> A -> A"
 
 let sequence =
   works ~name:"sequence" ~code:"a => b => b" ~type_:"{A} -> A -> {B} -> B -> B"
@@ -165,6 +138,7 @@ let test { name; code; type_ } =
 let tests =
   [
     id;
+    explicit_id;
     sequence;
     sequence_to_left;
     sequence_to_right;

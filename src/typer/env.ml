@@ -54,10 +54,14 @@ let enter_rank t =
   let current_rank = Rank.next current_rank in
   { names; foralls; current_rank }
 
-let enter_forall ~forall rank t =
+let enter_forall ~forall t =
+  (* TODO: does it make sense to always increase rank here? *)
+  (* no bound var at initial env rank? *)
+  let t = enter_rank t in
+
   let { names; foralls; current_rank } = t in
-  (* TODO: duplicated forall*)
-  let foralls = Forall_id.Map.add forall rank foralls in
+  (* TODO: what should happen on duplicated forall? *)
+  let foralls = Forall_id.Map.add forall current_rank foralls in
   { names; foralls; current_rank }
 
 let find_forall ~forall t =

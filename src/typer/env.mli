@@ -19,7 +19,7 @@ val current_rank : t -> Type.Rank.t
 val enter_rank : t -> t
 
 (* TODO: should enter_forall receive the rank? *)
-val enter_forall : forall:Forall_id.t -> Rank.t -> t -> t
+val enter_forall : forall:Forall_id.t -> t -> t
 val find_forall : forall:Forall_id.t -> t -> Rank.t option
 
 (* types *)

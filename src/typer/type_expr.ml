@@ -60,6 +60,32 @@ and type_number ~loc ~number =
   make loc type_ (Expr_number number)
 
 and type_lambda env ~loc ~param ~body =
+  match param.s_desc with
+  (* TODO: what if it's None? *)
+  | S_struct (Some param) -> type_implicit_lambda env ~loc ~param ~body
+  | _ -> type_explicit_lambda env ~loc ~param ~body
+
+and type_implicit_lambda env ~loc ~param ~body =
+  let forall = Forall_id.next () in
+  let env = Env.enter_forall ~forall env in
+  let env =
+    let { s_desc = param; s_loc = loc } = param in
+    match param with
+    | S_ident name ->
+        let name = Name.make name in
+        (* TODO: name for variables *)
+        let type_ = new_bound_var ~name:None forall in
+        (* TODO: shadowing? or duplicated name error? *)
+        (* TODO: also this _ident, use it? *)
+        let _ident, env = env |> Env.add loc name type_ in
+        env
+    | _ -> raise loc Unimplemented
+  in
+  let body_type, body = type_expr env body in
+  let type_ = new_forall forall ~body:body_type in
+  make loc type_ (Expr_forall { body })
+
+and type_explicit_lambda env ~loc ~param ~body =
   let (param_type, param), env = type_pat env param in
   let body_type, body = type_expr env body in
   let type_ = new_arrow ~param:param_type ~return:body_type in

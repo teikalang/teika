@@ -26,10 +26,7 @@ let instance ctx ~forall type_ = instance ctx.env ~forall type_
 
 let with_expected_forall ctx ~forall =
   let { loc; env } = ctx in
-  (* no bound var at initial env rank? *)
-  let env = Env.enter_rank env in
-  let rank = Env.current_rank env in
-  let env = Env.enter_forall ~forall rank env in
+  let env = Env.enter_forall ~forall env in
   { loc; env }
 
 let forall_rank ctx ~forall = Env.find_forall ~forall ctx.env

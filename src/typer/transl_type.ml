@@ -33,7 +33,6 @@ and transl_arrow ~loc env ~param ~body =
   | _ -> transl_explicit_arrow ~loc env ~param ~body
 
 and transl_implicit_arrow ~loc env ~param ~body =
-  let open Type in
   let forall = Forall_id.next () in
   let env =
     let { s_desc = param; s_loc = loc } = param in

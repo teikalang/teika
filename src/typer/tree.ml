@@ -4,6 +4,7 @@ type expr = { expr_loc : Location.t; expr_desc : expr_desc }
 and expr_desc =
   | Expr_ident of Ident.t
   | Expr_number of int
+  | Expr_forall of { body : expr }
   | Expr_lambda of { param : pat; body : expr }
   | Expr_apply of { lambda : expr; arg : expr }
   | Expr_bind of { bound : pat; value : expr; body : expr }
