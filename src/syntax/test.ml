@@ -67,6 +67,12 @@ module Simple = struct
 
   let structure_empty = ("structure_empty", "{}", struct_ None)
   let structure_var = ("structure_var", "{ x }", struct_ (Some (var "x")))
+
+  let structure_dot_bind =
+    ( "structure_dot_bind",
+      "{ . = x; }",
+      struct_ (Some (bind (var ".") (Some (var "x")) None)) )
+
   let field = ("field", "x.y", field (var "x") (var "y"))
   let match_ = ("match", "x | y => z", match_ (var "x") (var "y") (var "z"))
   let annotation = ("annotation", "(x: Int)", annot (var "x") (var "Int"))
@@ -84,6 +90,7 @@ module Simple = struct
       binding_body;
       structure_empty;
       structure_var;
+      structure_dot_bind;
       field;
       match_;
       annotation;

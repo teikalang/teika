@@ -117,6 +117,12 @@ let bind(self) ==
   | bound = annot; SEMICOLON;
     body = option(self);
     { make $loc (S_bind { bound; value = None; body }) }
+  (* TODO: this is clearly hackish *)
+  | DOT; EQUAL;
+    value = self; SEMICOLON;
+    body = option(self);
+    { let bound = make $loc (S_ident ".") in
+      make $loc (S_bind { bound; value = Some value; body })}
   | bound = annot; EQUAL;
     value = self; SEMICOLON;
     body = option(self);
