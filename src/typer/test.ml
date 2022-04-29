@@ -123,6 +123,10 @@ let cursed_polymorphism_rank2 =
   works ~name:"cursed_polymorphism_rank2"
     ~code:"(Id: X => X) => (Id 1: (Id Int))" ~type_:"(X => X) -> Int"
 
+let dont_lower_var =
+  works ~name:"dont_lower_var" ~code:"{A} => {B} => (T: A -> B) => T"
+    ~type_:"{A} -> {B} -> (A -> B) -> A -> B"
+
 open Typer
 
 let equal_type env =
@@ -203,6 +207,7 @@ let tests =
     type_wrong_type_function;
     polymorphism_rank2;
     cursed_polymorphism_rank2;
+    dont_lower_var;
   ]
 
 let tests = ("tests", List.map test tests)

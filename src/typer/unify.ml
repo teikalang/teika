@@ -31,54 +31,26 @@ let with_expected_forall ctx ~forall =
   { loc; env }
 
 let forall_rank ctx ~forall = Env.find_forall ~forall ctx.env
-
-let forall_rank_exn ctx ~forall =
-  match forall_rank ctx ~forall with
-  | Some rank -> rank
-  | None -> failwith "found forall but not introduced"
-
 let make_env env ~loc = { loc; env }
 
 let occur_check env ~var type_ =
   if Helpers.in_type ~var type_ then raise env (Occur_check { var; type_ })
 
-let rec min_rank ctx rank foralls type_ =
-  let min_rank rank foralls type_ = min_rank ctx rank foralls type_ in
-  let min a b = if Rank.(a > b) then b else a in
-  match desc type_ with
-  | T_var (Weak { rank = var_rank; link = _ }) -> min rank var_rank
-  | T_var (Bound { forall; name = _ }) ->
-      let ignore =
-        List.exists (fun forall' -> Forall_id.equal forall forall') foralls
-      in
-      if ignore then rank
-      else
-        let var_rank = forall_rank_exn ctx ~forall in
-        min var_rank rank
-  | T_forall { forall; body } ->
-      let foralls = forall :: foralls in
-      min_rank rank foralls body
-  | T_arrow { param; return } ->
-      let rank = min_rank rank foralls param in
-      min_rank rank foralls return
-  | T_struct fields ->
-      List.fold_left
-        (fun rank { name = _; type_ } -> min_rank rank foralls type_)
-        rank fields
+let min_rank a b = if Rank.(a > b) then b else a
 
-let min_rank ctx rank type_ = min_rank ctx rank [] type_
-
-let rec update_rank ctx ~var ~rank type_ =
-  let update_rank type_ = update_rank ctx ~var ~rank type_ in
+let rec update_rank ctx ~var ~max_rank type_ =
+  let update_rank type_ = update_rank ctx ~var ~max_rank type_ in
   match desc type_ with
-  | T_var (Weak _) -> lower ~var:type_ rank
+  | T_var (Weak { rank = var_rank; link = _ }) ->
+      let rank = min_rank max_rank var_rank in
+      lower ~var:type_ rank
   | T_var (Bound { forall; name = _ }) -> (
       match forall_rank ctx ~forall with
       (* None implies this var is not behind *)
       | None -> ()
       | Some var_rank ->
           (* received is introduced after rank is incremented so > *)
-          if Rank.(rank >= var_rank) then ()
+          if Rank.(max_rank >= var_rank) then ()
           else raise ctx (Escape_check { var; type_ }))
   | T_forall { forall = _; body } -> update_rank body
   | T_arrow { param; return } ->
@@ -89,14 +61,13 @@ let rec update_rank ctx ~var ~rank type_ =
 
 (* also escape check *)
 let update_rank ctx ~var type_ =
-  let var_rank =
+  let max_rank =
     (* TODO: invariant var is weak var *)
     match desc var with
     | T_var (Weak { rank; link = _ }) -> rank
     | _ -> assert false
   in
-  let rank = min_rank ctx var_rank type_ in
-  update_rank ctx ~var ~rank type_
+  update_rank ctx ~var ~max_rank type_
 
 let unify_var ctx ~var type_ =
   occur_check ctx ~var type_;
