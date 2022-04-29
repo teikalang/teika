@@ -127,6 +127,14 @@ let dont_lower_var =
   works ~name:"dont_lower_var" ~code:"{A} => {B} => (T: A -> B) => T"
     ~type_:"{A} -> {B} -> (A -> B) -> A -> B"
 
+let cursed_destruct_arrow_param =
+  works ~name:"cursed_destruct_arrow_param" ~code:"1"
+    ~type_:"(F = {A} => {B} => (T: A -> B) => A; f x = 1; F f)"
+
+let cursed_destruct_arrow_return =
+  works ~name:"cursed_destruct_arrow_return" ~code:"1"
+    ~type_:"(F = {A} => {B} => (T: A -> B) => B; f x = 1; F f)"
+
 open Typer
 
 let equal_type env =
@@ -208,6 +216,8 @@ let tests =
     polymorphism_rank2;
     cursed_polymorphism_rank2;
     dont_lower_var;
+    cursed_destruct_arrow_param;
+    cursed_destruct_arrow_return;
   ]
 
 let tests = ("tests", List.map test tests)
