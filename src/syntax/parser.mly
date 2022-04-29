@@ -87,7 +87,7 @@ let simple_atom :=
 let type_ == type_arrows
 let type_arrows :=
   (* TODO: this could be more generic *)
-  | atom
+  | apply
   | arrows(type_arrows)
 
 (* concrete syntax *)
@@ -152,7 +152,7 @@ let match_(self, lower) ==
 let annot ==
   (* TODO: value can be more general *)
   (* TODO: type_ can be more general *)
-  | value = atom; COLON; type_ = type_;
+  | value = apply; COLON; type_ = type_;
     { make $loc (S_annot { value; type_ }) }
   
 let parens ==

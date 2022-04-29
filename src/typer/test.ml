@@ -40,45 +40,45 @@ let choose_id =
   works ~name:"choose_id"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
-          id x = x;
-          choose id|}
+        id x = x;
+        choose id|}
     ~type_:"({A} -> A -> A) -> {A} -> A -> A"
 
 let choose_id_id =
   works ~name:"choose_id_id"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
-          id x = x;
-          choose_id = choose id;
-          choose_id (x => x)|}
+        id x = x;
+        choose_id = choose id;
+        choose_id (x => x)|}
     ~type_:"{A} -> A -> A"
 
 let choose_id_incr =
   fails ~name:"choose_id_incr"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
-              incr (x: Int) = x;
-              id x = x;
-              choose_id = choose id;
-              choose_id incr|}
+        incr (x: Int) = x;
+        id x = x;
+        choose_id = choose id;
+        choose_id incr|}
 
 let choose_id_hm =
   works ~name:"choose_id_hm"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
-              choose_id_hm: {A} -> (A -> A) -> (A -> A) -> A -> A = choose;
-              id x = x;
-              choose_id_hm id|}
+        choose_id_hm: {A} -> (A -> A) -> (A -> A) -> A -> A = choose;
+        id x = x;
+        choose_id_hm id|}
     ~type_:"{A} -> (A -> A) -> A -> A"
 
 let choose_id_hm_incr =
   works ~name:"choose_id_hm_incr"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
-            choose_id_hm: {A} -> (A -> A) -> (A -> A) -> A -> A = choose;
-            incr (x: Int) = x;
-            id x = x;
-            choose_id_hm id incr |}
+        choose_id_hm: {A} -> (A -> A) -> (A -> A) -> A -> A = choose;
+        incr (x: Int) = x;
+        id x = x;
+        choose_id_hm id incr |}
     ~type_:"Int -> Int"
 
 let number_types =
@@ -108,20 +108,20 @@ let type_type_function =
   works ~name:"type_type_function" ~code:"1" ~type_:"(Id = X => X; Id Int)"
 
 let term_wrong_type_function =
-  fails ~name:"term_wrong_type_function" ~code:"Id = X => X; ({}: (Id Int))"
+  fails ~name:"term_wrong_type_function" ~code:"Id = X => X; ({}: Id Int)"
 
 let type_wrong_type_function =
   fails ~name:"type_wrong_type_function" ~code:"({}: (Id = X => X; Id Int))"
 
 let polymorphism_rank2 =
   works ~name:"polymorphism_rank2"
-    ~code:"(Id: ({A} -> A -> A)) => ((Id 1): (Id Int))"
+    ~code:"(Id: ({A} -> A -> A)) => (Id 1: Id Int)"
     ~type_:"({A} -> A -> A) -> Int"
 
 (* TODO: I think this lambda should not be supported in this place, why? *)
 let cursed_polymorphism_rank2 =
   works ~name:"cursed_polymorphism_rank2"
-    ~code:"(Id: X => X) => ((Id 1): (Id Int))" ~type_:"(X => X) -> Int"
+    ~code:"(Id: X => X) => (Id 1: (Id Int))" ~type_:"(X => X) -> Int"
 
 open Typer
 

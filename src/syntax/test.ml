@@ -175,6 +175,16 @@ module Parens = struct
       "x: a -> a = y;",
       bind (annot (var "x") (var "a" @-> var "a")) (Some (var "y")) None )
 
+  let apply_annot =
+    ( "apply_annot",
+      "(f a: T A)",
+      annot (app (var "f") (var "a")) (app (var "T") (var "A")) )
+
+  let arrow_type_annot =
+    ( "arrow_type_annot",
+      "(f a: Int -> T A)",
+      annot (app (var "f") (var "a")) (var "Int" @-> app (var "T") (var "A")) )
+
   let tests =
     [
       arrow_binding;
@@ -192,6 +202,8 @@ module Parens = struct
       match_lambda_body;
       match_bindbody;
       annot_on_binding;
+      apply_annot;
+      arrow_type_annot;
     ]
 end
 
