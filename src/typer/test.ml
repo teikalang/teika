@@ -118,6 +118,11 @@ let polymorphism_rank2 =
     ~code:"(Id: ({A} -> A -> A)) => ((Id 1): (Id Int))"
     ~type_:"({A} -> A -> A) -> Int"
 
+(* TODO: I think this lambda should not be supported in this place, why? *)
+let cursed_polymorphism_rank2 =
+  works ~name:"cursed_polymorphism_rank2"
+    ~code:"(Id: X => X) => ((Id 1): (Id Int))" ~type_:"(X => X) -> Int"
+
 open Typer
 
 let equal_type env =
@@ -197,6 +202,7 @@ let tests =
     term_wrong_type_function;
     type_wrong_type_function;
     polymorphism_rank2;
+    cursed_polymorphism_rank2;
   ]
 
 let tests = ("tests", List.map test tests)
