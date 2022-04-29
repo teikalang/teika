@@ -11,7 +11,7 @@ let free_vars_in_env env type_ =
           (* TODO: check all rank comparison *)
           Rank.(var_rank > env_rank)
       | _ -> assert false)
-    (Type.Helpers.weak_vars type_)
+    (Helpers.weak_vars type_)
 
 let generalize vars body =
   (* TODO: same logic as Instance.weaken *)

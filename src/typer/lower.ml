@@ -1,4 +1,4 @@
-open Repr
+open Type
 
 let lower ~var rank =
   match desc var with

@@ -1,4 +1,4 @@
-open Repr
+open Type
 
 val pp_type : Format.formatter -> type_ -> unit
 val pp_type_debug : Format.formatter -> type_ -> unit

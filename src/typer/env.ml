@@ -89,8 +89,13 @@ let base, int_type, int_ident =
   let forall = Forall_id.next () in
   let base = enter_forall ~forall base in
 
+  let dot_name = Name.make "." in
+  let new_dot_struct type_ =
+    new_struct ~fields:[ { name = dot_name; type_ } ]
+  in
+
   let int_name = Name.make "Int" in
   let int_type = new_bound_var ~name:(Some int_name) forall in
-  let int_ident, base = base |> add loc int_name int_type in
+  let int_ident, base = base |> add loc int_name (new_dot_struct int_type) in
 
   (base, int_type, int_ident)

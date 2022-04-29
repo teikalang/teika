@@ -9,6 +9,7 @@ type desc = private
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
+  (* TODO: enforce that field list doesn't contain any duplicated name *)
   | T_struct of field list
 
 and var = private

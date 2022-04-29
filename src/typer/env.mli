@@ -15,7 +15,7 @@ val add : Location.t -> Name.t -> type_ -> t -> Ident.t * t
 val lookup : Location.t -> Name.t -> t -> Ident.t * type_
 
 (* rank *)
-val current_rank : t -> Type.Rank.t
+val current_rank : t -> Rank.t
 val enter_rank : t -> t
 
 (* TODO: should enter_forall receive the rank? *)

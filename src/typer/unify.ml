@@ -1,7 +1,8 @@
 open Type
 open Instance
+open Lower
 
-let pp_type_ = pp_type_debug
+let pp_type_ = Print.pp_type_debug
 
 type error =
   | Type_clash of { expected : type_; received : type_ }

@@ -72,7 +72,7 @@ let choose_id_hm =
     ~type_:"{A} -> (A -> A) -> A -> A"
 
 let choose_id_hm_incr =
-  works ~name:"choose_id_incr_hm"
+  works ~name:"choose_id_hm_incr"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
             choose_id_hm: {A} -> (A -> A) -> (A -> A) -> A -> A = choose;
@@ -91,10 +91,37 @@ let multiple_fields_struct =
   works ~name:"multiple_fields_struct" ~code:"(m: { x: Int; y: Int; }) => m"
     ~type_:"({ x: Int; y: Int; }) -> { x: Int; y: Int; }"
 
+let module_is_not_value =
+  fails ~name:"module_is_not_value" ~code:"id (x: Int) = x; id Int"
+
+let term_type_alias =
+  works ~name:"term_type_alias" ~code:"T = Int; (1: Int)" ~type_:"Int"
+
+let type_type_alias =
+  works ~name:"type_type_alias" ~code:"1" ~type_:"(T = Int; T)"
+
+let term_type_function =
+  works ~name:"term_type_function" ~code:"Id = X => X; (1: (Id Int))"
+    ~type_:"Int"
+
+let type_type_function =
+  works ~name:"type_type_function" ~code:"1" ~type_:"(Id = X => X; Id Int)"
+
+let term_wrong_type_function =
+  fails ~name:"term_wrong_type_function" ~code:"Id = X => X; ({}: (Id Int))"
+
+let type_wrong_type_function =
+  fails ~name:"type_wrong_type_function" ~code:"({}: (Id = X => X; Id Int))"
+
+let polymorphism_rank2 =
+  works ~name:"polymorphism_rank2"
+    ~code:"(Id: ({A} -> A -> A)) => ((Id 1): (Id Int))"
+    ~type_:"({A} -> A -> A) -> Int"
+
 open Typer
 
 let equal_type env =
-  Alcotest.testable Type.pp_type (fun a b ->
+  Alcotest.testable Print.pp_type (fun a b ->
       let open Unify in
       let loc = Location.none in
       (* TODO: only works because there is no weak var  *)
@@ -112,11 +139,15 @@ let value_from_string ~name string =
 let test_equal_type ~name ~code ~type_ =
   let check () =
     let env = Env.base in
-    let code = value_from_string ~name code in
-    let code, _code = type_expr env code in
-
     let type_ = value_from_string ~name type_ in
-    let type_, _type = transl_type env type_ in
+    let type_, _type, _env = type_type env type_ in
+    let code = value_from_string ~name code in
+    let code, _code, _env =
+      let env = Env.enter_rank env in
+      type_term env code
+    in
+    (* TODO: this generalize makes sense? *)
+    let code = Typer.Generalize.generalize env code in
 
     Alcotest.check (equal_type env) name type_ code
   in
@@ -128,7 +159,7 @@ let test_unify_fails ~name ~code =
     let code = value_from_string ~name code in
     let actual =
       try
-        let _ = type_expr env code in
+        let _ = type_term env code in
         false
       with Unify.Error _ -> true
     in
@@ -158,6 +189,14 @@ let tests =
     number_types;
     empty_struct_type;
     multiple_fields_struct;
+    module_is_not_value;
+    term_type_alias;
+    type_type_alias;
+    term_type_function;
+    type_type_function;
+    term_wrong_type_function;
+    type_wrong_type_function;
+    polymorphism_rank2;
   ]
 
 let tests = ("tests", List.map test tests)

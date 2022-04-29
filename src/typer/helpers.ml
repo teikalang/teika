@@ -1,4 +1,4 @@
-open Repr
+open Type
 
 let rec in_type ~var type_ =
   if same var type_ then true else in_type_desc ~var type_
