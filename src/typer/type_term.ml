@@ -59,32 +59,21 @@ and term_pat_desc =
   | Term_pat_annot of { pat : term_pat; type_ : term }
 
 (* helpers *)
-let dot_name = Name.make "."
-let new_dot_struct type_ = new_struct ~fields:[ { name = dot_name; type_ } ]
-
 let extract_type env loc type_ =
-  let open Utils in
   match desc type_ with
   | T_forall _ -> type_
   (* TODO: problem, a lambda cannot be returned from a type, or can it?
 
      x: A => A; What does this mean? *)
   | T_arrow _ -> raise loc Unimplemented
-  | T_struct fields -> (
-      (* TODO: forgive my for this *)
-      let dot_type =
-        List.find_map
-          (fun { name; type_ } ->
-            if Name.equal name dot_name then Some type_ else None)
-          fields
-      in
-      match dot_type with Some type_ -> type_ | None -> raise loc Not_a_type)
+  | T_struct { type_; fields = _ } -> (
+      match type_ with Some type_ -> type_ | None -> raise loc Not_a_type)
   | T_var _ ->
       (* TODO: this can be linked directly if weaken *)
-      let dot_type = new_weak_var env in
-      let expected = new_dot_struct dot_type in
+      let internal_type = new_weak_var env in
+      let expected = new_struct ~type_:(Some internal_type) ~fields:[] in
       let () = unify ~loc env ~expected ~received:type_ in
-      dot_type
+      internal_type
 
 (* term *)
 let return_term env loc type_ desc =
@@ -96,12 +85,12 @@ let term_ident env loc type_ ~ident =
 let term_number env loc type_ ~number =
   return_term env loc type_ (Term_number number)
 
-let term_forall env loc dot_type ~body =
-  let type_ = new_dot_struct dot_type in
+let term_forall env loc internal_type ~body =
+  let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
   return_term env loc type_ (Term_forall { body })
 
-let term_arrow env loc dot_type ~param ~body =
-  let type_ = new_dot_struct dot_type in
+let term_arrow env loc internal_type ~param ~body =
+  let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
   return_term env loc type_ (Term_arrow { param; body })
 
 let term_implicit_lambda env loc type_ ~body =
@@ -201,8 +190,8 @@ and type_implicit_arrow env loc ~param ~body =
     | S_ident name ->
         let name = Name.make name in
         (* TODO: name for variables *)
-        let dot_type = new_bound_var ~name:None forall in
-        let type_ = new_dot_struct dot_type in
+        let internal_type = new_bound_var ~name:None forall in
+        let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
         (* TODO: shadowing? or duplicated name error? *)
         (* TODO: also this _ident, use it? *)
         let _ident, env = env |> Env.add loc name type_ in
@@ -242,8 +231,8 @@ and type_implicit_lambda env ~loc ~param ~body =
     | S_ident name ->
         let name = Name.make name in
         (* TODO: name for variables *)
-        let dot_type = new_bound_var ~name:None forall in
-        let type_ = new_dot_struct dot_type in
+        let internal_type = new_bound_var ~name:None forall in
+        let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
         (* TODO: shadowing? or duplicated name error? *)
         (* TODO: also this _ident, use it? *)
         let _ident, env = env |> Env.add loc name type_ in
@@ -301,16 +290,17 @@ and type_struct env loc ~content =
   match content with
   | Some content -> (* TODO: type_struct *) type_sig env loc ~content
   | None ->
-      (* TODO: does this make sense? *)
-      let dot_type = new_struct ~fields:[] in
-      let type_ = new_dot_struct dot_type in
+      (* TODO: does this make sense?
+         I don't think so, {} : {} : {} will fail *)
+      let internal_type = new_struct ~type_:None ~fields:[] in
+      let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
       term_struct env loc type_ ~fields:[]
 
 and type_sig env loc ~content =
   let fields_type, env = type_sig_content env ~content in
   let type_ =
-    let dot_type = new_struct ~fields:fields_type in
-    new_dot_struct dot_type
+    let internal_type = new_struct ~type_:None ~fields:fields_type in
+    new_struct ~type_:(Some internal_type) ~fields:[]
   in
   term_sig env loc type_
 

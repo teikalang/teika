@@ -56,7 +56,8 @@ let rec update_rank ctx ~var ~max_rank type_ =
   | T_arrow { param; return } ->
       update_rank param;
       update_rank return
-  | T_struct fields ->
+  | T_struct { type_; fields } ->
+      (match type_ with Some type_ -> update_rank type_ | None -> ());
       List.iter (fun { name = _; type_ } -> update_rank type_) fields
 
 (* also escape check *)
@@ -97,7 +98,14 @@ and unify_desc ctx ~expected ~received =
       T_arrow { param = received_param; return = received_return } ) ->
       unify ctx ~expected:received_param ~received:expected_param;
       unify ctx ~expected:expected_return ~received:received_return
-  | T_struct expected_fields, T_struct received_fields ->
+  | ( T_struct { type_ = expected_type; fields = expected_fields },
+      T_struct { type_ = received_type; fields = received_fields } ) ->
+      (match (expected_type, received_type) with
+      | Some expected_type, Some received_type ->
+          unify ctx ~expected:expected_type ~received:received_type
+      | Some _, None -> raise ctx (Type_clash { expected; received })
+      | None, _ -> ());
+
       if List.length expected_fields <> List.length received_fields then
         raise ctx (Type_clash { expected; received });
       (* TODO: proper subtyping *)
