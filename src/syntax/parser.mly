@@ -152,6 +152,12 @@ let match_(self, lower) ==
 let annot ==
   (* TODO: value can be more general *)
   (* TODO: type_ can be more general *)
+  (* TODO: this is clearly hackish *)
+  | dot = DOT; COLON; type_ = type_;
+    {
+      let () = dot in
+      let value = make $loc(dot) (S_ident ".") in
+      make $loc (S_annot { value; type_ }) }
   | value = apply; COLON; type_ = type_;
     { make $loc (S_annot { value; type_ }) }
   
