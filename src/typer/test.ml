@@ -135,6 +135,13 @@ let cursed_destruct_arrow_return =
   works ~name:"cursed_destruct_arrow_return" ~code:"1"
     ~type_:"(F = {A} => {B} => (T: A -> B) => B; f x = 1; F f)"
 
+let simple_struct =
+  works ~name:"simple_struct" ~code:"{ x = 1; }" ~type_:"{ x: Int; }"
+
+let struct_internal_type =
+  works ~name:"struct_internal_type" ~code:"A = { . = Int; }; (1: A)"
+    ~type_:"Int"
+
 open Typer
 
 let equal_type env =
@@ -218,6 +225,8 @@ let tests =
     dont_lower_var;
     cursed_destruct_arrow_param;
     cursed_destruct_arrow_return;
+    simple_struct;
+    struct_internal_type;
   ]
 
 let tests = ("tests", List.map test tests)

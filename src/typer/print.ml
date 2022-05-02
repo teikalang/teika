@@ -87,7 +87,7 @@ and pp_type_desc ctx fmt type_ =
       | Some type_ -> fprintf fmt ". = %a; " pp_type type_
       | None -> ());
       fprintf fmt "%a" pp_fields fields;
-      fprintf fmt "{"
+      fprintf fmt "}"
 
 let with_pp_type ?(debug = false) f =
   let ctx = new_ctx ~debug in

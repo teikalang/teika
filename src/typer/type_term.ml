@@ -49,7 +49,7 @@ and term_field = {
 and term_pat = {
   tp_env : Env.t;
   tp_loc : Location.t;
-  tp_names : (Name.t * type_) list;
+  tp_name : Name.t;
   tp_type : type_;
   tp_desc : term_pat_desc;
 }
@@ -105,11 +105,12 @@ let term_lambda env loc type_ ~lambda ~arg =
 let term_let env loc type_ ~bound ~value ~body =
   return_term env loc type_ (Term_let { bound; value; body })
 
-let term_field env loc type_ ~bound ~value =
+let term_field env loc type_ ~bound ~name ~value =
+  let field_type = { name; type_ } in
   let field =
     { tf_env = env; tf_loc = loc; tf_bound = bound; tf_value = value }
   in
-  (type_, field, env)
+  (field_type, field, name, env)
 
 let term_struct env loc type_ ~fields =
   return_term env loc type_ (Term_struct fields)
@@ -120,23 +121,23 @@ let term_annot env loc type_type ~value ~type_ =
   return_term env loc type_type (Term_annot { value; type_ })
 
 (* term_pat *)
-let return_pat env loc type_ names desc =
+let return_pat env loc type_ name desc =
   ( type_,
     {
       tp_env = env;
       tp_loc = loc;
-      tp_names = names;
+      tp_name = name;
       tp_type = type_;
       tp_desc = desc;
     },
-    names,
+    name,
     env )
 
-let pat_ident env loc type_ names ~ident =
-  return_pat env loc type_ names (Term_pat_ident ident)
+let pat_ident env loc type_ name ~ident =
+  return_pat env loc type_ name (Term_pat_ident ident)
 
-let pat_annot env loc type_type names ~pat ~type_ =
-  return_pat env loc type_type names (Term_pat_annot { pat; type_ })
+let pat_annot env loc type_type name ~pat ~type_ =
+  return_pat env loc type_type name (Term_pat_annot { pat; type_ })
 
 let rec type_term env term =
   (* dispatch to the proper function *)
@@ -288,7 +289,7 @@ and type_let env loc ~bound ~value ~body =
 
 and type_struct env loc ~content =
   match content with
-  | Some content -> (* TODO: type_struct *) type_sig env loc ~content
+  | Some content -> type_struct_ambigous env loc ~content
   | None ->
       (* TODO: does this make sense?
          I don't think so, {} : {} : {} will fail *)
@@ -296,13 +297,70 @@ and type_struct env loc ~content =
       let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
       term_struct env loc type_ ~fields:[]
 
-and type_sig env loc ~content =
-  let fields_type, env = type_sig_content env ~content in
-  let type_ =
-    let internal_type = new_struct ~type_:None ~fields:fields_type in
-    new_struct ~type_:(Some internal_type) ~fields:[]
-  in
-  term_sig env loc type_
+and type_struct_ambigous env loc ~content =
+  match content.s_desc with
+  | S_bind { bound = _; value = None; body = _ } ->
+      let fields_type, env = type_sig_content env ~content in
+      let type_ =
+        let internal_type = new_struct ~type_:None ~fields:fields_type in
+        new_struct ~type_:(Some internal_type) ~fields:[]
+      in
+      term_sig env loc type_
+  | _ ->
+      let fields_type, fields, _names, env = type_struct_content env ~content in
+      let type_ =
+        let dot_name = Name.make "." in
+        let internal_type =
+          List.find_map
+            (fun { name; type_ } ->
+              if Name.equal name dot_name then
+                let type_ = extract_type env loc type_ in
+                Some type_
+              else None)
+            fields_type
+        in
+        let fields_type =
+          List.filter
+            (fun { name; type_ = _ } -> not (Name.equal name dot_name))
+            fields_type
+        in
+        new_struct ~type_:internal_type ~fields:fields_type
+      in
+      term_struct env loc type_ ~fields
+
+and type_struct_content env ~content =
+  let { s_desc = content; s_loc = loc } = content in
+  match content with
+  | S_bind { bound; value; body } ->
+      let value =
+        match value with Some value -> value | None -> raise loc Unimplemented
+      in
+      let field_type, field, field_name, env =
+        type_struct_field env loc ~bound ~value
+      in
+      let fields_type, fields, body_names, env =
+        match body with
+        | Some body -> type_struct_content env ~content:body
+        | None -> ([], [], [], env)
+      in
+
+      let fields_type = field_type :: fields_type in
+      let fields = field :: fields in
+      (* TODO: unique name *)
+      let names = field_name :: body_names in
+      (fields_type, fields, names, env)
+  | _ -> raise loc Unimplemented
+
+and type_struct_field env loc ~bound ~value =
+  (* TODO: duplicated from type_let *)
+  (* typing value first to prevent recursion *)
+  let value_type, value, _env = type_term env value in
+
+  (* body *)
+  let bound_type, bound, name, inner_env = type_pat env bound in
+  let () = unify ~loc env ~expected:bound_type ~received:value_type in
+
+  term_field inner_env loc bound_type ~bound ~name ~value
 
 and type_sig_content env ~content =
   let { s_desc = content; s_loc = loc } = content in
@@ -356,9 +414,8 @@ and type_pat_ident env loc ~name =
   let name = Name.make name in
   let type_ = new_weak_var env in
 
-  let names = [ (name, type_) ] in
   let ident, env = Env.add loc name type_ env in
-  pat_ident env loc type_ names ~ident
+  pat_ident env loc type_ name ~ident
 
 and type_pat_annot env loc ~pat ~type_ =
   let pat_type, pat, names, env = type_pat env pat in
