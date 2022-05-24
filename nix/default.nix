@@ -5,7 +5,7 @@ let
 in
 
 with ocamlPackages; buildDunePackage rec {
-  pname = "not-named-yet";
+  pname = "teika";
   version = "0.0.0-dev";
 
   src = lib.filterSource {

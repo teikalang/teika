@@ -1,7 +1,7 @@
-{ pkgs, not-named-yet }:
+{ pkgs, teika }:
 
 with pkgs; mkShell {
-  inputsFrom = [ not-named-yet ];
+  inputsFrom = [ teika ];
   packages = [
     # Make developer life easier
     # formatters

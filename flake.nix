@@ -11,10 +11,10 @@
 
       let
         pkgs = nixpkgs.legacyPackages."${system}";
-        not-named-yet = pkgs.callPackage ./nix { doCheck = true; };
+        teika = pkgs.callPackage ./nix { doCheck = true; };
       in
       rec {
-        packages = { inherit not-named-yet; };
-        devShell = import ./nix/shell.nix { inherit pkgs not-named-yet; };
+        packages = { inherit teika; };
+        devShell = import ./nix/shell.nix { inherit pkgs teika; };
       });
 }
