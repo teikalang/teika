@@ -78,6 +78,7 @@ To avoid noise, this code uses quite a bit of abbreviations.
 | arg    | argument    | `f arg`            |
 | loc    | location    | add.s_loc == None  |
 | desc   | description | term_desc          |
+| univ   | universe    | univ type\_        |
 | pat    | pattern     | x \| pat -> y      |
 | sig    | signature   | `{ x: Int }`       |
 | env    | environment | binds on the env   |
