@@ -15,6 +15,8 @@ type t =
   | SEMICOLON
   (* . *)
   | DOT
+  (* * *)
+  | ASTERISK
   (* | *)
   | PIPE
   (* ( *)

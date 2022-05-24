@@ -23,6 +23,7 @@ module Utils = struct
     | S_struct of term option
     | S_field of { struct_ : term; field : term }
     | S_match of { value : term; pat : term; body : term }
+    | S_asterisk
     | S_annot of { value : term; type_ : term }
   [@@deriving show { with_path = false }]
 end
@@ -37,6 +38,7 @@ let bind bound value body = make (S_bind { bound; value; body })
 let struct_ content = make (S_struct content)
 let field struct_ field = make (S_field { struct_; field })
 let match_ value pat body = make (S_match { value; pat; body })
+let asterisk = make S_asterisk
 let annot value type_ = make (S_annot { value; type_ })
 
 module Simple = struct
@@ -69,6 +71,7 @@ module Simple = struct
   let structure_var = ("structure_var", "{ x }", struct_ (Some (var "x")))
   let field = ("field", "x.y", field (var "x") (var "y"))
   let match_ = ("match", "x | y => z", match_ (var "x") (var "y") (var "z"))
+  let asterisk = ("asterisk", "*", asterisk)
   let annotation = ("annotation", "(x: Int)", annot (var "x") (var "Int"))
 
   let tests =
@@ -86,6 +89,7 @@ module Simple = struct
       structure_var;
       field;
       match_;
+      asterisk;
       annotation;
     ]
 end
@@ -178,6 +182,8 @@ module Parens = struct
       "(f a: Int -> T A)",
       annot (app (var "f") (var "a")) (var "Int" @-> app (var "T") (var "A")) )
 
+  let arrow_asterisk = ("arrow_asterisk", "* -> *", asterisk @-> asterisk)
+
   let tests =
     [
       arrow_binding;
@@ -197,6 +203,7 @@ module Parens = struct
       annot_on_binding;
       apply_annot;
       arrow_type_annot;
+      arrow_asterisk;
     ]
 end
 

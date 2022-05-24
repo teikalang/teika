@@ -42,6 +42,7 @@ let make_bind_lambda loc ~bound ~params ~value ~body =
 %token COLON
 %token SEMICOLON
 %token DOT
+%token ASTERISK
 %token PIPE
 %token LEFT_BRACE
 %token RIGHT_BRACE
@@ -80,6 +81,7 @@ let atom :=
 
 let simple_atom :=
   | ident
+  | asterisk
   | number
   | struct_
   | parens
@@ -94,6 +96,10 @@ let type_arrows :=
 let ident ==
   | ident = IDENT;
     { make $loc (S_ident ident) }
+
+let asterisk ==
+  | ASTERISK;
+    { make $loc S_asterisk }
 
 let number ==
   | number = NUMBER;

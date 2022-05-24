@@ -22,6 +22,7 @@ let rec tokenizer buf =
   | ":" -> COLON
   | ";" -> SEMICOLON
   | "." -> DOT
+  | "*" -> ASTERISK
   | "|" -> PIPE
   | "(" -> LEFT_PARENS
   | ")" -> RIGHT_PARENS
