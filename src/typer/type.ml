@@ -6,7 +6,8 @@ type type_ =
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
-  | T_struct of { type_ : type_ option; fields : field list }
+  | T_struct of { fields : field list }
+  | T_type of type_
 
 and var =
   (* when link points to type_ itself, then this is not linked *)
@@ -24,12 +25,14 @@ type desc = type_ =
   | T_forall of { forall : Forall_id.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
-  | T_struct of { type_ : type_ option; fields : field list }
+  | T_struct of { fields : field list }
+  | T_type of type_
+[@@ocaml.warning "-unused-constructor"]
 
 (* externally opaque *)
 type link = type_
 
-let rec repr type_ =
+let rec repr (type_ : type_) =
   (* TODO: path compression *)
   match type_ with
   | T_var (Weak { rank = _; link }) ->
@@ -37,18 +40,20 @@ let rec repr type_ =
   | _ -> type_
 
 let same a b = repr a == repr b
-let desc type_ = repr type_
+let desc type_ : desc = Obj.magic (repr type_)
 
 let link ~to_ type_ =
-  let type_ = repr type_ in
-  match type_ with T_var (Weak weak) -> weak.link <- to_ | _ -> assert false
+  match desc type_ with
+  | T_var (Weak weak) -> weak.link <- to_
+  | _ -> assert false
 
 let new_forall forall ~body = T_forall { forall; body }
 
 let new_weak_var rank =
-  let rec var = T_var (Weak { rank; link = var }) in
+  let rec var : type_ = T_var (Weak { rank; link = var }) in
   var
 
 let new_bound_var ~name forall = T_var (Bound { forall; name })
 let new_arrow ~param ~return = T_arrow { param; return }
-let new_struct ~type_ ~fields = T_struct { type_; fields }
+let new_struct ~fields = T_struct { fields }
+let new_type type_ = T_type type_

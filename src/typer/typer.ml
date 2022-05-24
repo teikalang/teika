@@ -1,5 +1,6 @@
 module Env = Env
 module Unify = Unify
+module Type_term = Type_term
 module Generalize = Generalize
 module Print = Print
 module Tree = Tree

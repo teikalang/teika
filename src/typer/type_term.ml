@@ -59,21 +59,8 @@ and term_pat_desc =
   | Term_pat_annot of { pat : term_pat; type_ : term }
 
 (* helpers *)
-let extract_type env loc type_ =
-  match desc type_ with
-  | T_forall _ -> type_
-  (* TODO: problem, a lambda cannot be returned from a type, or can it?
-
-     x: A => A; What does this mean? *)
-  | T_arrow _ -> raise loc Unimplemented
-  | T_struct { type_; fields = _ } -> (
-      match type_ with Some type_ -> type_ | None -> raise loc Not_a_type)
-  | T_var _ ->
-      (* TODO: this can be linked directly if weaken *)
-      let internal_type = new_weak_var env in
-      let expected = new_struct ~type_:(Some internal_type) ~fields:[] in
-      let () = unify ~loc env ~expected ~received:type_ in
-      internal_type
+let extract_type loc type_ =
+  match desc type_ with T_type type_ -> type_ | _ -> raise loc Not_a_type
 
 (* term *)
 let return_term env loc type_ desc =
@@ -86,11 +73,11 @@ let term_number env loc type_ ~number =
   return_term env loc type_ (Term_number number)
 
 let term_forall env loc internal_type ~body =
-  let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
+  let type_ = new_type internal_type in
   return_term env loc type_ (Term_forall { body })
 
 let term_arrow env loc internal_type ~param ~body =
-  let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
+  let type_ = new_type internal_type in
   return_term env loc type_ (Term_arrow { param; body })
 
 let term_implicit_lambda env loc type_ ~body =
@@ -157,7 +144,7 @@ and type_type env term =
   (* TODO: this function is not great*)
   let { s_desc = _; s_loc = loc } = term in
   let type_, term, env = type_term env term in
-  let type_ = extract_type env loc type_ in
+  let type_ = extract_type loc type_ in
   (type_, term, env)
 
 and type_ident env loc ~name =
@@ -172,6 +159,7 @@ and type_number env loc ~number =
     | None -> raise loc Invalid_number
   in
 
+  (* TODO: what about thehere? *)
   let type_ = Env.int_type in
   term_number env loc type_ ~number
 
@@ -190,9 +178,9 @@ and type_implicit_arrow env loc ~param ~body =
     match param with
     | S_ident name ->
         let name = Name.make name in
-        (* TODO: name for variables *)
-        let internal_type = new_bound_var ~name:None forall in
-        let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
+        (* TODO:is always small *)
+        let internal_type_ = new_bound_var ~name:(Some name) forall in
+        let type_ = new_type internal_type_ in
         (* TODO: shadowing? or duplicated name error? *)
         (* TODO: also this _ident, use it? *)
         let _ident, env = env |> Env.add loc name type_ in
@@ -200,6 +188,7 @@ and type_implicit_arrow env loc ~param ~body =
     | _ -> raise loc Unimplemented
   in
   let body_type, body, env = type_type env body in
+
   let type_ = new_forall forall ~body:body_type in
   term_forall env loc type_ ~body
 
@@ -207,23 +196,24 @@ and type_explicit_arrow env loc ~param ~body =
   (* TODO: param should be pattyern *)
   let param_type, param, env = type_type env param in
   let body_type, body, env = type_type env body in
+  (* TODO: what about this universe? *)
   let type_ = new_arrow ~param:param_type ~return:body_type in
   term_arrow env loc type_ ~param ~body
 
 and type_lambda env loc ~param ~body =
   match param.s_desc with
   (* TODO: what if it's None? *)
-  | S_struct (Some param) -> type_implicit_lambda env ~loc ~param ~body
+  | S_struct (Some param) -> type_implicit_lambda env loc ~param ~body
   | _ ->
       (* TODO: this should apply to implicit *)
       let lambda_type, lambda, _env =
         let env = enter_rank env in
-        type_explicit_lambda env ~loc ~param ~body
+        type_explicit_lambda env loc ~param ~body
       in
       let lambda_type = generalize env lambda_type in
       (lambda_type, lambda, env)
 
-and type_implicit_lambda env ~loc ~param ~body =
+and type_implicit_lambda env loc ~param ~body =
   let forall = Forall_id.next () in
   let env = Env.enter_forall ~forall env in
   let env =
@@ -232,8 +222,8 @@ and type_implicit_lambda env ~loc ~param ~body =
     | S_ident name ->
         let name = Name.make name in
         (* TODO: name for variables *)
-        let internal_type = new_bound_var ~name:None forall in
-        let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
+        let internal_type = new_bound_var ~name:(Some name) forall in
+        let type_ = new_type internal_type in
         (* TODO: shadowing? or duplicated name error? *)
         (* TODO: also this _ident, use it? *)
         let _ident, env = env |> Env.add loc name type_ in
@@ -244,7 +234,7 @@ and type_implicit_lambda env ~loc ~param ~body =
   let type_ = new_forall forall ~body:body_type in
   term_implicit_lambda env loc type_ ~body
 
-and type_explicit_lambda env ~loc ~param ~body =
+and type_explicit_lambda env loc ~param ~body =
   let param_type, param, _names, env = type_pat env param in
   let body_type, body, _env = type_term env body in
   let type_ = new_arrow ~param:param_type ~return:body_type in
@@ -255,6 +245,8 @@ and type_apply env loc ~lambda ~arg =
   let lambda_type, lambda, _env = type_term env lambda in
   let arg_type, arg, _env = type_term env arg in
 
+  Format.eprintf "%a %a\n%!" Print.pp_type_debug lambda_type Print.pp_type_debug
+    arg_type;
   let return_type = new_weak_var env in
   let () =
     let expected = new_arrow ~param:arg_type ~return:return_type in
@@ -291,41 +283,21 @@ and type_struct env loc ~content =
   match content with
   | Some content -> type_struct_ambigous env loc ~content
   | None ->
-      (* TODO: does this make sense?
-         I don't think so, {} : {} : {} will fail *)
-      let internal_type = new_struct ~type_:None ~fields:[] in
-      let type_ = new_struct ~type_:(Some internal_type) ~fields:[] in
+      let internal_type = new_struct ~fields:[] in
+      (* TODO: this is clearly not right *)
+      let type_ = new_type internal_type in
       term_struct env loc type_ ~fields:[]
 
 and type_struct_ambigous env loc ~content =
   match content.s_desc with
   | S_bind { bound = _; value = None; body = _ } ->
       let fields_type, env = type_sig_content env ~content in
-      let type_ =
-        let internal_type = new_struct ~type_:None ~fields:fields_type in
-        new_struct ~type_:(Some internal_type) ~fields:[]
-      in
+      let internal_type = new_struct ~fields:fields_type in
+      let type_ = new_type internal_type in
       term_sig env loc type_
   | _ ->
       let fields_type, fields, _names, env = type_struct_content env ~content in
-      let type_ =
-        let dot_name = Name.make "." in
-        let internal_type =
-          List.find_map
-            (fun { name; type_ } ->
-              if Name.equal name dot_name then
-                let type_ = extract_type env loc type_ in
-                Some type_
-              else None)
-            fields_type
-        in
-        let fields_type =
-          List.filter
-            (fun { name; type_ = _ } -> not (Name.equal name dot_name))
-            fields_type
-        in
-        new_struct ~type_:internal_type ~fields:fields_type
-      in
+      let type_ = new_struct ~fields:fields_type in
       term_struct env loc type_ ~fields
 
 and type_struct_content env ~content =
@@ -389,7 +361,7 @@ and type_sig_field env ~bound =
         | _ -> raise loc Unimplemented
       in
       (* TODO: use this *)
-      let type_type, _type_, env = type_type env type_ in
+      let type_type, _type_, env = type_term env type_ in
       let field_type = { name; type_ = type_type } in
       (field_type, env)
   | _ -> raise loc Unimplemented
@@ -419,6 +391,7 @@ and type_pat_ident env loc ~name =
 
 and type_pat_annot env loc ~pat ~type_ =
   let pat_type, pat, names, env = type_pat env pat in
+  (* TODO: is thisright? *)
   let type_type, type_, env = type_type env type_ in
 
   let () = unify ~loc env ~expected:pat_type ~received:type_type in

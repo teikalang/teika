@@ -138,14 +138,10 @@ let cursed_destruct_arrow_return =
 let simple_struct =
   works ~name:"simple_struct" ~code:"{ x = 1; }" ~type_:"{ x: Int; }"
 
-let struct_internal_type =
-  works ~name:"struct_internal_type" ~code:"A = { . = Int; }; (1: A)"
-    ~type_:"Int"
-
 open Typer
 
 let equal_type env =
-  Alcotest.testable Print.pp_type (fun a b ->
+  Alcotest.testable Print.pp_type_debug (fun a b ->
       let open Unify in
       let loc = Location.none in
       (* TODO: only works because there is no weak var  *)
@@ -185,7 +181,9 @@ let test_unify_fails ~name ~code =
       try
         let _ = type_term env code in
         false
-      with Unify.Error _ -> true
+      with
+      | Unify.Error _ -> true
+      | Typer.Type_term.Error _ -> true
     in
 
     Alcotest.(check bool name true actual)
@@ -197,7 +195,7 @@ let test { name; code; type_ } =
   | Some type_ -> test_equal_type ~name ~code ~type_
   | None -> test_unify_fails ~name ~code
 
-let tests =
+let _tests =
   [
     id;
     explicit_id;
@@ -226,7 +224,25 @@ let tests =
     cursed_destruct_arrow_param;
     cursed_destruct_arrow_return;
     simple_struct;
-    struct_internal_type;
+  ]
+
+let tests =
+  [
+    id;
+    explicit_id;
+    sequence;
+    sequence_to_left;
+    sequence_to_right;
+    choose;
+    choose_id;
+    choose_id_id;
+    choose_id_incr;
+    choose_id_hm;
+    choose_id_hm_incr;
+    number_types;
+    empty_struct_type;
+    multiple_fields_struct;
+    module_is_not_value;
   ]
 
 let tests = ("tests", List.map test tests)

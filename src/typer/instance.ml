@@ -40,10 +40,7 @@ and instance_desc env ~forall foralls types type_ =
       let return = instance return in
       new_arrow ~param ~return
   (* TODO: should this type_ be also copied? *)
-  | T_struct { type_; fields } ->
-      let type_ =
-        match type_ with Some type_ -> Some (instance type_) | None -> None
-      in
+  | T_struct { fields } ->
       let fields =
         List.map
           (fun { name; type_ } ->
@@ -51,6 +48,9 @@ and instance_desc env ~forall foralls types type_ =
             { name; type_ })
           fields
       in
-      new_struct ~type_ ~fields
+      new_struct ~fields
+  | T_type type_ ->
+      let type_ = instance type_ in
+      new_type type_
 
 let instance env ~forall body = instance env ~forall (ref []) (ref []) body

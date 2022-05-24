@@ -9,12 +9,9 @@ and in_type_desc ~var type_ =
   | T_var _ -> false
   | T_forall { forall = _; body } -> in_type body
   | T_arrow { param; return } -> in_type param || in_type return
-  | T_struct { type_; fields } ->
-      let is_in_type_ =
-        match type_ with Some type_ -> in_type type_ | None -> false
-      in
-      is_in_type_
-      || List.exists (fun { name = _; type_ } -> in_type type_) fields
+  | T_struct { fields } ->
+      List.exists (fun { name = _; type_ } -> in_type type_) fields
+  | T_type type_ -> in_type type_
 
 let in_vars ~var vars = List.exists (fun var' -> same var var') vars
 
@@ -34,15 +31,11 @@ let rec free_vars foralls vars type_ =
   | T_arrow { param; return } ->
       let vars = free_vars foralls vars param in
       free_vars foralls vars return
-  | T_struct { type_; fields } ->
-      let vars =
-        match type_ with
-        | Some type_ -> free_vars foralls vars type_
-        | None -> vars
-      in
+  | T_struct { fields } ->
       List.fold_left
         (fun vars { name = _; type_ } -> free_vars foralls vars type_)
         vars fields
+  | T_type type_ -> free_vars foralls vars type_
 
 let free_vars type_ = free_vars [] [] type_
 

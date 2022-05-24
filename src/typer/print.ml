@@ -36,7 +36,7 @@ let register_name ctx type_ =
 
   let name =
     match desc type_ with
-    | T_forall _ | T_arrow _ | T_struct _ -> sprintf "[%d]" id
+    | T_forall _ | T_arrow _ | T_struct _ | T_type _ -> sprintf "[%d]" id
     | T_var var ->
         (* TODO: use bound name *)
         let prefix = match var with Weak _ -> "_" | Bound _ -> "" in
@@ -71,23 +71,19 @@ and pp_type_desc ctx fmt type_ =
         match desc param with
         | T_var _ -> false
         (* TODO: t_struct should need parens? *)
-        | T_forall _ | T_arrow _ | T_struct _ -> true
+        | T_forall _ | T_arrow _ | T_struct _ | T_type _ -> true
       in
       if parens then fprintf fmt "(%a) -> %a" pp_type param pp_type return
       else fprintf fmt "%a -> %a" pp_type param pp_type return
-  | T_struct { type_; fields } ->
+  | T_struct { fields } ->
       let pp_fields fmt fields =
         List.iter
           (fun { name; type_ } ->
             fprintf fmt "%a: %a; " Name.pp name pp_type type_)
           fields
       in
-      fprintf fmt "{";
-      (match type_ with
-      | Some type_ -> fprintf fmt ". = %a; " pp_type type_
-      | None -> ());
-      fprintf fmt "%a" pp_fields fields;
-      fprintf fmt "}"
+      fprintf fmt "{ %a }" pp_fields fields
+  | T_type type_ -> fprintf fmt "#(%a)" pp_type type_
 
 let with_pp_type ?(debug = false) f =
   let ctx = new_ctx ~debug in

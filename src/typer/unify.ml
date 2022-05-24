@@ -56,9 +56,9 @@ let rec update_rank ctx ~var ~max_rank type_ =
   | T_arrow { param; return } ->
       update_rank param;
       update_rank return
-  | T_struct { type_; fields } ->
-      (match type_ with Some type_ -> update_rank type_ | None -> ());
+  | T_struct { fields } ->
       List.iter (fun { name = _; type_ } -> update_rank type_) fields
+  | T_type type_ -> (* TODO: is this right? *) update_rank type_
 
 (* also escape check *)
 let update_rank ctx ~var type_ =
@@ -98,14 +98,8 @@ and unify_desc ctx ~expected ~received =
       T_arrow { param = received_param; return = received_return } ) ->
       unify ctx ~expected:received_param ~received:expected_param;
       unify ctx ~expected:expected_return ~received:received_return
-  | ( T_struct { type_ = expected_type; fields = expected_fields },
-      T_struct { type_ = received_type; fields = received_fields } ) ->
-      (match (expected_type, received_type) with
-      | Some expected_type, Some received_type ->
-          unify ctx ~expected:expected_type ~received:received_type
-      | Some _, None -> raise ctx (Type_clash { expected; received })
-      | None, _ -> ());
-
+  | T_struct { fields = expected_fields }, T_struct { fields = received_fields }
+    ->
       if List.length expected_fields <> List.length received_fields then
         raise ctx (Type_clash { expected; received });
       (* TODO: proper subtyping *)
@@ -115,7 +109,15 @@ and unify_desc ctx ~expected ~received =
           let { name = _; type_ = received } = received_field in
           unify ctx ~expected ~received)
         expected_fields received_fields
-  | T_struct _, _ | _, T_struct _ | T_var (Bound _), _ | _, T_var (Bound _) ->
+  | T_type expected, T_type received ->
+      (* TODO: does this make sense *)
+      unify ctx ~expected ~received
+  | T_struct _, _
+  | _, T_struct _
+  | T_var (Bound _), _
+  | _, T_var (Bound _)
+  | T_type _, _
+  | _, T_type _ ->
       raise ctx (Type_clash { expected; received })
 
 let unify ~loc env ~expected ~received =
