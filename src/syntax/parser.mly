@@ -64,8 +64,9 @@ let term_opt :=
     { Some term }
 
 (* precedence on parens and braces *)
-let term ==
+let term :=
   | term_match
+  | sequence(term)
   | annot
 let term_match :=
   | term_arrows_and_bind
@@ -131,6 +132,11 @@ let bind(self) ==
     value = self; SEMICOLON;
     body = option(self);
     { make_bind_lambda $loc ~bound ~params ~value ~body }
+
+(* TODO: this could be accepted in way more places, like top level (x -> a; b) *)
+let sequence(self) ==
+  | bound = apply; SEMICOLON; body = option(self);
+    { make $loc (S_bind { bound; value = None; body }) }
 
 let struct_ ==
   | LEFT_BRACE; term = option(term); RIGHT_BRACE;

@@ -49,6 +49,9 @@ module Simple = struct
   let apply = ("apply", "f x", app (var "f") (var "x"))
 
   (* TODO: semicolon *)
+  let binding_no_value_no_type =
+    ("binding_no_value_no_type", "x;", bind (var "x") None None)
+
   let binding_no_value_no_body =
     ( "binding_no_value_no_body",
       "x: Int;",
@@ -81,6 +84,7 @@ module Simple = struct
       arrow;
       lambda;
       apply;
+      binding_no_value_no_type;
       binding_no_value_no_body;
       binding_no_value;
       binding_no_body;
@@ -151,6 +155,38 @@ module Parens = struct
       "{ M: Monad }",
       struct_ (Some (annot (var "M") (var "Monad"))) )
 
+  let sequence_on_structure =
+    ( "sequence_on_structure",
+      "{ print 1; print 2; }",
+      struct_
+        (Some
+           (bind
+              (app (var "print") (number "1"))
+              None
+              (Some (bind (app (var "print") (number "2")) None None)))) )
+
+  let sequence_with_binding =
+    ( "sequence_with_binding",
+      "print y; x = y; print x",
+      bind
+        (app (var "print") (var "y"))
+        None
+        (Some
+           (bind (var "x")
+              (Some (var "y"))
+              (Some (app (var "print") (var "x"))))) )
+
+  let binding_then_sequence =
+    ( "binding_then_sequence",
+      "print y; x = y; print x;",
+      bind
+        (app (var "print") (var "y"))
+        None
+        (Some
+           (bind (var "x")
+              (Some (var "y"))
+              (Some (bind (app (var "print") (var "x")) None None)))) )
+
   let match_arrow_body =
     ( "match_arrow",
       "x | a => b -> a",
@@ -184,6 +220,9 @@ module Parens = struct
 
   let arrow_asterisk = ("arrow_asterisk", "* -> *", asterisk @-> asterisk)
 
+  (* TODO: this should definitely work *)
+  let _tests = [ binding_then_sequence ]
+
   let tests =
     [
       arrow_binding;
@@ -197,6 +236,8 @@ module Parens = struct
       field_binding;
       multiple_match;
       annot_on_structure;
+      sequence_on_structure;
+      sequence_with_binding;
       match_arrow_body;
       match_lambda_body;
       match_bindbody;
