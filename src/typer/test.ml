@@ -148,6 +148,12 @@ let calling_explicit_type =
             explicit_id Int|}
     ~type_:"Int -> Int"
 
+let escape_scope =
+  fails ~name:"escape_scope"
+    ~code:
+      {|explicit_id (A: *) (x: A) = x;
+        x => (A: *) => explicit_id A x|}
+
 let explicit_type_constructor =
   works ~name:"explicit_type_constructor" ~code:"(A: *) => A"
     ~type_:"(A: *) -> A"
@@ -256,6 +262,7 @@ let tests =
     simple_struct;
     explicit_type;
     calling_explicit_type;
+    escape_scope;
     type_struct_id;
     calling_type_struct_id;
   ]
