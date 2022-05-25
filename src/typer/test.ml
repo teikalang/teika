@@ -197,28 +197,6 @@ let test { name; code; type_ } =
 
 let _tests =
   [
-    id;
-    explicit_id;
-    sequence;
-    sequence_to_left;
-    sequence_to_right;
-    choose;
-    choose_id;
-    choose_id_id;
-    choose_id_incr;
-    choose_id_hm;
-    choose_id_hm_incr;
-    number_types;
-    empty_struct_type;
-    multiple_fields_struct;
-    module_is_not_value;
-    term_type_alias;
-    type_type_alias;
-    term_type_function;
-    type_type_function;
-    term_wrong_type_function;
-    type_wrong_type_function;
-    polymorphism_rank2;
     cursed_polymorphism_rank2;
     dont_lower_var;
     cursed_destruct_arrow_param;
@@ -243,6 +221,17 @@ let tests =
     empty_struct_type;
     multiple_fields_struct;
     module_is_not_value;
+    term_type_alias;
+    type_type_alias;
+    term_type_function;
+    type_type_function;
+    term_wrong_type_function;
+    type_wrong_type_function;
+    polymorphism_rank2;
+    dont_lower_var;
+    cursed_destruct_arrow_param;
+    cursed_destruct_arrow_return;
+    simple_struct;
   ]
 
 let tests = ("tests", List.map test tests)

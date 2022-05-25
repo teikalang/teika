@@ -361,7 +361,7 @@ and type_sig_field env ~bound =
         | _ -> raise loc Unimplemented
       in
       (* TODO: use this *)
-      let type_type, _type_, env = type_term env type_ in
+      let type_type, _type_, env = type_type env type_ in
       let field_type = { name; type_ = type_type } in
       (field_type, env)
   | _ -> raise loc Unimplemented
