@@ -152,6 +152,20 @@ let explicit_type_constructor =
   works ~name:"explicit_type_constructor" ~code:"(A: *) => A"
     ~type_:"(A: *) -> A"
 
+(* TODO: solve semicolons problem *)
+let type_struct_id =
+  works ~name:"type_struct_id" ~code:"({ A; }: { A: *; }) => (x: A) => x"
+    ~type_:"({ A; }: { A: *; }) -> A -> A"
+
+let calling_type_struct_id =
+  works ~name:"calling_type_struct_id"
+    ~code:
+      {|explicit_struct_id = ({ A; }: { A: *; }) => (x: A) => x;
+        explicit_struct_id { A = Int; }|}
+    ~type_:"Int -> Int"
+
+(* TODO: is this unsound even if called with a non struct type? *)
+
 open Typer
 
 let equal_type env =
@@ -242,6 +256,8 @@ let tests =
     simple_struct;
     explicit_type;
     calling_explicit_type;
+    type_struct_id;
+    calling_type_struct_id;
   ]
 
 let tests = ("tests", List.map test tests)

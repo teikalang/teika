@@ -58,6 +58,7 @@ and term_pat = {
 
 and term_pat_desc =
   | Term_pat_ident of Ident.t
+  | Term_pat_struct of term_pat list
   | Term_pat_annot of { pat : term_pat; type_ : term }
 
 (* helpers *)
@@ -136,8 +137,11 @@ let pat_ident env loc type_ name ~ident =
   let names = [ (name, type_) ] in
   return_pat env loc type_ names (Term_pat_ident ident)
 
-let pat_annot env loc type_type name ~pat ~type_ =
-  return_pat env loc type_type name (Term_pat_annot { pat; type_ })
+let pat_struct env loc type_ names ~fields =
+  return_pat env loc type_ names (Term_pat_struct fields)
+
+let pat_annot env loc type_type names ~pat ~type_ =
+  return_pat env loc type_type names (Term_pat_annot { pat; type_ })
 
 let rec type_term env term =
   (* dispatch to the proper function *)
@@ -416,6 +420,7 @@ and type_pat env term =
   let { s_desc = term_desc; s_loc = loc } = term in
   match term_desc with
   | S_ident name -> type_pat_ident env loc ~name
+  | S_struct content -> type_pat_struct env loc ~content
   | S_annot { value = pat; type_ } -> type_pat_annot env loc ~pat ~type_
   | _ -> raise loc Unimplemented
 
@@ -426,6 +431,41 @@ and type_pat_ident env loc ~name =
 
   let ident, env = Env.add loc name type_ env in
   pat_ident env loc type_ name ~ident
+
+and type_pat_struct env loc ~content =
+  match content with
+  | None -> assert false
+  | Some content ->
+      let fields_type, fields, names, env =
+        type_pat_struct_content env ~content
+      in
+      let type_ = new_struct ~fields:fields_type in
+      pat_struct env loc type_ names ~fields
+
+and type_pat_struct_content env ~content =
+  let { s_desc = content; s_loc = loc } = content in
+
+  match content with
+  | S_bind { bound; value; body } ->
+      (match value with Some _ -> raise loc Unimplemented | None -> ());
+
+      let fields_type, field, names, env = type_pat_field env ~bound in
+      let body_fields_type, body_fields, body_names, env =
+        match body with
+        | Some body -> type_pat_struct_content env ~content:body
+        | None -> ([], [], [], env)
+      in
+      let fields_type = fields_type @ body_fields_type in
+      let fields = field :: body_fields in
+      (* TODO: unique name *)
+      let names = names @ body_names in
+      (fields_type, fields, names, env)
+  | _ -> raise loc Unimplemented
+
+and type_pat_field env ~bound =
+  let _type_, bound, names, env = type_pat env bound in
+  let fields_type = List.map (fun (name, type_) -> { name; type_ }) names in
+  (fields_type, bound, names, env)
 
 and type_pat_annot env loc ~pat ~type_ =
   let pat_type, pat, names, env = type_pat env pat in
