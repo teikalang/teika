@@ -138,6 +138,20 @@ let cursed_destruct_arrow_return =
 let simple_struct =
   works ~name:"simple_struct" ~code:"{ x = 1; }" ~type_:"{ x: Int; }"
 
+let explicit_type =
+  works ~name:"explicit_type" ~code:"(A: *) => (x: A) => x"
+    ~type_:"(A: *) -> A -> A"
+
+let calling_explicit_type =
+  works ~name:"calling_explicit_type"
+    ~code:{|explicit_id = (A: *) => (x: A) => x;
+            explicit_id Int|}
+    ~type_:"Int -> Int"
+
+let explicit_type_constructor =
+  works ~name:"explicit_type_constructor" ~code:"(A: *) => A"
+    ~type_:"(A: *) -> A"
+
 open Typer
 
 let equal_type env =
@@ -163,7 +177,8 @@ let test_equal_type ~name ~code ~type_ =
     let type_, _type, _env = type_type env type_ in
     let code = value_from_string ~name code in
     let code, _code, _env =
-      let env = Env.enter_rank env in
+      let forall = Type.Forall_id.next () in
+      let env = Env.enter_forall ~forall env in
       type_term env code
     in
     (* TODO: this generalize makes sense? *)
@@ -195,14 +210,7 @@ let test { name; code; type_ } =
   | Some type_ -> test_equal_type ~name ~code ~type_
   | None -> test_unify_fails ~name ~code
 
-let _tests =
-  [
-    cursed_polymorphism_rank2;
-    dont_lower_var;
-    cursed_destruct_arrow_param;
-    cursed_destruct_arrow_return;
-    simple_struct;
-  ]
+let _tests = [ cursed_polymorphism_rank2; explicit_type_constructor ]
 
 let tests =
   [
@@ -232,6 +240,8 @@ let tests =
     cursed_destruct_arrow_param;
     cursed_destruct_arrow_return;
     simple_struct;
+    explicit_type;
+    calling_explicit_type;
   ]
 
 let tests = ("tests", List.map test tests)

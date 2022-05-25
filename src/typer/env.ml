@@ -18,15 +18,15 @@ type t = {
   (* TODO: maybe current_loc here? *)
   names : ident_decl Name.Map.t;
   foralls : Rank.t Forall_id.Map.t;
-  current_rank : Rank.t;
+  current_forall : Forall_id.t * Rank.t;
 }
 
 let insert decl t =
-  let { names; foralls; current_rank } = t in
+  let { names; foralls; current_forall } = t in
   let ident = decl.ident in
   let name = Ident.name ident in
   let names = Name.Map.add name decl names in
-  { names; foralls; current_rank }
+  { names; foralls; current_forall }
 
 let add loc name type_ t =
   let ident = Ident.make name in
@@ -36,7 +36,7 @@ let add loc name type_ t =
   (ident, t)
 
 let lookup loc name t =
-  let { names; foralls = _; current_rank = _ } = t in
+  let { names; foralls = _; current_forall = _ } = t in
   match Name.Map.find_opt name names with
   | Some decl ->
       (* TODO: use loc for something? *)
@@ -44,28 +44,27 @@ let lookup loc name t =
       (ident, ident_type)
   | None -> raise loc (Unknown_name { name })
 
-(* rank *)
-let current_rank t =
-  let { names = _; foralls = _; current_rank } = t in
-  current_rank
+(* forall *)
+let current_forall t =
+  let { names = _; foralls = _; current_forall } = t in
+  fst current_forall
 
-let enter_rank t =
-  let { names; foralls; current_rank } = t in
-  let current_rank = Rank.next current_rank in
-  { names; foralls; current_rank }
+let current_rank t =
+  let { names = _; foralls = _; current_forall } = t in
+  snd current_forall
 
 let enter_forall ~forall t =
   (* TODO: does it make sense to always increase rank here? *)
   (* no bound var at initial env rank? *)
-  let t = enter_rank t in
-
-  let { names; foralls; current_rank } = t in
+  let { names; foralls; current_forall } = t in
+  let current_rank = Rank.next (snd current_forall) in
   (* TODO: what should happen on duplicated forall? *)
   let foralls = Forall_id.Map.add forall current_rank foralls in
-  { names; foralls; current_rank }
+  let current_forall = (forall, current_rank) in
+  { names; foralls; current_forall }
 
 let find_forall ~forall t =
-  let { names = _; foralls; current_rank = _ } = t in
+  let { names = _; foralls; current_forall = _ } = t in
   Forall_id.Map.find_opt forall foralls
 
 let new_weak_var env =
@@ -82,7 +81,7 @@ let base, int_type, int_ident =
     {
       names = Name.Map.empty;
       foralls = Forall_id.Map.empty;
-      current_rank = Rank.initial;
+      current_forall = (Forall_id.next (), Rank.initial);
     }
   in
 
