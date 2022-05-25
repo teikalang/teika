@@ -43,6 +43,7 @@ and term_desc =
 and term_field = {
   tf_env : Env.t;
   tf_loc : Location.t;
+  tf_type : type_;
   tf_bound : term_pat;
   tf_value : term;
 }
@@ -50,7 +51,7 @@ and term_field = {
 and term_pat = {
   tp_env : Env.t;
   tp_loc : Location.t;
-  tp_name : Name.t;
+  tp_names : (Name.t * type_) list;
   tp_type : type_;
   tp_desc : term_pat_desc;
 }
@@ -93,12 +94,18 @@ let term_lambda env loc type_ ~lambda ~arg =
 let term_let env loc type_ ~bound ~value ~body =
   return_term env loc type_ (Term_let { bound; value; body })
 
-let term_field env loc type_ ~bound ~name ~value =
-  let field_type = { name; type_ } in
+let term_field env loc type_ ~bound ~names ~value =
+  let field_types = List.map (fun (name, type_) -> { name; type_ }) names in
   let field =
-    { tf_env = env; tf_loc = loc; tf_bound = bound; tf_value = value }
+    {
+      tf_env = env;
+      tf_loc = loc;
+      tf_type = type_;
+      tf_bound = bound;
+      tf_value = value;
+    }
   in
-  (field_type, field, name, env)
+  (field_types, field, names, env)
 
 let term_struct env loc type_ ~fields =
   return_term env loc type_ (Term_struct fields)
@@ -113,20 +120,21 @@ let term_annot env loc type_type ~value ~type_ =
   return_term env loc type_type (Term_annot { value; type_ })
 
 (* term_pat *)
-let return_pat env loc type_ name desc =
+let return_pat env loc type_ names desc =
   ( type_,
     {
       tp_env = env;
       tp_loc = loc;
-      tp_name = name;
+      tp_names = names;
       tp_type = type_;
       tp_desc = desc;
     },
-    name,
+    names,
     env )
 
 let pat_ident env loc type_ name ~ident =
-  return_pat env loc type_ name (Term_pat_ident ident)
+  let names = [ (name, type_) ] in
+  return_pat env loc type_ names (Term_pat_ident ident)
 
 let pat_annot env loc type_type name ~pat ~type_ =
   return_pat env loc type_type name (Term_pat_annot { pat; type_ })
@@ -330,19 +338,19 @@ and type_struct_content env ~content =
       let value =
         match value with Some value -> value | None -> raise loc Unimplemented
       in
-      let field_type, field, field_name, env =
+      let fields_type, field, names, env =
         type_struct_field env loc ~bound ~value
       in
-      let fields_type, fields, body_names, env =
+      let body_fields_type, body_fields, body_names, env =
         match body with
         | Some body -> type_struct_content env ~content:body
         | None -> ([], [], [], env)
       in
 
-      let fields_type = field_type :: fields_type in
-      let fields = field :: fields in
+      let fields_type = fields_type @ body_fields_type in
+      let fields = field :: body_fields in
       (* TODO: unique name *)
-      let names = field_name :: body_names in
+      let names = names @ body_names in
       (fields_type, fields, names, env)
   | _ -> raise loc Unimplemented
 
@@ -352,10 +360,10 @@ and type_struct_field env loc ~bound ~value =
   let value_type, value, _env = type_term env value in
 
   (* body *)
-  let bound_type, bound, name, inner_env = type_pat env bound in
+  let bound_type, bound, names, inner_env = type_pat env bound in
   let () = unify ~loc env ~expected:bound_type ~received:value_type in
 
-  term_field inner_env loc bound_type ~bound ~name ~value
+  term_field inner_env loc bound_type ~bound ~names ~value
 
 and type_sig_content env ~content =
   let { s_desc = content; s_loc = loc } = content in
