@@ -65,6 +65,12 @@ and term_pat_desc =
 let extract_type env loc type_ =
   match desc type_ with
   | T_type { forall; type_ } -> Instance.instance_bound env ~forall type_
+  | T_var (Weak _) ->
+      let internal_type = new_weak_var env in
+      unify ~loc env
+        ~expected:(new_type (Forall_id.next ()) ~type_:internal_type)
+        ~received:type_;
+      internal_type
   | _ -> raise loc Not_a_type
 
 (* term *)
@@ -482,8 +488,5 @@ and type_pat_annot env loc ~pat ~type_ =
   (* TODO: is thisright? *)
   let type_type, type_, _env = type_type env type_ in
 
-  let () =
-    (* TODO: the two instance seems useless, probably make a match type function *)
-    unify ~loc env ~expected:type_type ~received:pat_type
-  in
+  let () = unify ~loc env ~expected:type_type ~received:pat_type in
   pat_annot env loc type_type names ~pat ~type_

@@ -192,6 +192,9 @@ let type_abstraction_fail =
   fails ~name:"type_abstraction_fail"
     ~code:{|{ T; x; }: { T: *; x: T; } = { T = Int; x = 1; }; (x: Int)|}
 
+let infer_kind_id =
+  equal ~name:"infer_kind_id" ~code:"A => (x: A) => x" ~type_:"(A: *) -> A -> A"
+
 open Typer
 
 let annot ~expected ~received =
@@ -319,6 +322,7 @@ let tests =
     existential_record;
     type_abstraction;
     type_abstraction_fail;
+    infer_kind_id;
   ]
 
 let tests = ("tests", List.map test tests)
