@@ -11,7 +11,8 @@ type desc = private
   | T_arrow of { param : type_; return : type_ }
   (* TODO: enforce that field list doesn't contain any duplicated name *)
   | T_struct of { fields : field list }
-  | T_type of type_
+  (* TODO: T_type is weird *)
+  | T_type of { forall : Forall_id.t; type_ : type_ }
 
 and var = private
   | Weak of { rank : Rank.t; mutable link : link }
@@ -37,4 +38,4 @@ val new_weak_var : Rank.t -> type_
 val new_bound_var : name:Name.t option -> Forall_id.t -> type_
 val new_arrow : param:type_ -> return:type_ -> type_
 val new_struct : fields:field list -> type_
-val new_type : type_ -> type_
+val new_type : Forall_id.t -> type_:type_ -> type_

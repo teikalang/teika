@@ -40,7 +40,14 @@ let register_name ctx type_ =
     | T_var var ->
         (* TODO: use bound name *)
         let prefix = match var with Weak _ -> "_" | Bound _ -> "" in
-        let suffix = if ctx.debug then sprintf "[%d]" id else "" in
+        let suffix =
+          if ctx.debug then
+            match var with
+            | Weak _ -> sprintf "[%d]" id
+            | Bound { forall; name = _ } ->
+                asprintf "[%d:%a]" id Forall_id.pp forall
+          else ""
+        in
         prefix ^ new_name ctx ^ suffix
   in
   ctx.types <- Mem_map.add type_ name ctx.types
@@ -80,7 +87,7 @@ and pp_type_desc ctx fmt type_ =
           fields
       in
       fprintf fmt "{ %a }" pp_fields fields
-  | T_type type_ -> fprintf fmt "#(%a)" pp_type type_
+  | T_type { forall = _; type_ } -> fprintf fmt "#(%a)" pp_type type_
 
 let with_pp_type ?(debug = false) f =
   let ctx = new_ctx ~debug in

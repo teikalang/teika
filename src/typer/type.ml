@@ -7,7 +7,7 @@ type type_ =
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
   | T_struct of { fields : field list }
-  | T_type of type_
+  | T_type of { forall : Forall_id.t; type_ : type_ }
 
 and var =
   (* when link points to type_ itself, then this is not linked *)
@@ -26,7 +26,7 @@ type desc = type_ =
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
   | T_struct of { fields : field list }
-  | T_type of type_
+  | T_type of { forall : Forall_id.t; type_ : type_ }
 [@@ocaml.warning "-unused-constructor"]
 
 (* externally opaque *)
@@ -56,4 +56,4 @@ let new_weak_var rank =
 let new_bound_var ~name forall = T_var (Bound { forall; name })
 let new_arrow ~param ~return = T_arrow { param; return }
 let new_struct ~fields = T_struct { fields }
-let new_type type_ = T_type type_
+let new_type forall ~type_ = T_type { forall; type_ }

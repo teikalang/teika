@@ -90,6 +90,8 @@ let base, int_type, int_ident =
 
   let int_name = Name.make "Int" in
   let int_type = new_bound_var ~name:(Some int_name) forall in
-  let int_ident, base = base |> add loc int_name (new_type int_type) in
+  let int_ident, base =
+    base |> add loc int_name (new_type (Forall_id.next ()) ~type_:int_type)
+  in
 
   (base, int_type, int_ident)

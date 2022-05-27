@@ -23,7 +23,7 @@ let () =
 type ctx = { loc : Location.t; env : Env.t }
 
 let raise ctx error = raise (Error { loc = ctx.loc; error })
-let instance ctx ~forall type_ = instance ctx.env ~forall type_
+let instance_weaken ctx ~forall type_ = instance_weaken ctx.env ~forall type_
 
 let with_expected_forall ctx ~forall =
   let { loc; env } = ctx in
@@ -58,7 +58,7 @@ let rec update_rank ctx ~var ~max_rank type_ =
       update_rank return
   | T_struct { fields } ->
       List.iter (fun { name = _; type_ } -> update_rank type_) fields
-  | T_type type_ -> (* TODO: is this right? *) update_rank type_
+  | T_type { forall = _; type_ } -> (* TODO: is this right? *) update_rank type_
 
 (* also escape check *)
 let update_rank ctx ~var type_ =
@@ -91,7 +91,7 @@ and unify_desc ctx ~expected ~received =
       unify ctx ~expected:body ~received
   (* 4: received forall *)
   | _, T_forall { forall; body } ->
-      let body = instance ctx ~forall body in
+      let body = instance_weaken ctx ~forall body in
       unify ctx ~expected ~received:body
   (* simple *)
   | ( T_arrow { param = expected_param; return = expected_return },
@@ -109,7 +109,9 @@ and unify_desc ctx ~expected ~received =
           let { name = _; type_ = received } = received_field in
           unify ctx ~expected ~received)
         expected_fields received_fields
-  | T_type expected, T_type received ->
+  | ( T_type { forall = _; type_ = expected },
+      T_type { forall = _; type_ = received } ) ->
+      (* TODO: proper unification of types? *)
       (* TODO: does this make sense *)
       unify ctx ~expected ~received
   | T_struct _, _

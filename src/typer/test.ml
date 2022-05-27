@@ -100,6 +100,10 @@ let term_type_alias =
 let type_type_alias =
   works ~name:"type_type_alias" ~code:"1" ~type_:"(T = Int; T)"
 
+let kind_alias =
+  works ~name:"kind_alias" ~code:"K = *; (A: K) => (x: A) => x"
+    ~type_:"(A: *) -> A -> A"
+
 let term_type_function =
   works ~name:"term_type_function" ~code:"Id = X => X; (1: (Id Int))"
     ~type_:"Int"
@@ -251,6 +255,7 @@ let tests =
     module_is_not_value;
     term_type_alias;
     type_type_alias;
+    kind_alias;
     term_type_function;
     type_type_function;
     term_wrong_type_function;

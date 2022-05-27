@@ -5,16 +5,20 @@ open Env
 (* TODO: remove single forall *)
 (* TODO: this makes perfect copy(except link), optimization if avoid generating
    duplicated generics, where weaken on unify can be O(1) *)
-let rec instance env ~forall foralls types type_ =
+let rec instance env ~bound_when_free ~forall foralls types type_ =
   match List.find_opt (fun (key, _type') -> same key type_) !types with
   | Some (_key, type') -> type'
   | None ->
-      let type' = instance_desc env ~forall foralls types type_ in
+      let type' =
+        instance_desc env ~bound_when_free ~forall foralls types type_
+      in
       types := (type_, type') :: !types;
       type'
 
-and instance_desc env ~forall foralls types type_ =
-  let instance type_ = instance env ~forall foralls types type_ in
+and instance_desc env ~bound_when_free ~forall foralls types type_ =
+  let instance type_ =
+    instance env ~bound_when_free ~forall foralls types type_
+  in
   match desc type_ with
   | T_forall { forall; body } ->
       let forall' = Forall_id.next () in
@@ -24,7 +28,11 @@ and instance_desc env ~forall foralls types type_ =
       new_forall forall' ~body
   | T_var (Weak _) -> (* weak not copied *) type_
   | T_var (Bound { forall = var_forall; name }) -> (
-      if Forall_id.equal forall var_forall then new_weak_var env
+      if Forall_id.equal forall var_forall then
+        if bound_when_free then
+          let forall = current_forall env in
+          new_bound_var ~name forall
+        else new_weak_var env
       else
         match
           List.find_opt
@@ -49,8 +57,19 @@ and instance_desc env ~forall foralls types type_ =
           fields
       in
       new_struct ~fields
-  | T_type type_ ->
-      let type_ = instance type_ in
-      new_type type_
+  | T_type { forall; type_ } ->
+      let forall' = Forall_id.next () in
+      foralls := (forall, forall') :: !foralls;
 
-let instance env ~forall body = instance env ~forall (ref []) (ref []) body
+      let type_ = instance type_ in
+      new_type forall' ~type_
+
+(* TODO: those functions are badly named *)
+let instance env ~bound_when_free ~forall body =
+  instance env ~bound_when_free ~forall (ref []) (ref []) body
+
+let instance_bound env ~forall body =
+  instance env ~bound_when_free:true ~forall body
+
+let instance_weaken env ~forall body =
+  instance env ~bound_when_free:false ~forall body
