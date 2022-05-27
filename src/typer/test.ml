@@ -221,11 +221,10 @@ let equal_type env =
     (fun fmt (typ, _) -> Print.pp_type_debug fmt typ)
     (fun (a, _) (b, _) ->
       let open Unify in
-      let loc = Location.none in
       (* TODO: only works because there is no weak var  *)
       try
-        unify ~loc env ~expected:a ~received:b;
-        unify ~loc env ~expected:b ~received:a;
+        unify env ~expected:a ~received:b;
+        unify env ~expected:b ~received:a;
         true
       with Unify.Error _ -> false)
 

@@ -10,9 +10,14 @@ val base : t
 val int_ident : Ident.t
 val int_type : Type.t
 
+(* loc *)
+(* TODO: is this a good idea? It's essentially a shadow stack *)
+val set_loc : Location.t -> t -> t
+val current_loc : t -> Location.t
+
 (* insertion *)
-val add : Location.t -> Name.t -> type_ -> t -> Ident.t * t
-val lookup : Location.t -> Name.t -> t -> Ident.t * type_
+val add : Name.t -> type_ -> t -> Ident.t * t
+val lookup : Name.t -> t -> Ident.t * type_
 
 (* forall *)
 val current_forall : t -> Forall_id.t
