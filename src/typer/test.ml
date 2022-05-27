@@ -184,14 +184,13 @@ let type_abstraction =
   equal ~name:"type_abstraction"
     ~code:
       {|S = { T: *; x: T; to_int: T -> Int; };
-        { T; x; to_int }: S = { T = Int; x = 1; };
+        { T; x; to_int; }: S = { T = Int; x = 1; to_int x = x; };
         to_int (x: T)|}
     ~type_:"Int"
 
 let type_abstraction_fail =
   fails ~name:"type_abstraction_fail"
-    ~code:
-      {|M: { T: *; x: Int; } = { T = Int; x = 1; }; id (x: Int) = x; id M.x|}
+    ~code:{|{ T; x; }: { T: *; x: T; } = { T = Int; x = 1; }; (x: Int)|}
 
 open Typer
 
@@ -281,13 +280,7 @@ let test case =
   | Subtype { name; code; type_ } ->
       test_match_type ~equal:false ~name ~code ~type_
 
-let _tests =
-  [
-    cursed_polymorphism_rank2;
-    explicit_type_constructor;
-    type_abstraction;
-    type_abstraction_fail;
-  ]
+let _tests = [ cursed_polymorphism_rank2; explicit_type_constructor ]
 
 let tests =
   [
@@ -324,6 +317,8 @@ let tests =
     type_struct_id;
     calling_type_struct_id;
     existential_record;
+    type_abstraction;
+    type_abstraction_fail;
   ]
 
 let tests = ("tests", List.map test tests)

@@ -305,12 +305,17 @@ and type_bind env loc ~bound ~value ~body =
   type_let env loc ~bound ~value ~body
 
 and type_let env loc ~bound ~value ~body =
+  let forall = Forall_id.next () in
+  let env = enter_forall ~forall env in
   (* typing value first to prevent recursion *)
   let value_type, value, _env = type_term env value in
 
   (* body *)
   let bound_type, bound, _names, inner_env = type_pat env bound in
-  let () = unify ~loc env ~expected:bound_type ~received:value_type in
+  let () =
+    let expected = Instance.instance_weaken env ~forall bound_type in
+    unify ~loc env ~expected ~received:value_type
+  in
   let body_type, body, _env = type_term inner_env body in
 
   term_let env loc body_type ~bound ~value ~body
