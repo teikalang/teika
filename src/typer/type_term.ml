@@ -378,14 +378,14 @@ and type_sig_content env ~content =
   match content with
   | S_bind { bound; value; body } ->
       (match value with Some _ -> raise loc Unimplemented | None -> ());
-      let field_type, env = type_sig_field env ~bound in
-      let fields_type, env =
+      let fields_type, env = type_sig_field env ~bound in
+      let body_fields_type, env =
         match body with
         | Some body -> type_sig_content env ~content:body
         | None -> ([], env)
       in
 
-      let fields_type = field_type :: fields_type in
+      let fields_type = fields_type @ body_fields_type in
       (fields_type, env)
   | _ -> raise loc Unimplemented
 
@@ -393,16 +393,10 @@ and type_sig_field env ~bound =
   let { s_desc = bound; s_loc = loc } = bound in
   match bound with
   | S_annot { value; type_ } ->
-      let name =
-        let { s_desc = value; s_loc = loc } = value in
-        match value with
-        | S_ident name -> Name.make name
-        | _ -> raise loc Unimplemented
-      in
       (* TODO: use this *)
-      let type_type, _type_, env = type_type env type_ in
-      let field_type = { name; type_ = type_type } in
-      (field_type, env)
+      let _type_, _pat, names, env = type_pat_annot env loc ~pat:value ~type_ in
+      let field_types = List.map (fun (name, type_) -> { name; type_ }) names in
+      (field_types, env)
   | _ -> raise loc Unimplemented
 
 and type_asterisk env loc =
@@ -416,9 +410,15 @@ and type_asterisk env loc =
 
 and type_annot env loc ~value ~type_ =
   (* TODO: fail when inside of type_ *)
+  let forall = Forall_id.next () in
+  let env = enter_forall ~forall env in
+
   let value_type, value, _env = type_term env value in
   let type_type, type_, _env = type_type env type_ in
-  let () = unify ~loc env ~expected:type_type ~received:value_type in
+  let () =
+    let expected = Instance.instance_weaken env ~forall type_type in
+    unify ~loc env ~expected ~received:value_type
+  in
 
   term_annot env loc type_type ~value ~type_
 

@@ -1,26 +1,26 @@
 open Syntax
 
-type test = {
-  (* TODO: check also the error *)
-  name : string;
-  code : string;
-  type_ : string option;
-}
+type test =
+  | Fails of { (* TODO: check also the error *)
+               name : string; code : string }
+  | Equal of { name : string; code : string; type_ : string }
+  | Subtype of { name : string; code : string; type_ : string }
 
-let works ~name ~code ~type_ = { name; code; type_ = Some type_ }
-let fails ~name ~code = { name; code; type_ = None }
+let equal ~name ~code ~type_ = Equal { name; code; type_ }
+let subtype ~name ~code ~type_ = Subtype { name; code; type_ }
+let fails ~name ~code = Fails { name; code }
 
 (* TODO: test ppx *)
-let id = works ~name:"id" ~code:"x => x" ~type_:"{A} -> A -> A"
+let id = equal ~name:"id" ~code:"x => x" ~type_:"{A} -> A -> A"
 
 let explicit_id =
-  works ~name:"explicit_id" ~code:"{A} => (x: A) => x" ~type_:"{A} -> A -> A"
+  equal ~name:"explicit_id" ~code:"{A} => (x: A) => x" ~type_:"{A} -> A -> A"
 
 let sequence =
-  works ~name:"sequence" ~code:"a => b => b" ~type_:"{A} -> A -> {B} -> B -> B"
+  equal ~name:"sequence" ~code:"a => b => b" ~type_:"{A} -> A -> {B} -> B -> B"
 
 let sequence_to_left =
-  works ~name:"sequence_to_left"
+  equal ~name:"sequence_to_left"
     ~code:{|sequence a b = b;
           (sequence: {A} -> {B} -> A -> B -> B)|}
     ~type_:"{A} -> {B} -> A ->  B -> B"
@@ -33,11 +33,11 @@ let sequence_to_right =
         (sequence_weak: {A} -> A -> {B} -> B -> B)|}
 
 let choose =
-  works ~name:"choose" ~code:"((a => b => b) : {A} -> A -> A -> A)"
+  equal ~name:"choose" ~code:"((a => b => b) : {A} -> A -> A -> A)"
     ~type_:"{A} -> A -> A -> A"
 
 let choose_id =
-  works ~name:"choose_id"
+  equal ~name:"choose_id"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
         id x = x;
@@ -45,7 +45,7 @@ let choose_id =
     ~type_:"({A} -> A -> A) -> {A} -> A -> A"
 
 let choose_id_id =
-  works ~name:"choose_id_id"
+  equal ~name:"choose_id_id"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
         id x = x;
@@ -63,7 +63,7 @@ let choose_id_incr =
         choose_id incr|}
 
 let choose_id_hm =
-  works ~name:"choose_id_hm"
+  equal ~name:"choose_id_hm"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
         choose_id_hm: {A} -> (A -> A) -> (A -> A) -> A -> A = choose;
@@ -72,7 +72,7 @@ let choose_id_hm =
     ~type_:"{A} -> (A -> A) -> A -> A"
 
 let choose_id_hm_incr =
-  works ~name:"choose_id_hm_incr"
+  equal ~name:"choose_id_hm_incr"
     ~code:
       {|choose: {A} -> A -> A -> A = a => b => b;
         choose_id_hm: {A} -> (A -> A) -> (A -> A) -> A -> A = choose;
@@ -82,34 +82,34 @@ let choose_id_hm_incr =
     ~type_:"Int -> Int"
 
 let number_types =
-  works ~name:"number_types" ~code:"x => 1" ~type_:"{A} -> A -> Int"
+  equal ~name:"number_types" ~code:"x => 1" ~type_:"{A} -> A -> Int"
 
 let empty_struct_type =
-  works ~name:"empty_struct_type" ~code:"(x: {}) => x" ~type_:"({}) -> {}"
+  equal ~name:"empty_struct_type" ~code:"(x: {}) => x" ~type_:"({}) -> {}"
 
 let multiple_fields_struct =
-  works ~name:"multiple_fields_struct" ~code:"(m: { x: Int; y: Int; }) => m"
+  equal ~name:"multiple_fields_struct" ~code:"(m: { x: Int; y: Int; }) => m"
     ~type_:"({ x: Int; y: Int; }) -> { x: Int; y: Int; }"
 
 let module_is_not_value =
   fails ~name:"module_is_not_value" ~code:"id (x: Int) = x; id Int"
 
 let term_type_alias =
-  works ~name:"term_type_alias" ~code:"T = Int; (1: Int)" ~type_:"Int"
+  equal ~name:"term_type_alias" ~code:"T = Int; (1: Int)" ~type_:"Int"
 
 let type_type_alias =
-  works ~name:"type_type_alias" ~code:"1" ~type_:"(T = Int; T)"
+  equal ~name:"type_type_alias" ~code:"1" ~type_:"(T = Int; T)"
 
 let kind_alias =
-  works ~name:"kind_alias" ~code:"K = *; (A: K) => (x: A) => x"
+  equal ~name:"kind_alias" ~code:"K = *; (A: K) => (x: A) => x"
     ~type_:"(A: *) -> A -> A"
 
 let term_type_function =
-  works ~name:"term_type_function" ~code:"Id = X => X; (1: (Id Int))"
+  equal ~name:"term_type_function" ~code:"Id = X => X; (1: (Id Int))"
     ~type_:"Int"
 
 let type_type_function =
-  works ~name:"type_type_function" ~code:"1" ~type_:"(Id = X => X; Id Int)"
+  equal ~name:"type_type_function" ~code:"1" ~type_:"(Id = X => X; Id Int)"
 
 let term_wrong_type_function =
   fails ~name:"term_wrong_type_function" ~code:"Id = X => X; ({}: Id Int)"
@@ -118,36 +118,36 @@ let type_wrong_type_function =
   fails ~name:"type_wrong_type_function" ~code:"({}: (Id = X => X; Id Int))"
 
 let polymorphism_rank2 =
-  works ~name:"polymorphism_rank2"
+  equal ~name:"polymorphism_rank2"
     ~code:"(Id: ({A} -> A -> A)) => (Id 1: Id Int)"
     ~type_:"({A} -> A -> A) -> Int"
 
 (* TODO: I think this lambda should not be supported in this place, why? *)
 let cursed_polymorphism_rank2 =
-  works ~name:"cursed_polymorphism_rank2"
+  equal ~name:"cursed_polymorphism_rank2"
     ~code:"(Id: X => X) => (Id 1: (Id Int))" ~type_:"(X => X) -> Int"
 
 let dont_lower_var =
-  works ~name:"dont_lower_var" ~code:"{A} => {B} => (T: A -> B) => T"
+  equal ~name:"dont_lower_var" ~code:"{A} => {B} => (T: A -> B) => T"
     ~type_:"{A} -> {B} -> (A -> B) -> A -> B"
 
 let cursed_destruct_arrow_param =
-  works ~name:"cursed_destruct_arrow_param" ~code:"1"
+  equal ~name:"cursed_destruct_arrow_param" ~code:"1"
     ~type_:"(F = {A} => {B} => (T: A -> B) => A; f x = 1; F f)"
 
 let cursed_destruct_arrow_return =
-  works ~name:"cursed_destruct_arrow_return" ~code:"1"
+  equal ~name:"cursed_destruct_arrow_return" ~code:"1"
     ~type_:"(F = {A} => {B} => (T: A -> B) => B; f x = 1; F f)"
 
 let simple_struct =
-  works ~name:"simple_struct" ~code:"{ x = 1; }" ~type_:"{ x: Int; }"
+  equal ~name:"simple_struct" ~code:"{ x = 1; }" ~type_:"{ x: Int; }"
 
 let explicit_type =
-  works ~name:"explicit_type" ~code:"(A: *) => (x: A) => x"
+  equal ~name:"explicit_type" ~code:"(A: *) => (x: A) => x"
     ~type_:"(A: *) -> A -> A"
 
 let calling_explicit_type =
-  works ~name:"calling_explicit_type"
+  equal ~name:"calling_explicit_type"
     ~code:{|explicit_id = (A: *) => (x: A) => x;
             explicit_id Int|}
     ~type_:"Int -> Int"
@@ -159,16 +159,16 @@ let escape_scope =
         x => (A: *) => explicit_id A x|}
 
 let explicit_type_constructor =
-  works ~name:"explicit_type_constructor" ~code:"(A: *) => A"
+  equal ~name:"explicit_type_constructor" ~code:"(A: *) => A"
     ~type_:"(A: *) -> A"
 
 (* TODO: solve semicolons problem *)
 let type_struct_id =
-  works ~name:"type_struct_id" ~code:"({ A; }: { A: *; }) => (x: A) => x"
+  equal ~name:"type_struct_id" ~code:"({ A; }: { A: *; }) => (x: A) => x"
     ~type_:"({ A; }: { A: *; }) -> A -> A"
 
 let calling_type_struct_id =
-  works ~name:"calling_type_struct_id"
+  equal ~name:"calling_type_struct_id"
     ~code:
       {|explicit_struct_id = ({ A; }: { A: *; }) => (x: A) => x;
         explicit_struct_id { A = Int; }|}
@@ -176,10 +176,36 @@ let calling_type_struct_id =
 
 (* TODO: is this unsound even if called with a non struct type? *)
 
+let existential_record =
+  subtype ~name:"existential_record" ~code:"{ T = Int; x = 1; }"
+    ~type_:"{ T: *; x: T; }"
+
+let type_abstraction =
+  equal ~name:"type_abstraction"
+    ~code:
+      {|S = { T: *; x: T; to_int: T -> Int; };
+        { T; x; to_int }: S = { T = Int; x = 1; };
+        to_int (x: T)|}
+    ~type_:"Int"
+
+let type_abstraction_fail =
+  fails ~name:"type_abstraction_fail"
+    ~code:
+      {|M: { T: *; x: Int; } = { T = Int; x = 1; }; id (x: Int) = x; id M.x|}
+
 open Typer
 
+let annot ~expected ~received =
+  Syntax.
+    {
+      s_loc = Location.none;
+      s_desc = S_annot { value = received; type_ = expected };
+    }
+
 let equal_type env =
-  Alcotest.testable Print.pp_type_debug (fun a b ->
+  Alcotest.testable
+    (fun fmt (typ, _) -> Print.pp_type_debug fmt typ)
+    (fun (a, _) (b, _) ->
       let open Unify in
       let loc = Location.none in
       (* TODO: only works because there is no weak var  *)
@@ -189,26 +215,37 @@ let equal_type env =
         true
       with Unify.Error _ -> false)
 
+let subtype_type env =
+  Alcotest.testable
+    (fun fmt (typ, _) -> Print.pp_type_debug fmt typ)
+    (fun (_, expected) (_, received) ->
+      (* TODO: only works because there is no weak var  *)
+      try
+        let _ = type_term env (annot ~expected ~received) in
+        true
+      with Unify.Error _ -> false)
+
 let value_from_string ~name string =
   match value_from_string string with
   | Some received -> received
   | None -> failwith ("string likely empty: " ^ name)
 
-let test_equal_type ~name ~code ~type_ =
+let test_match_type ~equal ~name ~code ~type_ =
   let check () =
     let env = Env.base in
     let type_ = value_from_string ~name type_ in
-    let type_, _type, _env = type_type env type_ in
+    let type_type, _type, _env = type_type env type_ in
     let code = value_from_string ~name code in
-    let code, _code, _env =
+    let code_type, _code, _env =
       let forall = Type.Forall_id.next () in
       let env = Env.enter_forall ~forall env in
       type_term env code
     in
     (* TODO: this generalize makes sense? *)
-    let code = Typer.Generalize.generalize env code in
+    let code_type = Typer.Generalize.generalize env code_type in
 
-    Alcotest.check (equal_type env) name type_ code
+    let checker = if equal then equal_type else subtype_type in
+    Alcotest.check (checker env) name (type_type, type_) (code_type, code)
   in
   Alcotest.test_case name `Quick check
 
@@ -222,19 +259,35 @@ let test_unify_fails ~name ~code =
         false
       with
       | Unify.Error _ -> true
-      | Typer.Type_term.Error _ -> true
+      | Typer.Type_term.Error
+          {
+            error =
+              ( Binding_without_value | Binding_without_body | Invalid_number
+              | Not_a_type );
+            loc = _;
+          } ->
+          true
     in
 
     Alcotest.(check bool name true actual)
   in
   Alcotest.test_case name `Quick check
 
-let test { name; code; type_ } =
-  match type_ with
-  | Some type_ -> test_equal_type ~name ~code ~type_
-  | None -> test_unify_fails ~name ~code
+let test case =
+  match case with
+  | Fails { name; code } -> test_unify_fails ~name ~code
+  | Equal { name; code; type_ } ->
+      test_match_type ~equal:true ~name ~code ~type_
+  | Subtype { name; code; type_ } ->
+      test_match_type ~equal:false ~name ~code ~type_
 
-let _tests = [ cursed_polymorphism_rank2; explicit_type_constructor ]
+let _tests =
+  [
+    cursed_polymorphism_rank2;
+    explicit_type_constructor;
+    type_abstraction;
+    type_abstraction_fail;
+  ]
 
 let tests =
   [
@@ -270,6 +323,7 @@ let tests =
     escape_scope;
     type_struct_id;
     calling_type_struct_id;
+    existential_record;
   ]
 
 let tests = ("tests", List.map test tests)
