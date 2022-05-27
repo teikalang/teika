@@ -195,6 +195,18 @@ let type_abstraction_fail =
 let infer_kind_id =
   equal ~name:"infer_kind_id" ~code:"A => (x: A) => x" ~type_:"(A: *) -> A -> A"
 
+let deep_type_abstraction =
+  subtype ~name:"deep_type_abstraction"
+    ~code:"{ M: { T: *; x: T; } = { T = Int; x = 1; }; }"
+    ~type_:"{ M: { T: *; x: T; }; }"
+
+let deep_type_abstraction_fail =
+  fails ~name:"deep_type_abstraction_fail"
+    ~code:
+      {|{ M; } = { M: { T: *; x: T; } = { T = Int; x = 1; }; };
+        { T; x; } = M;
+        (x: Int)|}
+
 open Typer
 
 let annot ~expected ~received =
@@ -323,6 +335,8 @@ let tests =
     type_abstraction;
     type_abstraction_fail;
     infer_kind_id;
+    deep_type_abstraction;
+    deep_type_abstraction_fail;
   ]
 
 let tests = ("tests", List.map test tests)

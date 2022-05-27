@@ -67,11 +67,16 @@ let extract_type env loc type_ =
   | T_type { forall; type_ } -> Instance.instance_bound env ~forall type_
   | T_var (Weak _) ->
       let internal_type = new_weak_var env in
-      unify ~loc env
-        ~expected:(new_type (Forall_id.next ()) ~type_:internal_type)
-        ~received:type_;
+      let () =
+        let expected = new_type (Forall_id.next ()) ~type_:internal_type in
+        unify ~loc env ~expected ~received:type_
+      in
       internal_type
   | _ -> raise loc Not_a_type
+
+let match_type env loc ~forall ~expected ~value =
+  let expected = Instance.instance_weaken env ~forall expected in
+  unify ~loc env ~expected ~received:value
 
 (* term *)
 let return_term env loc type_ desc =
@@ -311,19 +316,15 @@ and type_bind env loc ~bound ~value ~body =
   type_let env loc ~bound ~value ~body
 
 and type_let env loc ~bound ~value ~body =
+  (* typing value first to prevent recursion *)
   let forall = Forall_id.next () in
   let env = enter_forall ~forall env in
-  (* typing value first to prevent recursion *)
+
   let value_type, value, _env = type_term env value in
-
-  (* body *)
   let bound_type, bound, _names, inner_env = type_pat env bound in
-  let () =
-    let expected = Instance.instance_weaken env ~forall bound_type in
-    unify ~loc env ~expected ~received:value_type
-  in
-  let body_type, body, _env = type_term inner_env body in
+  match_type env loc ~forall ~expected:bound_type ~value:value_type;
 
+  let body_type, body, _env = type_term inner_env body in
   term_let env loc body_type ~bound ~value ~body
 
 and type_struct env loc ~content =
@@ -376,11 +377,12 @@ and type_struct_content env ~content =
 and type_struct_field env loc ~bound ~value =
   (* TODO: duplicated from type_let *)
   (* typing value first to prevent recursion *)
-  let value_type, value, _env = type_term env value in
+  let forall = Forall_id.next () in
+  let env = enter_forall ~forall env in
 
-  (* body *)
+  let value_type, value, _env = type_term env value in
   let bound_type, bound, names, inner_env = type_pat env bound in
-  let () = unify ~loc env ~expected:bound_type ~received:value_type in
+  match_type env loc ~forall ~expected:bound_type ~value:value_type;
 
   term_field inner_env loc bound_type ~bound ~names ~value
 
@@ -426,10 +428,7 @@ and type_annot env loc ~value ~type_ =
 
   let value_type, value, _env = type_term env value in
   let type_type, type_, _env = type_type env type_ in
-  let () =
-    let expected = Instance.instance_weaken env ~forall type_type in
-    unify ~loc env ~expected ~received:value_type
-  in
+  match_type env loc ~forall ~expected:type_type ~value:value_type;
 
   term_annot env loc type_type ~value ~type_
 
@@ -485,7 +484,6 @@ and type_pat_field env ~bound =
 
 and type_pat_annot env loc ~pat ~type_ =
   let pat_type, pat, names, env = type_pat env pat in
-  (* TODO: is thisright? *)
   let type_type, type_, _env = type_type env type_ in
 
   let () = unify ~loc env ~expected:type_type ~received:pat_type in
