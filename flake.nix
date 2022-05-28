@@ -8,12 +8,14 @@
 
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = nixpkgs.makePkgs {
+      let pkgs = (nixpkgs.makePkgs {
         inherit system;
         extraOverlays = [
           (import ./nix/overlay.nix)
         ];
-      }; in
+      }).extend (self: super: {
+        ocamlPackages = super.ocaml-ng.ocamlPackages_4_14;
+      }); in
       let teika = pkgs.callPackage ./nix { doCheck = true; }; in
       rec {
         packages = { inherit teika; };
