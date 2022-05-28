@@ -1,6 +1,5 @@
 { pkgs, doCheck ? true }:
 
-let ocamlPackages = pkgs.ocaml-ng.ocamlPackages_4_14; in
 let inherit (pkgs) lib stdenv ocamlPackages; in
 
 with ocamlPackages; buildDunePackage rec {
