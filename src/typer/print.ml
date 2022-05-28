@@ -43,9 +43,11 @@ let register_name ctx type_ =
         let suffix =
           if ctx.debug then
             match var with
-            | Weak _ -> sprintf "[%d]" id
-            | Bound { forall; name = _ } ->
-                asprintf "[%d:%a]" id Forall_id.pp forall
+            | Weak { rank; link = _ } -> asprintf "[%d:%a]" id Rank.pp rank
+            | Bound { forall; name = _ } -> (
+                match Forall.rank forall with
+                | None -> asprintf "[%d]" id
+                | Some rank -> asprintf "[%d:%a]" id Rank.pp rank)
           else ""
         in
         prefix ^ new_name ctx ^ suffix

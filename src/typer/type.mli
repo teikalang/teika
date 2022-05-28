@@ -1,22 +1,21 @@
 open Utils
-module Forall_id : Uid.S
 
 (* WARNING: only physical identity safe to use is on type_ *)
 type type_
 type t = type_
 
 type desc = private
-  | T_forall of { forall : Forall_id.t; body : type_ }
+  | T_forall of { forall : Forall.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
   (* TODO: enforce that field list doesn't contain any duplicated name *)
   | T_struct of { fields : field list }
   (* TODO: T_type is weird *)
-  | T_type of { forall : Forall_id.t; type_ : type_ }
+  | T_type of { forall : Forall.t; type_ : type_ }
 
 and var = private
   | Weak of { rank : Rank.t; mutable link : link }
-  | Bound of { forall : Forall_id.t; name : Name.t option }
+  | Bound of { forall : Forall.t; name : Name.t option }
 
 and field = { name : Name.t; type_ : type_ }
 and link
@@ -33,9 +32,9 @@ val link : to_:type_ -> type_ -> unit
 
 (* helpers *)
 (* TODO: are those helpers useful? *)
-val new_forall : Forall_id.t -> body:type_ -> type_
+val new_forall : Forall.t -> body:type_ -> type_
 val new_weak_var : Rank.t -> type_
-val new_bound_var : name:Name.t option -> Forall_id.t -> type_
+val new_bound_var : name:Name.t option -> Forall.t -> type_
 val new_arrow : param:type_ -> return:type_ -> type_
 val new_struct : fields:field list -> type_
-val new_type : Forall_id.t -> type_:type_ -> type_
+val new_type : Forall.t -> type_:type_ -> type_

@@ -70,7 +70,7 @@ let extract_type env type_ =
   | T_var (Weak _) ->
       let internal_type = new_weak_var env in
       let () =
-        let expected = new_type (Forall_id.next ()) ~type_:internal_type in
+        let expected = new_type (Forall.make ()) ~type_:internal_type in
         unify env ~expected ~received:type_
       in
       internal_type
@@ -210,7 +210,7 @@ and type_arrow env ~param ~body =
   | _ -> type_explicit_arrow env ~param ~body
 
 and type_implicit_arrow env ~param ~body =
-  let forall = Forall_id.next () in
+  let forall = Forall.make () in
   let env =
     let previous_loc = current_loc env in
     let { s_desc = param; s_loc = loc } = param in
@@ -220,7 +220,7 @@ and type_implicit_arrow env ~param ~body =
         let name = Name.make name in
         (* TODO:is always small *)
         let internal_type_ = new_bound_var ~name:(Some name) forall in
-        let type_ = new_type (Forall_id.next ()) ~type_:internal_type_ in
+        let type_ = new_type (Forall.make ()) ~type_:internal_type_ in
         (* TODO: shadowing? or duplicated name error? *)
         (* TODO: also this _ident, use it? *)
         let _ident, env = env |> Env.add name type_ in
@@ -231,13 +231,14 @@ and type_implicit_arrow env ~param ~body =
   let body_type, body, env = type_type env body in
 
   let type_ = new_forall forall ~body:body_type in
-  let type_ = new_type (Forall_id.next ()) ~type_ in
+  let type_ = new_type (Forall.make ()) ~type_ in
+
+  Forall.clear forall;
   term_forall env type_ ~body
 
 and type_explicit_arrow env ~param ~body =
   (* TODO: param should be pattyern *)
-  let forall = Forall_id.next () in
-  let env = enter_forall ~forall env in
+  let forall, env = enter_forall env in
   let param =
     (* TODO: especial case, to allow Int -> Int*)
     match param.s_desc with
@@ -253,8 +254,9 @@ and type_explicit_arrow env ~param ~body =
   (* TODO: what about this universe? *)
   let arrow_type_ = new_arrow ~param:param_type ~return:body_type in
   let type_ = new_forall forall ~body:arrow_type_ in
+  let type_ = new_type (Forall.make ()) ~type_ in
 
-  let type_ = new_type (Forall_id.next ()) ~type_ in
+  Forall.clear forall;
   term_arrow env type_ ~param ~body
 
 and type_lambda env ~param ~body =
@@ -264,16 +266,14 @@ and type_lambda env ~param ~body =
   | _ ->
       (* TODO: this should apply to implicit *)
       let lambda_type, lambda, _env =
-        let forall = Forall_id.next () in
-        let env = enter_forall ~forall env in
+        let _forall, env = enter_forall env in
         type_explicit_lambda env ~param ~body
       in
       let lambda_type = generalize env lambda_type in
       (lambda_type, lambda, env)
 
 and type_implicit_lambda env ~param ~body =
-  let forall = Forall_id.next () in
-  let env = Env.enter_forall ~forall env in
+  let forall, env = enter_forall env in
   let env =
     let previous_loc = current_loc env in
     let { s_desc = param; s_loc = loc } = param in
@@ -284,7 +284,7 @@ and type_implicit_lambda env ~param ~body =
         let name = Name.make name in
         (* TODO: name for variables *)
         let internal_type = new_bound_var ~name:(Some name) forall in
-        let type_ = new_type (Forall_id.next ()) ~type_:internal_type in
+        let type_ = new_type (Forall.make ()) ~type_:internal_type in
         (* TODO: shadowing? or duplicated name error? *)
         (* TODO: also this _ident, use it? *)
         let _ident, env = env |> Env.add name type_ in
@@ -295,17 +295,20 @@ and type_implicit_lambda env ~param ~body =
   in
   let body_type, body, _env = type_term env body in
   let type_ = new_forall forall ~body:body_type in
+
+  Forall.clear forall;
   term_implicit_lambda env type_ ~body
 
 and type_explicit_lambda env ~param ~body =
-  let forall = Forall_id.next () in
-  let env = enter_forall ~forall env in
+  let forall, env = enter_forall env in
 
   let param_type, param, _names, env = type_pat env param in
   let body_type, body, _env = type_term env body in
 
   let arrow_type_ = new_arrow ~param:param_type ~return:body_type in
   let type_ = new_forall forall ~body:arrow_type_ in
+
+  Forall.clear forall;
   term_explicit_lambda env type_ ~param ~body
 
 and type_apply env ~lambda ~arg =
@@ -336,14 +339,15 @@ and type_bind env ~bound ~value ~body =
 
 and type_let env ~bound ~value ~body =
   (* typing value first to prevent recursion *)
-  let forall = Forall_id.next () in
-  let env = enter_forall ~forall env in
+  let forall, env = enter_forall env in
 
   let value_type, value, _env = type_term env value in
-  let bound_type, bound, _names, inner_env = type_pat env bound in
+  let bound_type, bound, _names, env = type_pat env bound in
   match_type env ~forall ~expected:bound_type ~value:value_type;
 
-  let body_type, body, _env = type_term inner_env body in
+  let body_type, body, _env = type_term env body in
+
+  Forall.clear forall;
   term_let env body_type ~bound ~value ~body
 
 and type_struct env ~content =
@@ -352,17 +356,18 @@ and type_struct env ~content =
   | None ->
       let internal_type = new_struct ~fields:[] in
       (* TODO: this is clearly not right *)
-      let type_ = new_type (Forall_id.next ()) ~type_:internal_type in
+      let type_ = new_type (Forall.make ()) ~type_:internal_type in
       term_struct env type_ ~fields:[]
 
 and type_struct_ambigous env ~content =
   match content.s_desc with
   | S_bind { bound = _; value = None; body = _ } ->
-      let forall = Forall_id.next () in
-      let env = enter_forall ~forall env in
+      let forall, env = enter_forall env in
       let fields_type, env = type_sig_content env ~content in
       let internal_type = new_struct ~fields:fields_type in
       let type_ = new_type forall ~type_:internal_type in
+
+      Forall.clear forall;
       term_sig env type_
   | _ ->
       (* TODO: probably needs a forall *)
@@ -403,14 +408,14 @@ and type_struct_content env ~content =
 and type_struct_field env ~bound ~value =
   (* TODO: duplicated from type_let *)
   (* typing value first to prevent recursion *)
-  let forall = Forall_id.next () in
-  let env = enter_forall ~forall env in
+  let forall, env = enter_forall env in
 
   let value_type, value, _env = type_term env value in
-  let bound_type, bound, names, inner_env = type_pat env bound in
+  let bound_type, bound, names, env = type_pat env bound in
   match_type env ~forall ~expected:bound_type ~value:value_type;
 
-  term_field inner_env bound_type ~bound ~names ~value
+  Forall.clear forall;
+  term_field env bound_type ~bound ~names ~value
 
 and type_sig_content env ~content =
   let previous_loc = current_loc env in
@@ -449,23 +454,24 @@ and type_sig_field env ~bound =
   | _ -> raise env Unimplemented
 
 and type_asterisk env =
-  let forall = Forall_id.next () in
-  let env = Env.enter_forall ~forall env in
+  let forall, env = enter_forall env in
   let type_ = new_bound_var ~name:None forall in
   (* TODO: this is VERY weird, nested T_type *)
   let type_ = new_type forall ~type_ in
   let type_ = new_type forall ~type_ in
+
+  Forall.clear forall;
   term_asterisk env type_
 
 and type_annot env ~value ~type_ =
   (* TODO: fail when inside of type_ *)
-  let forall = Forall_id.next () in
-  let env = enter_forall ~forall env in
+  let forall, env = enter_forall env in
 
   let value_type, value, _env = type_term env value in
   let type_type, type_, _env = type_type env type_ in
   match_type env ~forall ~expected:type_type ~value:value_type;
 
+  Forall.clear forall;
   term_annot env type_type ~value ~type_
 
 and type_pat env term =

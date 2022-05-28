@@ -21,14 +21,14 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
   in
   match desc type_ with
   | T_forall { forall; body } ->
-      let forall' = Forall_id.next () in
+      let forall' = Forall.make () in
       foralls := (forall, forall') :: !foralls;
 
       let body = instance body in
       new_forall forall' ~body
   | T_var (Weak _) -> (* weak not copied *) type_
   | T_var (Bound { forall = var_forall; name }) -> (
-      if Forall_id.equal forall var_forall then
+      if Forall.same forall var_forall then
         if bound_when_free then
           let forall = current_forall env in
           new_bound_var ~name forall
@@ -36,7 +36,7 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
       else
         match
           List.find_opt
-            (fun (key, _forall') -> Forall_id.equal key var_forall)
+            (fun (key, _forall') -> Forall.same key var_forall)
             !foralls
         with
         | Some (_key, forall') -> new_bound_var ~name forall'
@@ -58,7 +58,7 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
       in
       new_struct ~fields
   | T_type { forall; type_ } ->
-      let forall' = Forall_id.next () in
+      let forall' = Forall.make () in
       foralls := (forall, forall') :: !foralls;
 
       let type_ = instance type_ in

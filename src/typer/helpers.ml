@@ -16,7 +16,7 @@ and in_type_desc ~var type_ =
 let in_vars ~var vars = List.exists (fun var' -> same var var') vars
 
 let in_foralls ~forall foralls =
-  List.exists (fun forall' -> Forall_id.equal forall forall') foralls
+  List.exists (fun forall' -> Forall.same forall forall') foralls
 
 (* TODO: this is a bad name, this is actul*)
 let rec free_vars foralls vars type_ =
@@ -45,7 +45,7 @@ let forall_vars ~forall type_ =
       match desc var with
       | T_var (Weak _) -> false
       | T_var (Bound { forall = var_forall; name = _ }) ->
-          Forall_id.equal forall var_forall
+          Forall.same forall var_forall
       | _ -> assert false)
     (free_vars type_)
 

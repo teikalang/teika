@@ -20,10 +20,10 @@ val add : Name.t -> type_ -> t -> Ident.t * t
 val lookup : Name.t -> t -> Ident.t * type_
 
 (* forall *)
-val current_forall : t -> Forall_id.t
 val current_rank : t -> Rank.t
-val enter_forall : forall:Forall_id.t -> t -> t
-val find_forall : forall:Forall_id.t -> t -> Rank.t option
+val with_rank : Rank.t -> t -> t
+val current_forall : t -> Forall.t
+val enter_forall : t -> Forall.t * t
 
 (* types *)
 val new_weak_var : t -> Type.t

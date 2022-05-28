@@ -233,10 +233,8 @@ let subtype_type env =
     (fun fmt (typ, _) -> Print.pp_type_debug fmt typ)
     (fun (_, expected) (_, received) ->
       (* TODO: only works because there is no weak var  *)
-      try
-        let _ = type_term env (annot ~expected ~received) in
-        true
-      with Unify.Error _ -> false)
+      let _ = type_term env (annot ~expected ~received) in
+      true)
 
 let value_from_string ~name string =
   match value_from_string string with
@@ -250,8 +248,7 @@ let test_match_type ~equal ~name ~code ~type_ =
     let type_type, _type, _env = type_type env type_ in
     let code = value_from_string ~name code in
     let code_type, _code, _env =
-      let forall = Type.Forall_id.next () in
-      let env = Env.enter_forall ~forall env in
+      let _forall, env = Env.enter_forall env in
       type_term env code
     in
     (* TODO: this generalize makes sense? *)
