@@ -1,5 +1,7 @@
 { pkgs, teika }:
 
+let ocamlPackages = pkgs.ocaml-ng.ocamlPackages_4_14; in
+
 with pkgs; mkShell {
   inputsFrom = [ teika ];
   packages = [

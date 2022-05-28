@@ -8,11 +8,13 @@
 
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
-
-      let
-        pkgs = nixpkgs.legacyPackages."${system}";
-        teika = pkgs.callPackage ./nix { doCheck = true; };
-      in
+      let pkgs = nixpkgs.makePkgs {
+        inherit system;
+        extraOverlays = [
+          (import ./nix/overlay.nix)
+        ];
+      }; in
+      let teika = pkgs.callPackage ./nix { doCheck = true; }; in
       rec {
         packages = { inherit teika; };
         devShell = import ./nix/shell.nix { inherit pkgs teika; };
