@@ -31,7 +31,7 @@ Cons:
 
 - invalid code may be parsed
 - not clear where parens are needed
-- no syntatical indication of current contex
+- no syntatical indication of current context
 
 ```rust
 Syntax =
@@ -51,6 +51,12 @@ Syntax =
   | Syntax.Syntax // field
   | (Syntax) // parens
 ```
+
+## Arrow and Lambda
+
+The entire language can be described using lambda only, in fact arrow can only describe a subset of the language.
+
+But adding arrow allows easier inference and a simpler syntax for describing common types.
 
 ## Implicit Argument
 
