@@ -74,8 +74,7 @@ let enter_forall t =
     t
   in
   let current_rank = Rank.next previous_rank in
-  let current_forall = Forall.make () in
-  Forall.tag (Rank.next previous_rank) current_forall;
+  let current_forall = Forall.make current_rank in
   (current_forall, { names; current_forall; current_rank; current_loc })
 
 let new_weak_var env =
@@ -85,8 +84,7 @@ let new_weak_var env =
 (* base *)
 let base, int_type, int_ident =
   let predef_rank = Rank.initial in
-  let predef_forall = Forall.make () in
-  Forall.tag predef_rank predef_forall;
+  let predef_forall = Forall.make predef_rank in
 
   let predef =
     {
@@ -102,7 +100,7 @@ let base, int_type, int_ident =
   let int_name = Name.make "Int" in
   let int_type = new_bound_var ~name:(Some int_name) predef_forall in
   let int_ident, predef =
-    predef |> add int_name (new_type (Forall.make ()) ~type_:int_type)
+    predef |> add int_name (new_type (Forall.make Rank.generic) ~type_:int_type)
   in
 
   let _forall, env = enter_forall predef in

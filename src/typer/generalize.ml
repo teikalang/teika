@@ -15,7 +15,7 @@ let free_vars_in_env env type_ =
 
 let generalize vars body =
   (* TODO: same logic as Instance.weaken *)
-  let forall = Forall.make () in
+  let forall = Forall.make Rank.generic in
   List.iter
     (fun weak_var ->
       let bound_var = new_bound_var ~name:None forall in

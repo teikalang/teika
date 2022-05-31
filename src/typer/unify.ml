@@ -32,19 +32,21 @@ let rec update_rank loc ~var ~max_rank type_ =
   | T_var (Weak { rank = var_rank; link = _ }) ->
       let rank = min_rank max_rank var_rank in
       lower ~var:type_ rank
-  | T_var (Bound { forall; name = _ }) -> (
-      match Forall.rank forall with
-      (* None implies this var is not behind *)
-      | None -> ()
-      | Some var_rank ->
-          (* received is introduced after rank is incremented so > *)
-          if Rank.(max_rank >= var_rank) then ()
-          else raise loc (Escape_check { var; type_ }))
+  | T_var (Bound { forall; name = _ }) ->
+      let var_rank = Forall.rank forall in
+      if
+        (* received is introduced after rank is incremented so >
+           generic is the lowest, so it will always match this *)
+        (* TODO: why isn't this > ? *)
+        Rank.(max_rank >= var_rank)
+      then ()
+      else raise loc (Escape_check { var; type_ })
   | T_forall { forall = _; body } -> update_rank body
   | T_arrow { param; return } ->
       update_rank param;
       update_rank return
   | T_struct { fields } ->
+      (* TODO: also check name *)
       List.iter (fun { name = _; type_ } -> update_rank type_) fields
   | T_type { forall = _; type_ } -> (* TODO: is this right? *) update_rank type_
 
@@ -81,9 +83,9 @@ and unify_desc env rank ~expected ~received =
       let rank = Rank.next rank in
       (* TODO: neede because instance_weaken *)
       let env = Env.with_rank rank env in
-      Forall.tag rank forall;
-      unify env rank ~expected:body ~received;
-      Forall.clear forall
+      Forall.with_rank
+        (fun () -> unify env rank ~expected:body ~received)
+        rank forall
   (* 4: received forall *)
   | _, T_forall { forall; body } ->
       let body = instance_weaken env ~forall body in
