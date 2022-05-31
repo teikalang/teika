@@ -66,6 +66,8 @@ Also that completely prevented binding + function syntax `id x = x`, which may b
 
 So for the syntax argument it is currently using `{A: M}` which was an already supported syntax.
 
+But this makes it ambiguous with record destructuring, currently this means that destructuring on a record with a single fields the last semicolon cannot be omitted `{A} -> A` means `forall a. a` but `{A;} -> A` means `{ A: _ } -> A`.
+
 - https://agda.readthedocs.io/en/v2.6.1/language/implicit-arguments.html
 
 ## Binding Lambda
