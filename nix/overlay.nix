@@ -6,9 +6,12 @@ with super; {
     ocamlPackages_4_14 = ocamlPackages_4_14.overrideScope'
       (_: super: {
         ocaml-lsp = super.ocaml-lsp.overrideAttrs (_: {
-          src = fetchurl {
-            url = "https://github.com/ocaml/ocaml-lsp/releases/download/1.11.6/jsonrpc-1.11.6.tbz";
-            sha256 = "50b546ced5332c4a038bcf68b65b7888cb8e61aebe102e8c80b23a4c5899bbbb";
+          src = fetchFromGitHub {
+            owner = "EduardoRFS";
+            repo = "ocaml-lsp";
+            rev = "eeb5ff15c6a3e78c897c6f787ce8ebb4ffe10934";
+            sha256 = "+Ax6/fh0Kdlku1XWU2dukerGvvzznR4qjDsm9zG5cLg=";
+            fetchSubmodules = true;
           };
         });
       });
