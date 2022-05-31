@@ -252,19 +252,17 @@ and type_bind env ~bind =
   (forall, bind, names, env)
 
 and type_let env ~bind ~body =
-  let forall, bind, _names, env = type_bind env ~bind in
-  let body_type, body = type_expr env body in
-  (* TODO: why clear here? *)
-  Forall.clear forall;
-  term_let env body_type ~bind ~body
+  let forall, bind, _names, inner_env = type_bind env ~bind in
+  let body_type, body = type_expr inner_env body in
+
+  let let_type_ = Instance.instance_bound env ~forall body_type in
+  term_let env let_type_ ~bind ~body
 
 and type_record env ~fields =
   let fields, names, env =
     List.fold_left
       (fun (body_binds, body_names, env) bind ->
-        (* TODO: what about this forall? *)
         let _forall, bind, names, env = type_bind env ~bind in
-
         let names = names @ body_names in
         let fields = bind :: body_binds in
         (fields, names, env))
@@ -278,6 +276,9 @@ and type_record env ~fields =
   term_record env type_ ~fields
 
 and type_signature env ~fields =
+  (* TODO: each field should have it's own forall*)
+  let forall, env = enter_forall env in
+
   let names, env =
     List.fold_left
       (fun (body_names, env) bound ->
@@ -289,14 +290,16 @@ and type_signature env ~fields =
   let names = List.rev names in
   let fields = List.map (fun (name, type_) -> { name; type_ }) names in
   let type_ = new_struct ~fields in
-  let type_ = new_type (Forall.make ()) ~type_ in
+  let type_ = new_type forall ~type_ in
+
+  Forall.clear forall;
   term_signature env type_
 
 and type_asterisk env =
   let forall, env = enter_forall env in
   let type_ = new_bound_var ~name:None forall in
   (* TODO: this is VERY weird, nested T_type *)
-  let type_ = new_type forall ~type_ in
+  let type_ = new_type (Forall.make ()) ~type_ in
   let type_ = new_type forall ~type_ in
 
   Forall.clear forall;
@@ -304,14 +307,14 @@ and type_asterisk env =
 
 and type_annot env ~value ~type_ =
   (* TODO: fail when inside of type_ *)
-  let forall, env = enter_forall env in
+  let forall, inner_env = enter_forall env in
 
-  let value_type, value = type_expr env value in
-  let type_type, type_ = type_type env type_ in
-  match_type env ~forall ~expected:type_type ~value:value_type;
+  let value_type, value = type_expr inner_env value in
+  let type_type, type_ = type_type inner_env type_ in
+  match_type inner_env ~forall ~expected:type_type ~value:value_type;
 
-  Forall.clear forall;
-  term_annot env type_type ~value ~type_
+  let annot_type_ = Instance.instance_bound env ~forall type_type in
+  term_annot env annot_type_ ~value ~type_
 
 and type_pat env term =
   let previous_loc = current_loc env in

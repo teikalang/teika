@@ -104,6 +104,12 @@ let kind_alias =
   equal ~name:"kind_alias" ~code:"K = *; (A: K) => (x: A) => x"
     ~type_:"(A: *) -> A -> A"
 
+let deep_kind_alias =
+  equal ~name:"deep_kind_alias"
+    ~code:{|K = K = *; K;
+            (A: K) => (x: A) => x|}
+    ~type_:"(A: *) -> A -> A"
+
 let term_type_function =
   equal ~name:"term_type_function" ~code:"Id = X => X; (1: (Id Int))"
     ~type_:"Int"
@@ -178,6 +184,20 @@ let calling_type_struct_id =
 
 let existential_record =
   subtype ~name:"existential_record" ~code:"{ T = Int; x = 1; }"
+    ~type_:"{ T: *; x: T; }"
+
+let double_existential_record =
+  subtype ~name:"let_value_existential_record"
+    ~code:"({ T = Int; x = 1; }: { T: *; x: T; })" ~type_:"{ T: *; x: T; }"
+
+let let_type_existential_record =
+  subtype ~name:"let_type_existential_record" ~code:"{ T = Int; x = 1; }"
+    ~type_:"S = { T: *; x: T; }; S"
+
+let let_value_existential_record =
+  subtype ~name:"let_value_existential_record"
+    ~code:{|S = { T: *; x: T; };
+            ({ T = Int; x = 1; }: S)|}
     ~type_:"{ T: *; x: T; }"
 
 let type_abstraction =
@@ -299,9 +319,10 @@ let _tests =
     cursed_polymorphism_rank2;
     explicit_type_constructor;
     (* regressions *)
-    type_abstraction;
     deep_type_abstraction;
   ]
+
+(* TODO: generate test, IDENTICAL (x: t = e1; e2) == ((x: t) => e1) e2 *)
 
 let tests =
   [
@@ -323,6 +344,7 @@ let tests =
     term_type_alias;
     type_type_alias;
     kind_alias;
+    deep_kind_alias;
     term_type_function;
     type_type_function;
     term_wrong_type_function;
@@ -338,6 +360,10 @@ let tests =
     type_struct_id;
     calling_type_struct_id;
     existential_record;
+    double_existential_record;
+    let_type_existential_record;
+    let_value_existential_record;
+    type_abstraction;
     type_abstraction_fail;
     infer_kind_id;
     deep_type_abstraction_fail;

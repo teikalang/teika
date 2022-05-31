@@ -8,4 +8,6 @@ val make : unit -> t
 (* TODO: can be optimized by making a special Rank.generic *)
 val rank : t -> Rank.t option
 val tag : Rank.t -> t -> unit
+
+(* TODO: does clear make sense? *)
 val clear : t -> unit
