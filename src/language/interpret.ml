@@ -4,6 +4,8 @@ open Tree
 type error =
   | Let_without_value
   | Let_without_body
+  | Record_without_value
+  | Signature_with_value
   | Record_pattern_with_value
   | Unimplemented
 
@@ -18,13 +20,19 @@ let le_number loc ~number = make_expr loc (LE_number number)
 let le_arrow loc ~param ~body = make_expr loc (LE_arrow { param; body })
 let le_lambda loc ~param ~body = make_expr loc (LE_lambda { param; body })
 let le_apply loc ~lambda ~arg = make_expr loc (LE_apply { lambda; arg })
-
-let le_let loc ~bound ~value ~body =
-  make_expr loc (LE_let { bound; value; body })
-
+let le_let loc ~bind ~body = make_expr loc (LE_let { bind; body })
 let le_record loc ~fields = make_expr loc (LE_record fields)
+let le_signature loc ~fields = make_expr loc (LE_signature fields)
 let le_asterisk loc = make_expr loc LE_asterisk
 let le_annot loc ~value ~type_ = make_expr loc (LE_annot { value; type_ })
+
+let le_bind ~bound ~value =
+  let loc =
+    let loc_start = value.le_loc.loc_start in
+    let loc_end = bound.lp_loc.loc_end in
+    Location.{ loc_ghost = false; loc_start; loc_end }
+  in
+  LE_bind { loc : Location.t; bound : pat; value : expr }
 
 (* pat *)
 let make_pat loc desc = { lp_loc = loc; lp_desc = desc }
@@ -59,10 +67,13 @@ let rec interpret_expr term =
         match body with Some body -> body | None -> raise loc Let_without_body
       in
 
-      let bound = interpret_pat bound in
-      let value = interpret_expr value in
+      let bind =
+        let bound = interpret_pat bound in
+        let value = interpret_expr value in
+        le_bind ~bound ~value
+      in
       let body = interpret_expr body in
-      le_let loc ~bound ~value ~body
+      le_let loc ~bind ~body
   | S_struct content ->
       let fields =
         match content with
@@ -78,33 +89,61 @@ let rec interpret_expr term =
       let type_ = interpret_expr type_ in
       le_annot loc ~value ~type_
 
+and interpret_expr_record_ambiguous content =
+  (* TODO: weird lookahead *)
+  let { s_loc = loc; s_desc } = content in
+  match s_desc with
+  | S_bind { bound = _; value = None; body = _ } ->
+      let fields = interpret_expr_signature content in
+      le_signature loc ~fields
+  | _ ->
+      let fields = interpret_expr_record content in
+      le_record loc ~fields
+
 and interpret_expr_record content =
   let { s_loc = loc; s_desc = content } = content in
-  match content with
-  | S_bind { bound; value; body } ->
-      let bound = interpret_pat bound in
-      let value =
-        match value with
-        | Some value -> Some (interpret_expr value)
-        | None -> None
-      in
-      let fields =
-        match body with
-        | Some content -> interpret_expr_record content
-        | None -> []
-      in
+  let bound, value, body =
+    match content with
+    | S_bind { bound; value; body } ->
+        let value =
+          match value with
+          | Some value -> value
+          | None -> (* TODO: better locations *) raise loc Record_without_value
+        in
+        (bound, value, body)
+    | _ -> raise loc Unimplemented
+  in
 
-      (* TODO: locations manipulation bad *)
-      let loc =
-        match value with
-        | Some value ->
-            let loc_start = value.le_loc.loc_start in
-            let loc_end = bound.lp_loc.loc_end in
-            Location.{ loc_ghost = false; loc_start; loc_end }
-        | None -> bound.lp_loc
-      in
-      LE_record_bind { loc; bound; value } :: fields
-  | _ -> raise loc Unimplemented
+  let bind =
+    let bound = interpret_pat bound in
+    let value = interpret_expr value in
+    le_bind ~bound ~value
+  in
+  let binds =
+    match body with Some content -> interpret_expr_record content | None -> []
+  in
+  bind :: binds
+
+and interpret_expr_signature content =
+  let { s_loc = loc; s_desc = content } = content in
+  let bound, body =
+    match content with
+    | S_bind { bound; value; body } ->
+        (match value with
+        | Some _ -> (* TODO: better locations *) raise loc Signature_with_value
+        | None -> ());
+
+        (bound, body)
+    | _ -> raise loc Unimplemented
+  in
+
+  let bound = interpret_pat bound in
+  let binds =
+    match body with
+    | Some content -> interpret_expr_signature content
+    | None -> []
+  in
+  bound :: binds
 
 and interpret_pat term =
   let { s_loc = loc; s_desc = term } = term in
@@ -125,18 +164,18 @@ and interpret_pat term =
 
 and interpret_pat_record content =
   let { s_loc = loc; s_desc = content } = content in
-  match content with
-  | S_bind { bound; value; body } ->
-      let bound = interpret_pat bound in
-      (match value with
-      | Some _ -> raise loc Record_pattern_with_value
-      | None -> ());
-      let fields =
-        match body with
-        | Some content -> interpret_pat_record content
-        | None -> []
-      in
+  let bound, body =
+    match content with
+    | S_bind { bound; value; body } ->
+        (match value with
+        | Some _ -> raise loc Record_pattern_with_value
+        | None -> ());
+        (bound, body)
+    | _ -> (* TODO: better locs *) raise loc Unimplemented
+  in
 
-      let loc = bound.lp_loc in
-      LP_record_bind { loc; bound } :: fields
-  | _ -> raise loc Unimplemented
+  let bound = interpret_pat bound in
+  let binds =
+    match body with Some content -> interpret_pat_record content | None -> []
+  in
+  bound :: binds

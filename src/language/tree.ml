@@ -18,16 +18,18 @@ and expr_desc =
   (* expr expr *)
   | LE_apply of { lambda : expr; arg : expr }
   (* pat = expr; expr *)
-  | LE_let of { bound : pat; value : expr; body : expr }
+  | LE_let of { bind : le_bind; body : expr }
   (* { pat = expr; } *)
-  | LE_record of le_record_bind list
+  | LE_record of le_bind list
+  (* { pat; } *)
+  | LE_signature of pat list
   (* * *)
   | LE_asterisk
   (* expr : type *)
   | LE_annot of { value : expr; type_ : expr }
 
-and le_record_bind =
-  | LE_record_bind of { loc : Location.t; bound : pat; value : expr option }
+(* TODO: bind directly on parser *)
+and le_bind = LE_bind of { loc : Location.t; bound : pat; value : expr }
 
 (* TODO: can pattern be unified back on expr? *)
 and pat = { lp_loc : Location.t; lp_desc : pat_desc }
@@ -38,8 +40,6 @@ and pat_desc =
   (* | LP_any *)
   (* x *)
   | LP_var of identifier
-  | LP_record of lp_record_bind list
+  | LP_record of pat list
   (* pat : type *)
   | LP_annot of { pat : pat; type_ : expr }
-
-and lp_record_bind = LP_record_bind of { loc : Location.t; bound : pat }
