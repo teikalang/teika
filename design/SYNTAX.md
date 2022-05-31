@@ -70,6 +70,8 @@ But this makes it ambiguous with record destructuring, currently this means that
 
 - https://agda.readthedocs.io/en/v2.6.1/language/implicit-arguments.html
 
+Another option for implicit arguments is using syntax from optional parameters, `?A -> A`.
+
 ## Binding Lambda
 
 A common feature in languages such OCaml and Haskell is to support a fusion syntax for lambdas and binding, in the form of `add a b = a + b`.
