@@ -1,34 +1,50 @@
 open Utils
+open Type
 
-(* TODO: loc first vs loc last *)
-type expr = { expr_loc : Location.t; expr_desc : expr_desc }
+(* TODO: addapt tree to new Language tree *)
+type term = {
+  (* exposed env *)
+  t_env : Env.t;
+  t_loc : Location.t;
+  t_type : type_;
+  t_desc : term_desc;
+}
 
-and expr_desc =
-  | Expr_ident of Ident.t
-  | Expr_number of int
-  | Expr_forall of { body : expr }
-  | Expr_lambda of { param : pat; body : expr }
-  | Expr_apply of { lambda : expr; arg : expr }
-  | Expr_bind of { bound : pat; value : expr; body : expr }
-  | Expr_annot of { value : expr; type_ : type_ }
+and term_desc =
+  | Term_var of Ident.t
+  | Term_number of int
+  (* TODO: what to put here as param? *)
+  | Term_forall of { body : term }
+  | Term_arrow of { param : term_pat; body : term }
+  | Term_implicit_lambda of { body : term }
+  | Term_explicit_lambda of { param : term_pat; body : term }
+  | Term_apply of { lambda : term; arg : term }
+  | Term_let of { bind : term_bind; body : term }
+  | Term_record of term_bind list
+  (* TODO: what to put here as content? *)
+  | Term_signature
+  | Term_asterisk
+  | Term_annot of { value : term; type_ : term }
 
-and pat = { pat_loc : Location.t; pat_desc : pat_desc }
-
-and pat_desc =
-  | Pat_ident of Ident.t
-  | Pat_annot of { pat : pat; constraint_ : type_ }
-
-and type_ = { type_loc : Location.t; type_desc : type_desc }
-
-and type_desc =
-  | Type_int
-  | Type_ident of Ident.t
-  (* TODO: likely this should be fused *)
-  | Type_implicit_lambda of { body : type_ }
-  | Type_explicit_lambda of {
-      (* TODO: param = pat *) param : type_;
-      body : type_;
+and term_bind =
+  | TE_bind of {
+      env : Env.t;
+      loc : Location.t;
+      names : (Name.t * type_) list;
+      type_ : type_;
+      bound : term_pat;
+      value : term;
     }
-  | Type_struct of type_field list
 
-and type_field = { type_field_name : Name.t; type_field_desc : type_ }
+and term_pat = {
+  tp_env : Env.t;
+  tp_loc : Location.t;
+  tp_names : (Name.t * type_) list;
+  tp_type : type_;
+  tp_desc : term_pat_desc;
+}
+
+and term_pat_desc =
+  | Term_pat_ident of Ident.t
+  | Term_pat_struct of term_pat list
+  | Term_pat_annot of { pat : term_pat; type_ : term }
