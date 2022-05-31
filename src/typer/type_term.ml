@@ -23,7 +23,7 @@ type term = {
 }
 
 and term_desc =
-  | Term_ident of Ident.t
+  | Term_var of Ident.t
   | Term_number of int
   (* TODO: what to put here as param? *)
   | Term_forall of { body : term }
@@ -31,20 +31,22 @@ and term_desc =
   | Term_implicit_lambda of { body : term }
   | Term_explicit_lambda of { param : term_pat; body : term }
   | Term_apply of { lambda : term; arg : term }
-  | Term_let of { bound : term_pat; value : term; body : term }
-  | Term_struct of term_field list
+  | Term_let of { bind : term_bind; body : term }
+  | Term_record of term_bind list
   (* TODO: what to put here as content? *)
-  | Term_sig
+  | Term_signature
   | Term_asterisk
   | Term_annot of { value : term; type_ : term }
 
-and term_field = {
-  tf_env : Env.t;
-  tf_loc : Location.t;
-  tf_type : type_;
-  tf_bound : term_pat;
-  tf_value : term;
-}
+and term_bind =
+  | TE_bind of {
+      env : Env.t;
+      loc : Location.t;
+      names : (Name.t * type_) list;
+      type_ : type_;
+      bound : term_pat;
+      value : term;
+    }
 
 and term_pat = {
   tp_env : Env.t;
@@ -81,7 +83,7 @@ let return_term env type_ desc =
   let loc = current_loc env in
   (type_, { t_env = env; t_loc = loc; t_type = type_; t_desc = desc })
 
-let term_ident env type_ ~ident = return_term env type_ (Term_ident ident)
+let term_var env type_ ~ident = return_term env type_ (Term_var ident)
 let term_number env type_ ~number = return_term env type_ (Term_number number)
 let term_forall env type_ ~body = return_term env type_ (Term_forall { body })
 
@@ -97,21 +99,15 @@ let term_explicit_lambda env type_ ~param ~body =
 let term_apply env type_ ~lambda ~arg =
   return_term env type_ (Term_apply { lambda; arg })
 
-let term_let env type_ ~bound ~value ~body =
-  return_term env type_ (Term_let { bound; value; body })
+let term_let env type_ ~bind ~body =
+  return_term env type_ (Term_let { bind; body })
 
-let term_field env type_ ~bound ~value =
+let term_bind env type_ ~names ~bound ~value =
   let loc = current_loc env in
-  {
-    tf_env = env;
-    tf_loc = loc;
-    tf_type = type_;
-    tf_bound = bound;
-    tf_value = value;
-  }
+  TE_bind { env; loc; names; type_; bound; value }
 
-let term_struct env type_ ~fields = return_term env type_ (Term_struct fields)
-let term_sig env type_ = return_term env type_ Term_sig
+let term_record env type_ ~fields = return_term env type_ (Term_record fields)
+let term_signature env type_ = return_term env type_ Term_signature
 let term_asterisk env type_ = return_term env type_ Term_asterisk
 
 let term_annot env type_type ~value ~type_ =
@@ -148,7 +144,7 @@ let rec type_expr env term =
 
   let type_, term =
     match term with
-    | LE_var name -> type_ident env ~name
+    | LE_var name -> type_var env ~name
     | LE_number number -> type_number env ~number
     | LE_arrow { implicit; param; body } ->
         type_arrow env ~implicit ~param ~body
@@ -173,10 +169,10 @@ and type_type env term =
   let type_ = extract_type env type_ in
   (type_, term)
 
-and type_ident env ~name =
+and type_var env ~name =
   let name = Name.make name in
   let ident, type_ = env |> Env.lookup name in
-  term_ident env type_ ~ident
+  term_var env type_ ~ident
 
 and type_number env ~number =
   let number =
@@ -307,29 +303,26 @@ and type_bind env ~bind =
   let bound_type, bound, names, env = type_pat env bound in
   match_type env ~forall ~expected:bound_type ~value:value_type;
 
+  let bind = term_bind env bound_type ~names ~bound ~value in
   let env = set_loc previous_loc env in
-  (forall, bound_type, bound, value, names, env)
+  (forall, bind, names, env)
 
 and type_let env ~bind ~body =
-  let forall, _bound_type, bound, value, _names, env = type_bind env ~bind in
+  let forall, bind, _names, env = type_bind env ~bind in
   let body_type, body = type_expr env body in
   (* TODO: why clear here? *)
   Forall.clear forall;
-  term_let env body_type ~bound ~value ~body
+  term_let env body_type ~bind ~body
 
 and type_record env ~fields =
   let fields, names, env =
     List.fold_left
-      (fun (body_fields, body_names, env) bind ->
+      (fun (body_binds, body_names, env) bind ->
         (* TODO: what about this forall? *)
-        let _forall, bound_type, bound, value, names, env =
-          type_bind env ~bind
-        in
-
-        let field = term_field env bound_type ~bound ~value in
+        let _forall, bind, names, env = type_bind env ~bind in
 
         let names = names @ body_names in
-        let fields = field :: body_fields in
+        let fields = bind :: body_binds in
         (fields, names, env))
       ([], [], env) fields
   in
@@ -338,7 +331,7 @@ and type_record env ~fields =
 
   let fields_type = List.map (fun (name, type_) -> { name; type_ }) names in
   let type_ = new_struct ~fields:fields_type in
-  term_struct env type_ ~fields
+  term_record env type_ ~fields
 
 and type_signature env ~fields =
   let names, env =
@@ -353,7 +346,7 @@ and type_signature env ~fields =
   let fields = List.map (fun (name, type_) -> { name; type_ }) names in
   let type_ = new_struct ~fields in
   let type_ = new_type (Forall.make ()) ~type_ in
-  term_sig env type_
+  term_signature env type_
 
 and type_asterisk env =
   let forall, env = enter_forall env in
