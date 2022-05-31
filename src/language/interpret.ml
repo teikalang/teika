@@ -48,11 +48,11 @@ let lp_annot loc ~pat ~type_ = make_pat loc (LP_annot { pat; type_ })
 let is_implicit ~param =
   (* TODO: this about optional arguments *)
   match param.s_desc with
-  | S_struct (Some { s_desc = S_bind _; s_loc = _ }) -> false
-  | S_struct (Some _) -> true
+  | S_struct (Some { s_desc = S_bind _; s_loc = _ }) -> (false, param)
+  | S_struct (Some param) -> (true, param)
   (* TODO: None being false is quite weird *)
-  | S_struct None -> false
-  | _ -> false
+  | S_struct None -> (false, param)
+  | _ -> (false, param)
 
 let rec interpret_expr term =
   let { s_loc = loc; s_desc = term } = term in
@@ -73,24 +73,26 @@ and interpret_expr_var loc ~var = le_var loc ~var
 and interpret_expr_number loc ~number = le_number loc ~number
 
 and interpret_expr_arrow loc ~param ~body =
-  let implicit = is_implicit ~param in
+  let implicit, param = is_implicit ~param in
   let param =
-    let { s_loc = loc; s_desc = param_desc } = param in
-    (* TODO: is this lookahead worth it? *)
-    match param_desc with
-    | S_annot _ -> interpret_pat param
-    | _ ->
-        (* TODO: is generating this here bad? *)
-        (* TODO: "_" should definitely go away *)
-        let pat = lp_var loc ~var:"_" in
-        let type_ = interpret_expr param in
-        lp_annot loc ~pat ~type_
+    if implicit then interpret_pat param
+    else
+      let { s_loc = loc; s_desc = param_desc } = param in
+      (* TODO: is this lookahead worth it? *)
+      match param_desc with
+      | S_annot _ -> interpret_pat param
+      | _ ->
+          (* TODO: is generating this here bad? *)
+          (* TODO: "_" should definitely go away *)
+          let pat = lp_var loc ~var:"_" in
+          let type_ = interpret_expr param in
+          lp_annot loc ~pat ~type_
   in
   let body = interpret_expr body in
   le_arrow loc ~implicit ~param ~body
 
 and interpret_expr_lambda loc ~param ~body =
-  let implicit = is_implicit ~param in
+  let implicit, param = is_implicit ~param in
   let param = interpret_pat param in
   let body = interpret_expr body in
   le_lambda loc ~implicit ~param ~body
