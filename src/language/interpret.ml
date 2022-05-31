@@ -61,18 +61,29 @@ let rec interpret_expr term =
   | S_number number -> le_number loc ~number
   | S_arrow { param; body } ->
       let implicit = is_implicit ~param in
-      let param = interpret_pat param in
+      let param =
+        let { s_loc = loc; s_desc = param_desc } = param in
+        (* TODO: is this lookahead worth it? *)
+        match param_desc with
+        | S_annot _ -> interpret_pat param
+        | _ ->
+            (* TODO: is generating this here bad? *)
+            (* TODO: "_" should definitely go away *)
+            let pat = lp_var loc ~var:"_" in
+            let type_ = interpret_expr param in
+            lp_annot loc ~pat ~type_
+      in
       let body = interpret_expr body in
       le_arrow loc ~implicit ~param ~body
-  | S_apply { lambda; arg } ->
-      let lambda = interpret_expr lambda in
-      let arg = interpret_expr arg in
-      le_apply loc ~lambda ~arg
   | S_lambda { param; body } ->
       let implicit = is_implicit ~param in
       let param = interpret_pat param in
       let body = interpret_expr body in
       le_lambda loc ~implicit ~param ~body
+  | S_apply { lambda; arg } ->
+      let lambda = interpret_expr lambda in
+      let arg = interpret_expr arg in
+      le_apply loc ~lambda ~arg
   | S_bind { bound; value; body } ->
       let value =
         match value with
