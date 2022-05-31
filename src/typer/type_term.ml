@@ -92,7 +92,7 @@ let pat_annot env type_type names ~pat ~type_ =
 
 let rec type_expr env term =
   (* dispatch to the proper function *)
-  let { le_loc = loc; le_desc = term } = term in
+  let (LE { loc; desc = term }) = term in
   let env = set_loc loc env in
 
   let type_, term =
@@ -114,7 +114,7 @@ let rec type_expr env term =
 
 and type_type env term =
   (* TODO: this function is not great*)
-  let { le_desc = _; le_loc = loc } = term in
+  let (LE { desc = _; loc }) = term in
   let env = set_loc loc env in
 
   (* TODO: this is probably wrong, make with_forall function *)
@@ -146,7 +146,7 @@ and type_implicit_arrow env ~param ~body =
   let forall = Forall.make () in
   let env =
     let previous_loc = current_loc env in
-    let { lp_desc = param; lp_loc = loc } = param in
+    let (LP { desc = param; loc }) = param in
     let env = set_loc loc env in
     match param with
     | LP_var name ->
@@ -197,7 +197,7 @@ and type_implicit_lambda env ~param ~body =
   let forall, env = enter_forall env in
   let env =
     let previous_loc = current_loc env in
-    let { lp_desc = param; lp_loc = loc } = param in
+    let (LP { desc = param; loc }) = param in
     let env = set_loc loc env in
 
     match param with
@@ -324,7 +324,7 @@ and type_annot env ~value ~type_ =
 
 and type_pat env term =
   let previous_loc = current_loc env in
-  let { lp_loc = loc; lp_desc = term } = term in
+  let (LP { loc; desc = term }) = term in
   let env = set_loc loc env in
 
   let type_, term, names, env =

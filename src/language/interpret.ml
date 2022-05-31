@@ -14,7 +14,7 @@ exception Error of { loc : Location.t; error : error }
 let raise loc error = raise (Error { loc; error })
 
 (* expr *)
-let make_expr loc desc = { le_loc = loc; le_desc = desc }
+let make_expr loc desc = LE { loc; desc }
 let le_var loc ~var = make_expr loc (LE_var var)
 let le_number loc ~number = make_expr loc (LE_number number)
 
@@ -33,14 +33,16 @@ let le_annot loc ~value ~type_ = make_expr loc (LE_annot { value; type_ })
 
 let le_bind ~bound ~value =
   let loc =
-    let loc_start = value.le_loc.loc_start in
-    let loc_end = bound.lp_loc.loc_end in
+    let (LP { loc = bound_loc; desc = _ }) = bound in
+    let (LE { loc = value_loc; desc = _ }) = value in
+    let loc_start = bound_loc.loc_start in
+    let loc_end = value_loc.loc_end in
     Location.{ loc_ghost = false; loc_start; loc_end }
   in
   LE_bind { loc : Location.t; bound : pat; value : expr }
 
 (* pat *)
-let make_pat loc desc = { lp_loc = loc; lp_desc = desc }
+let make_pat loc desc = LP { loc; desc }
 let lp_var loc ~var = make_pat loc (LP_var var)
 let lp_record loc ~fields = make_pat loc (LP_record fields)
 let lp_annot loc ~pat ~type_ = make_pat loc (LP_annot { pat; type_ })

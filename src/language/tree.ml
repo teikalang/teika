@@ -1,7 +1,7 @@
 type identifier = string
 type number = string
 
-type expr = { le_loc : Location.t; le_desc : expr_desc }
+type expr = LE of { loc : Location.t; desc : expr_desc }
 
 and expr_desc =
   (* TODO: *)
@@ -33,7 +33,7 @@ and expr_desc =
 and le_bind = LE_bind of { loc : Location.t; bound : pat; value : expr }
 
 (* TODO: can pattern be unified back on expr? *)
-and pat = { lp_loc : Location.t; lp_desc : pat_desc }
+and pat = LP of { loc : Location.t; desc : pat_desc }
 
 and pat_desc =
   (* TODO: any*)

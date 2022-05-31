@@ -1,7 +1,7 @@
 type identifier = string
 type number = string
 
-type expr = { le_loc : Location.t; le_desc : expr_desc }
+type expr = LE of { loc : Location.t; desc : expr_desc }
 
 and expr_desc =
   | LE_var of identifier
@@ -16,7 +16,7 @@ and expr_desc =
   | LE_annot of { value : expr; type_ : expr }
 
 and le_bind = LE_bind of { loc : Location.t; bound : pat; value : expr }
-and pat = { lp_loc : Location.t; lp_desc : pat_desc }
+and pat = LP of { loc : Location.t; desc : pat_desc }
 
 and pat_desc =
   | LP_var of identifier
