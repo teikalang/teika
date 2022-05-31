@@ -57,75 +57,78 @@ let is_implicit ~param =
 let rec interpret_expr term =
   let { s_loc = loc; s_desc = term } = term in
   match term with
-  | S_ident var -> le_var loc ~var
-  | S_number number -> le_number loc ~number
-  | S_arrow { param; body } ->
-      let implicit = is_implicit ~param in
-      let param =
-        let { s_loc = loc; s_desc = param_desc } = param in
-        (* TODO: is this lookahead worth it? *)
-        match param_desc with
-        | S_annot _ -> interpret_pat param
-        | _ ->
-            (* TODO: is generating this here bad? *)
-            (* TODO: "_" should definitely go away *)
-            let pat = lp_var loc ~var:"_" in
-            let type_ = interpret_expr param in
-            lp_annot loc ~pat ~type_
-      in
-      let body = interpret_expr body in
-      le_arrow loc ~implicit ~param ~body
-  | S_lambda { param; body } ->
-      let implicit = is_implicit ~param in
-      let param = interpret_pat param in
-      let body = interpret_expr body in
-      le_lambda loc ~implicit ~param ~body
-  | S_apply { lambda; arg } ->
-      let lambda = interpret_expr lambda in
-      let arg = interpret_expr arg in
-      le_apply loc ~lambda ~arg
-  | S_bind { bound; value; body } ->
-      let value =
-        match value with
-        | Some value -> value
-        | None -> raise loc Let_without_value
-      in
-      let body =
-        match body with Some body -> body | None -> raise loc Let_without_body
-      in
-
-      let bind =
-        let bound = interpret_pat bound in
-        let value = interpret_expr value in
-        le_bind ~bound ~value
-      in
-      let body = interpret_expr body in
-      le_let loc ~bind ~body
-  | S_struct content ->
-      let fields =
-        match content with
-        | Some content -> interpret_expr_record content
-        | None -> []
-      in
-      le_record loc ~fields
+  | S_ident var -> interpret_expr_var loc ~var
+  | S_number number -> interpret_expr_number loc ~number
+  | S_arrow { param; body } -> interpret_expr_arrow loc ~param ~body
+  | S_lambda { param; body } -> interpret_expr_lambda loc ~param ~body
+  | S_apply { lambda; arg } -> interpret_expr_apply loc ~lambda ~arg
+  | S_bind { bound; value; body } -> interpret_expr_bind loc ~bound ~value ~body
+  | S_struct content -> interpret_expr_record_ambiguous loc ~content
   | S_field _ -> raise loc Unimplemented
   | S_match _ -> raise loc Unimplemented
-  | S_asterisk -> le_asterisk loc
-  | S_annot { value; type_ } ->
-      let value = interpret_expr value in
-      let type_ = interpret_expr type_ in
-      le_annot loc ~value ~type_
+  | S_asterisk -> interpret_expr_asterisk loc
+  | S_annot { value; type_ } -> interpret_expr_annot loc ~value ~type_
 
-and interpret_expr_record_ambiguous content =
-  (* TODO: weird lookahead *)
-  let { s_loc = loc; s_desc } = content in
-  match s_desc with
-  | S_bind { bound = _; value = None; body = _ } ->
-      let fields = interpret_expr_signature content in
-      le_signature loc ~fields
-  | _ ->
-      let fields = interpret_expr_record content in
-      le_record loc ~fields
+and interpret_expr_var loc ~var = le_var loc ~var
+and interpret_expr_number loc ~number = le_number loc ~number
+
+and interpret_expr_arrow loc ~param ~body =
+  let implicit = is_implicit ~param in
+  let param =
+    let { s_loc = loc; s_desc = param_desc } = param in
+    (* TODO: is this lookahead worth it? *)
+    match param_desc with
+    | S_annot _ -> interpret_pat param
+    | _ ->
+        (* TODO: is generating this here bad? *)
+        (* TODO: "_" should definitely go away *)
+        let pat = lp_var loc ~var:"_" in
+        let type_ = interpret_expr param in
+        lp_annot loc ~pat ~type_
+  in
+  let body = interpret_expr body in
+  le_arrow loc ~implicit ~param ~body
+
+and interpret_expr_lambda loc ~param ~body =
+  let implicit = is_implicit ~param in
+  let param = interpret_pat param in
+  let body = interpret_expr body in
+  le_lambda loc ~implicit ~param ~body
+
+and interpret_expr_apply loc ~lambda ~arg =
+  let lambda = interpret_expr lambda in
+  let arg = interpret_expr arg in
+  le_apply loc ~lambda ~arg
+
+and interpret_expr_bind loc ~bound ~value ~body =
+  let value =
+    match value with Some value -> value | None -> raise loc Let_without_value
+  in
+  let body =
+    match body with Some body -> body | None -> raise loc Let_without_body
+  in
+
+  let bind =
+    let bound = interpret_pat bound in
+    let value = interpret_expr value in
+    le_bind ~bound ~value
+  in
+  let body = interpret_expr body in
+  le_let loc ~bind ~body
+
+and interpret_expr_record_ambiguous loc ~content =
+  match content with
+  | Some content -> (
+      (* TODO: weird lookahead *)
+      let { s_loc = loc; s_desc } = content in
+      match s_desc with
+      | S_bind { bound = _; value = None; body = _ } ->
+          let fields = interpret_expr_signature content in
+          le_signature loc ~fields
+      | _ ->
+          let fields = interpret_expr_record content in
+          le_record loc ~fields)
+  | None -> le_signature loc ~fields:[]
 
 and interpret_expr_record content =
   let { s_loc = loc; s_desc = content } = content in
@@ -171,6 +174,13 @@ and interpret_expr_signature content =
     | None -> []
   in
   bound :: binds
+
+and interpret_expr_asterisk loc = le_asterisk loc
+
+and interpret_expr_annot loc ~value ~type_ =
+  let value = interpret_expr value in
+  let type_ = interpret_expr type_ in
+  le_annot loc ~value ~type_
 
 and interpret_pat term =
   let { s_loc = loc; s_desc = term } = term in
