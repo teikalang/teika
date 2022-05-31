@@ -2,13 +2,14 @@ open Utils
 open Type
 
 (* TODO: addapt tree to new Language tree *)
-type expr = {
-  (* exposed env *)
-  te_env : Env.t;
-  te_loc : Location.t;
-  te_type : type_;
-  te_desc : expr_desc;
-}
+type expr =
+  | TE of {
+      (* exposed env *)
+      env : Env.t;
+      loc : Location.t;
+      type_ : type_;
+      desc : expr_desc;
+    }
 
 and expr_desc =
   | TE_var of Ident.t
@@ -36,13 +37,14 @@ and term_bind =
       value : expr;
     }
 
-and pat = {
-  tp_env : Env.t;
-  tp_loc : Location.t;
-  tp_names : (Name.t * type_) list;
-  tp_type : type_;
-  tp_desc : pat_desc;
-}
+and pat =
+  | TP of {
+      env : Env.t;
+      loc : Location.t;
+      names : (Name.t * type_) list;
+      type_ : type_;
+      desc : pat_desc;
+    }
 
 and pat_desc =
   | TP_var of Ident.t

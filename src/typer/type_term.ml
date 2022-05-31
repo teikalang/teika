@@ -34,7 +34,7 @@ let match_type env ~forall ~expected ~value =
 (* term *)
 let return_term env type_ desc =
   let loc = current_loc env in
-  (type_, { te_env = env; te_loc = loc; te_type = type_; te_desc = desc })
+  (type_, TE { env; loc; type_; desc })
 
 let term_var env type_ ~var = return_term env type_ (TE_var var)
 let term_number env type_ ~number = return_term env type_ (TE_number number)
@@ -69,16 +69,7 @@ let term_annot env type_type ~value ~type_ =
 (* term_pat *)
 let return_pat env type_ names desc =
   let loc = current_loc env in
-  ( type_,
-    {
-      tp_env = env;
-      tp_loc = loc;
-      tp_names = names;
-      tp_type = type_;
-      tp_desc = desc;
-    },
-    names,
-    env )
+  (type_, TP { env; loc; names; type_; desc }, names, env)
 
 let pat_var env type_ name ~var =
   let names = [ (name, type_) ] in
