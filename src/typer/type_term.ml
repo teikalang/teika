@@ -34,37 +34,37 @@ let match_type env ~forall ~expected ~value =
 (* term *)
 let return_term env type_ desc =
   let loc = current_loc env in
-  (type_, { t_env = env; t_loc = loc; t_type = type_; t_desc = desc })
+  (type_, { te_env = env; te_loc = loc; te_type = type_; te_desc = desc })
 
-let term_var env type_ ~ident = return_term env type_ (Term_var ident)
-let term_number env type_ ~number = return_term env type_ (Term_number number)
-let term_forall env type_ ~body = return_term env type_ (Term_forall { body })
+let term_var env type_ ~var = return_term env type_ (TE_var var)
+let term_number env type_ ~number = return_term env type_ (TE_number number)
+let term_forall env type_ ~body = return_term env type_ (TE_forall { body })
 
 let term_arrow env type_ ~param ~body =
-  return_term env type_ (Term_arrow { param; body })
+  return_term env type_ (TE_arrow { param; body })
 
 let term_implicit_lambda env type_ ~body =
-  return_term env type_ (Term_implicit_lambda { body })
+  return_term env type_ (TE_implicit_lambda { body })
 
 let term_explicit_lambda env type_ ~param ~body =
-  return_term env type_ (Term_explicit_lambda { param; body })
+  return_term env type_ (TE_explicit_lambda { param; body })
 
 let term_apply env type_ ~lambda ~arg =
-  return_term env type_ (Term_apply { lambda; arg })
+  return_term env type_ (TE_apply { lambda; arg })
 
 let term_let env type_ ~bind ~body =
-  return_term env type_ (Term_let { bind; body })
+  return_term env type_ (TE_let { bind; body })
 
 let term_bind env type_ ~names ~bound ~value =
   let loc = current_loc env in
   TE_bind { env; loc; names; type_; bound; value }
 
-let term_record env type_ ~fields = return_term env type_ (Term_record fields)
-let term_signature env type_ = return_term env type_ Term_signature
-let term_asterisk env type_ = return_term env type_ Term_asterisk
+let term_record env type_ ~fields = return_term env type_ (TE_record fields)
+let term_signature env type_ = return_term env type_ TE_signature
+let term_asterisk env type_ = return_term env type_ TE_asterisk
 
 let term_annot env type_type ~value ~type_ =
-  return_term env type_type (Term_annot { value; type_ })
+  return_term env type_type (TE_annot { value; type_ })
 
 (* term_pat *)
 let return_pat env type_ names desc =
@@ -80,15 +80,15 @@ let return_pat env type_ names desc =
     names,
     env )
 
-let pat_ident env type_ name ~ident =
+let pat_var env type_ name ~var =
   let names = [ (name, type_) ] in
-  return_pat env type_ names (Term_pat_ident ident)
+  return_pat env type_ names (TP_var var)
 
-let pat_struct env type_ names ~fields =
-  return_pat env type_ names (Term_pat_struct fields)
+let pat_record env type_ names ~fields =
+  return_pat env type_ names (TP_record fields)
 
 let pat_annot env type_type names ~pat ~type_ =
-  return_pat env type_type names (Term_pat_annot { pat; type_ })
+  return_pat env type_type names (TP_annot { pat; type_ })
 
 let rec type_expr env term =
   (* dispatch to the proper function *)
@@ -124,8 +124,8 @@ and type_type env term =
 
 and type_var env ~name =
   let name = Name.make name in
-  let ident, type_ = env |> Env.lookup name in
-  term_var env type_ ~ident
+  let var, type_ = env |> Env.lookup name in
+  term_var env type_ ~var
 
 and type_number env ~number =
   let number =
@@ -340,8 +340,8 @@ and type_pat_ident env ~name =
   (* TODO: what happens if a pattern introduces the same name twice? *)
   let name = Name.make name in
   let type_ = new_weak_var env in
-  let ident, env = Env.add name type_ env in
-  pat_ident env type_ name ~ident
+  let var, env = Env.add name type_ env in
+  pat_var env type_ name ~var
 
 and type_pat_record env ~fields =
   let fields, names, env =
@@ -360,7 +360,7 @@ and type_pat_record env ~fields =
   let fields = List.rev fields in
   let fields_type = List.map (fun (name, type_) -> { name; type_ }) names in
   let type_ = new_struct ~fields:fields_type in
-  pat_struct env type_ names ~fields
+  pat_record env type_ names ~fields
 
 and type_pat_annot env ~pat ~type_ =
   let pat_type, pat, names, env = type_pat env pat in
