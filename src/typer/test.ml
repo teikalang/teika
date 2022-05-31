@@ -216,6 +216,14 @@ let annot ~expected ~received =
       s_desc = S_annot { value = received; type_ = expected };
     }
 
+let type_expr env syntax =
+  let lang = Language.interpret_expr syntax in
+  type_expr env lang
+
+let type_type env syntax =
+  let lang = Language.interpret_expr syntax in
+  type_type env lang
+
 let equal_type env =
   Alcotest.testable
     (fun fmt (typ, _) -> Print.pp_type_debug fmt typ)
@@ -233,7 +241,7 @@ let subtype_type env =
     (fun fmt (typ, _) -> Print.pp_type_debug fmt typ)
     (fun (_, expected) (_, received) ->
       (* TODO: only works because there is no weak var  *)
-      let _ = type_term env (annot ~expected ~received) in
+      let _ = type_expr env (annot ~expected ~received) in
       true)
 
 let value_from_string ~name string =
@@ -245,11 +253,11 @@ let test_match_type ~equal ~name ~code ~type_ =
   let check () =
     let env = Env.base in
     let type_ = value_from_string ~name type_ in
-    let type_type, _type, _env = type_type env type_ in
+    let type_type, _type = type_type env type_ in
     let code = value_from_string ~name code in
-    let code_type, _code, _env =
+    let code_type, _code =
       let _forall, env = Env.enter_forall env in
-      type_term env code
+      type_expr env code
     in
     (* TODO: this generalize makes sense? *)
     let code_type = Typer.Generalize.generalize env code_type in
@@ -265,17 +273,12 @@ let test_unify_fails ~name ~code =
     let code = value_from_string ~name code in
     let actual =
       try
-        let _ = type_term env code in
+        let _ = type_expr env code in
         false
       with
       | Unify.Error _ -> true
-      | Typer.Type_term.Error
-          {
-            error =
-              ( Binding_without_value | Binding_without_body | Invalid_number
-              | Not_a_type );
-            loc = _;
-          } ->
+      | Typer.Type_term.Error { error = Invalid_number | Not_a_type; loc = _ }
+        ->
           true
     in
 
@@ -291,7 +294,14 @@ let test case =
   | Subtype { name; code; type_ } ->
       test_match_type ~equal:false ~name ~code ~type_
 
-let _tests = [ cursed_polymorphism_rank2; explicit_type_constructor ]
+let _tests =
+  [
+    cursed_polymorphism_rank2;
+    explicit_type_constructor;
+    (* regressions *)
+    type_abstraction;
+    deep_type_abstraction;
+  ]
 
 let tests =
   [
@@ -328,10 +338,8 @@ let tests =
     type_struct_id;
     calling_type_struct_id;
     existential_record;
-    type_abstraction;
     type_abstraction_fail;
     infer_kind_id;
-    deep_type_abstraction;
     deep_type_abstraction_fail;
   ]
 

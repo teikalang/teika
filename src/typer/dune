@@ -1,6 +1,6 @@
 (library
  (name typer)
- (libraries utils syntax)
+ (libraries utils language)
  (modules
   (:standard \ Test))
  (preprocess
