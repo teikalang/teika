@@ -6,8 +6,8 @@ type expr = { le_loc : Location.t; le_desc : expr_desc }
 and expr_desc =
   | LE_var of identifier
   | LE_number of number
-  | LE_arrow of { param : pat; body : expr }
-  | LE_lambda of { param : pat; body : expr }
+  | LE_arrow of { implicit : bool; param : pat; body : expr }
+  | LE_lambda of { implicit : bool; param : pat; body : expr }
   | LE_apply of { lambda : expr; arg : expr }
   | LE_let of { bind : le_bind; body : expr }
   | LE_record of le_bind list

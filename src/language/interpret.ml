@@ -17,8 +17,13 @@ let raise loc error = raise (Error { loc; error })
 let make_expr loc desc = { le_loc = loc; le_desc = desc }
 let le_var loc ~var = make_expr loc (LE_var var)
 let le_number loc ~number = make_expr loc (LE_number number)
-let le_arrow loc ~param ~body = make_expr loc (LE_arrow { param; body })
-let le_lambda loc ~param ~body = make_expr loc (LE_lambda { param; body })
+
+let le_arrow loc ~implicit ~param ~body =
+  make_expr loc (LE_arrow { implicit; param; body })
+
+let le_lambda loc ~implicit ~param ~body =
+  make_expr loc (LE_lambda { implicit; param; body })
+
 let le_apply loc ~lambda ~arg = make_expr loc (LE_apply { lambda; arg })
 let le_let loc ~bind ~body = make_expr loc (LE_let { bind; body })
 let le_record loc ~fields = make_expr loc (LE_record fields)
@@ -40,23 +45,34 @@ let lp_var loc ~var = make_pat loc (LP_var var)
 let lp_record loc ~fields = make_pat loc (LP_record fields)
 let lp_annot loc ~pat ~type_ = make_pat loc (LP_annot { pat; type_ })
 
+let is_implicit ~param =
+  (* TODO: this about optional arguments *)
+  match param.s_desc with
+  | S_struct (Some { s_desc = S_bind _; s_loc = _ }) -> false
+  | S_struct (Some _) -> true
+  (* TODO: None being false is quite weird *)
+  | S_struct None -> false
+  | _ -> false
+
 let rec interpret_expr term =
   let { s_loc = loc; s_desc = term } = term in
   match term with
   | S_ident var -> le_var loc ~var
   | S_number number -> le_number loc ~number
   | S_arrow { param; body } ->
+      let implicit = is_implicit ~param in
       let param = interpret_pat param in
       let body = interpret_expr body in
-      le_arrow loc ~param ~body
+      le_arrow loc ~implicit ~param ~body
   | S_apply { lambda; arg } ->
       let lambda = interpret_expr lambda in
       let arg = interpret_expr arg in
       le_apply loc ~lambda ~arg
   | S_lambda { param; body } ->
+      let implicit = is_implicit ~param in
       let param = interpret_pat param in
       let body = interpret_expr body in
-      le_lambda loc ~param ~body
+      le_lambda loc ~implicit ~param ~body
   | S_bind { bound; value; body } ->
       let value =
         match value with

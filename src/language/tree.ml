@@ -12,15 +12,16 @@ and expr_desc =
   (* 123 *)
   | LE_number of number
   (* pat -> expr *)
-  | LE_arrow of { param : pat; body : expr }
+  | LE_arrow of { implicit : bool; param : pat; body : expr }
   (* pat => expr *)
-  | LE_lambda of { param : pat; body : expr }
+  | LE_lambda of { implicit : bool; param : pat; body : expr }
   (* expr expr *)
   | LE_apply of { lambda : expr; arg : expr }
   (* pat = expr; expr *)
   | LE_let of { bind : le_bind; body : expr }
   (* { pat = expr; } *)
   | LE_record of le_bind list
+  (* TODO: should LE_signature allow any pattern? *)
   (* { pat; } *)
   | LE_signature of pat list
   (* * *)
