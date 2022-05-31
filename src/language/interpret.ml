@@ -93,7 +93,17 @@ and interpret_expr_record content =
         | Some content -> interpret_expr_record content
         | None -> []
       in
-      LE_record_bind { bound; value } :: fields
+
+      (* TODO: locations manipulation bad *)
+      let loc =
+        match value with
+        | Some value ->
+            let loc_start = value.le_loc.loc_start in
+            let loc_end = bound.lp_loc.loc_end in
+            Location.{ loc_ghost = false; loc_start; loc_end }
+        | None -> bound.lp_loc
+      in
+      LE_record_bind { loc; bound; value } :: fields
   | _ -> raise loc Unimplemented
 
 and interpret_pat term =
@@ -126,5 +136,7 @@ and interpret_pat_record content =
         | Some content -> interpret_pat_record content
         | None -> []
       in
-      LP_record_bind { bound } :: fields
+
+      let loc = bound.lp_loc in
+      LP_record_bind { loc; bound } :: fields
   | _ -> raise loc Unimplemented

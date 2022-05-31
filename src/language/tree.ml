@@ -26,7 +26,8 @@ and expr_desc =
   (* expr : type *)
   | LE_annot of { value : expr; type_ : expr }
 
-and le_record_bind = LE_record_bind of { bound : pat; value : expr option }
+and le_record_bind =
+  | LE_record_bind of { loc : Location.t; bound : pat; value : expr option }
 
 (* TODO: can pattern be unified back on expr? *)
 and pat = { lp_loc : Location.t; lp_desc : pat_desc }
@@ -41,4 +42,4 @@ and pat_desc =
   (* pat : type *)
   | LP_annot of { pat : pat; type_ : expr }
 
-and lp_record_bind = LP_record_bind of { bound : pat }
+and lp_record_bind = LP_record_bind of { loc : Location.t; bound : pat }
