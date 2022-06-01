@@ -4,6 +4,7 @@ open Type
 open Env
 open Unify
 open Tree
+open Lower
 
 type error = Invalid_number | Not_a_type | Unimplemented
 
@@ -247,21 +248,20 @@ and type_bind env ~bind =
 
   let bind = term_bind env bound_type ~names ~bound ~value in
   let env = set_loc previous_loc env in
-  (forall, bind, names, env)
+  (bind, names, env)
 
 and type_let env ~bind ~body =
-  let forall, bind, _names, inner_env = type_bind env ~bind in
+  let bind, _names, inner_env = type_bind env ~bind in
   let body_type, body = type_expr inner_env body in
 
-  (* TODO: can use lower and maybe even lower contravariant *)
-  let let_type_ = Instance.instance_bound env ~forall body_type in
-  term_let env let_type_ ~bind ~body
+  lower ~to_:(current_forall env) body_type;
+  term_let env body_type ~bind ~body
 
 and type_record env ~fields =
-  let fields, names, env =
+  let fields, names, _env =
     List.fold_left
       (fun (body_binds, body_names, env) bind ->
-        let _forall, bind, names, env = type_bind env ~bind in
+        let bind, names, env = type_bind env ~bind in
         let names = names @ body_names in
         let fields = bind :: body_binds in
         (fields, names, env))
@@ -272,6 +272,7 @@ and type_record env ~fields =
 
   let fields_type = List.map (fun (name, type_) -> { name; type_ }) names in
   let type_ = new_struct ~fields:fields_type in
+  lower ~to_:(current_forall env) type_;
   term_record env type_ ~fields
 
 and type_signature env ~fields =
@@ -308,6 +309,8 @@ and type_annot env ~value ~type_ =
 
   let value_type, value = type_expr env value in
   let type_type, type_ = type_type env type_ in
+  Format.eprintf "%a : %a : %a\n%!" Print.pp_type_debug value_type
+    Print.pp_type_debug type_type Rank.pp (current_rank env);
   match_type env ~forall ~expected:type_type ~value:value_type;
 
   term_annot env type_type ~value ~type_

@@ -13,9 +13,9 @@ type desc = private
   (* TODO: T_type is weird *)
   | T_type of { forall : Forall.t; type_ : type_ }
 
-and var =
-  | Weak of { forall : Forall.t }
-  | Bound of { forall : Forall.t; name : Name.t option }
+and var = private
+  | Weak of { mutable forall : Forall.t }
+  | Bound of { mutable forall : Forall.t; name : Name.t option }
 
 and field = { name : Name.t; type_ : type_ }
 and link
@@ -29,6 +29,9 @@ val desc : type_ -> desc
 
 val link : to_:type_ -> type_ -> unit
 (** [link ~to var] links a var such that `same to var = true` *)
+
+val lower_var : to_:Forall.t -> type_ -> unit
+(** [lower ~to var] update the variable forall to a lower forall *)
 
 (* helpers *)
 (* TODO: are those helpers useful? *)

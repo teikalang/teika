@@ -37,10 +37,8 @@ let rec update_rank loc ~var ~max_forall type_ =
       (* TODO: why isn't this > ? *)
       if Rank.(Forall.rank max_forall < Forall.rank forall) then
         if is_bound then raise loc (Escape_check { var; type_ })
-        else
-          (* TODO: this can be avoided by mutating the forall *)
-          let var' = new_weak_var max_forall in
-          link type_ ~to_:var'
+        else (* TODO: assert is weak var *)
+          lower_var ~to_:max_forall type_
   | T_forall { forall = _; body } -> update_rank body
   | T_arrow { param; return } ->
       update_rank param;

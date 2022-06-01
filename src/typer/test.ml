@@ -315,12 +315,7 @@ let test case =
       test_match_type ~equal:false ~name ~code ~type_
 
 let _tests =
-  [
-    cursed_polymorphism_rank2;
-    explicit_type_constructor;
-    (* regressions *)
-    deep_type_abstraction;
-  ]
+  [ cursed_polymorphism_rank2; explicit_type_constructor (* regressions *) ]
 
 (* TODO: generate test, IDENTICAL (x: t = e1; e2) == ((x: t) => e1) e2 *)
 
@@ -366,6 +361,7 @@ let tests =
     type_abstraction;
     type_abstraction_fail;
     infer_kind_id;
+    deep_type_abstraction;
     deep_type_abstraction_fail;
   ]
 

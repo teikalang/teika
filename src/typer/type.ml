@@ -10,11 +10,11 @@ type type_ =
 and type_var =
   (* when link points to type_ itself, then this is not linked *)
   (* TODO: weak may be bound if forall is bound *)
-  | Weak of { forall : Forall.t; mutable link : type_ }
+  | Weak of { mutable forall : Forall.t; mutable link : type_ }
   (* TODO: should we have this name here? It's duplicated from Tree.t *)
   (* TODO: check name across codebase *)
   (* TODO: rename bound to rigid *)
-  | Bound of { forall : Forall.t; name : Name.t option }
+  | Bound of { mutable forall : Forall.t; name : Name.t option }
 
 and field = { name : Name.t; type_ : type_ }
 
@@ -29,8 +29,8 @@ type desc =
 [@@ocaml.warning "-unused-constructor"]
 
 and var =
-  | Weak of { forall : Forall.t }
-  | Bound of { forall : Forall.t; name : Name.t option }
+  | Weak of { mutable forall : Forall.t }
+  | Bound of { mutable forall : Forall.t; name : Name.t option }
 [@@ocaml.warning "-unused-constructor"]
 
 (* externally opaque *)
@@ -57,6 +57,23 @@ let link ~to_ type_ =
   | T_var { var = Weak weak } ->
       invariant (not (Forall.is_generic weak.forall));
       weak.link <- to_
+  | _ -> assert false
+
+let lower_var ~to_ type_ =
+  let check ~from_forall =
+    let from_rank = Forall.rank from_forall in
+    let to_rank = Forall.rank to_ in
+
+    invariant Rank.(to_rank < from_rank);
+    invariant (not (Forall.is_generic from_forall))
+  in
+  match repr type_ with
+  | T_var { var = Weak weak } ->
+      check ~from_forall:weak.forall;
+      weak.forall <- to_
+  | T_var { var = Bound bound } ->
+      check ~from_forall:bound.forall;
+      bound.forall <- to_
   | _ -> assert false
 
 let new_forall forall ~body : type_ = T_forall { forall; body }
