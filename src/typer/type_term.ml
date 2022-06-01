@@ -37,7 +37,6 @@ let bind_type forall ~type_ =
   new_type forall ~type_
 
 let match_type env ~forall ~expected ~value =
-  Format.eprintf "%a : %a\n%!" Print.pp_type expected Print.pp_type value;
   let expected = Instance.instance_weaken env ~forall expected in
   unify env ~expected ~received:value
 
@@ -165,7 +164,6 @@ and type_implicit_arrow env ~param ~body =
   let body_type, body = type_type env body in
 
   let type_ = bind_forall forall ~body:body_type in
-  Format.eprintf "arrow: %a\n%!" Print.pp_type_debug type_;
   let type_ = wrap_type type_ in
 
   term_forall env type_ ~body

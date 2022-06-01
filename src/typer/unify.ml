@@ -71,9 +71,6 @@ let rec unify env rank ~expected ~received =
   if same expected received then () else unify_desc env rank ~expected ~received
 
 and unify_desc env rank ~expected ~received =
-  Format.eprintf "%a : %a\n%!" Print.pp_type_debug expected Print.pp_type_debug
-    received;
-
   match (desc expected, desc received) with
   (* 2: weak vars *)
   | T_var (Weak _), _ -> unify_var env ~var:expected received
