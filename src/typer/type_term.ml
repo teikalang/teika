@@ -3,7 +3,6 @@ open Language
 open Type
 open Env
 open Unify
-open Generalize
 open Tree
 
 type error = Invalid_number | Not_a_type | Unimplemented
@@ -15,7 +14,7 @@ let raise env error =
   raise (Error { loc; error })
 
 (* helpers *)
-let wrap_type type_ = new_type (Forall.make Rank.generic) ~type_
+let wrap_type type_ = new_type (Forall.generic ()) ~type_
 
 let extract_type env type_ =
   match desc type_ with
@@ -30,14 +29,15 @@ let extract_type env type_ =
   | _ -> raise env Not_a_type
 
 let bind_forall forall ~body =
-  Forall.bind forall;
+  Forall.universal forall;
   new_forall forall ~body
 
 let bind_type forall ~type_ =
-  Forall.bind forall;
+  Forall.existential forall;
   new_type forall ~type_
 
 let match_type env ~forall ~expected ~value =
+  Format.eprintf "%a : %a\n%!" Print.pp_type expected Print.pp_type value;
   let expected = Instance.instance_weaken env ~forall expected in
   unify env ~expected ~received:value
 
@@ -165,6 +165,7 @@ and type_implicit_arrow env ~param ~body =
   let body_type, body = type_type env body in
 
   let type_ = bind_forall forall ~body:body_type in
+  Format.eprintf "arrow: %a\n%!" Print.pp_type_debug type_;
   let type_ = wrap_type type_ in
 
   term_forall env type_ ~body
@@ -183,14 +184,7 @@ and type_explicit_arrow env ~param ~body =
 
 and type_lambda env ~implicit ~param ~body =
   if implicit then type_implicit_lambda env ~param ~body
-  else
-    (* TODO: this should apply to implicit *)
-    let lambda_type, lambda =
-      let _forall, env = enter_forall env in
-      type_explicit_lambda env ~param ~body
-    in
-    let lambda_type = generalize env lambda_type in
-    (lambda_type, lambda)
+  else type_explicit_lambda env ~param ~body
 
 and type_implicit_lambda env ~param ~body =
   let forall, env = enter_forall env in

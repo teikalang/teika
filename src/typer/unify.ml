@@ -1,6 +1,5 @@
 open Type
 open Instance
-open Lower
 
 let pp_type_ = Print.pp_type_debug
 
@@ -24,23 +23,24 @@ let raise loc error = raise (Error { loc; error })
 let occur_check loc ~var type_ =
   if Helpers.in_type ~var type_ then raise loc (Occur_check { var; type_ })
 
-let min_rank a b = if Rank.(a > b) then b else a
-
-let rec update_rank loc ~var ~max_rank type_ =
-  let update_rank type_ = update_rank loc ~var ~max_rank type_ in
+let rec update_rank loc ~var ~max_forall type_ =
+  let update_rank type_ = update_rank loc ~var ~max_forall type_ in
   match desc type_ with
-  | T_var (Weak { rank = var_rank; link = _ }) ->
-      let rank = min_rank max_rank var_rank in
-      lower ~var:type_ rank
-  | T_var (Bound { forall; name = _ }) ->
-      let var_rank = Forall.rank forall in
-      if
-        (* received is introduced after rank is incremented so >
-           generic is the lowest, so it will always match this *)
-        (* TODO: why isn't this > ? *)
-        Rank.(max_rank >= var_rank)
-      then ()
-      else raise loc (Escape_check { var; type_ })
+  | T_var var_desc ->
+      let forall, is_bound =
+        match var_desc with
+        | Weak { forall } -> (forall, false)
+        | Bound { forall; name = _ } -> (forall, true)
+      in
+      (* received is introduced after rank is incremented so >
+               generic is the lowest, so it will always match this *)
+      (* TODO: why isn't this > ? *)
+      if Rank.(Forall.rank max_forall < Forall.rank forall) then
+        if is_bound then raise loc (Escape_check { var; type_ })
+        else
+          (* TODO: this can be avoided by mutating the forall *)
+          let var' = new_weak_var max_forall in
+          link type_ ~to_:var'
   | T_forall { forall = _; body } -> update_rank body
   | T_arrow { param; return } ->
       update_rank param;
@@ -52,13 +52,11 @@ let rec update_rank loc ~var ~max_rank type_ =
 
 (* also escape check *)
 let update_rank loc ~var type_ =
-  let max_rank =
+  let max_forall =
     (* TODO: invariant var is weak var *)
-    match desc var with
-    | T_var (Weak { rank; link = _ }) -> rank
-    | _ -> assert false
+    match desc var with T_var (Weak { forall }) -> forall | _ -> assert false
   in
-  update_rank loc ~var ~max_rank type_
+  update_rank loc ~var ~max_forall type_
 
 let unify_var loc ~var type_ =
   occur_check loc ~var type_;
@@ -73,6 +71,9 @@ let rec unify env rank ~expected ~received =
   if same expected received then () else unify_desc env rank ~expected ~received
 
 and unify_desc env rank ~expected ~received =
+  Format.eprintf "%a : %a\n%!" Print.pp_type_debug expected Print.pp_type_debug
+    received;
+
   match (desc expected, desc received) with
   (* 2: weak vars *)
   | T_var (Weak _), _ -> unify_var env ~var:expected received
@@ -81,8 +82,11 @@ and unify_desc env rank ~expected ~received =
   | T_forall { forall; body }, _ ->
       (* TODO: tag + clear is weird *)
       let rank = Rank.next rank in
-      (* TODO: neede because instance_weaken *)
-      let env = Env.with_rank rank env in
+      let env =
+        (* TODO: neede because instance_weaken below, is this right? *)
+        let forall = Forall.weak rank in
+        Env.with_forall forall env
+      in
       Forall.with_rank
         (fun () -> unify env rank ~expected:body ~received)
         rank forall
@@ -113,8 +117,8 @@ and unify_desc env rank ~expected ~received =
       unify env rank ~expected ~received
   | T_struct _, _
   | _, T_struct _
-  | T_var (Bound _), _
-  | _, T_var (Bound _)
+  | T_var _, _
+  | _, T_var _
   | T_type _, _
   | _, T_type _ ->
       raise (Env.current_loc env) (Type_clash { expected; received })

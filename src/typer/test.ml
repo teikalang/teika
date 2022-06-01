@@ -275,12 +275,12 @@ let test_match_type ~equal ~name ~code ~type_ =
     let type_ = value_from_string ~name type_ in
     let type_type, _type = type_type env type_ in
     let code = value_from_string ~name code in
-    let code_type, _code =
-      let _forall, env = Env.enter_forall env in
-      type_expr env code
+    let code_type =
+      let forall, env = Env.enter_forall env in
+      let code_type, _code = type_expr env code in
+      Typer.Forall.universal forall;
+      Typer.Type.new_forall forall ~body:code_type
     in
-    (* TODO: this generalize makes sense? *)
-    let code_type = Typer.Generalize.generalize env code_type in
 
     let checker = if equal then equal_type else subtype_type in
     Alcotest.check (checker env) name (type_type, type_) (code_type, code)

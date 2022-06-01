@@ -21,7 +21,7 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
   in
   match desc type_ with
   | T_forall { forall; body } ->
-      let forall' = Forall.make Rank.generic in
+      let forall' = Forall.generic () in
       foralls := (forall, forall') :: !foralls;
 
       let body = instance body in
@@ -58,7 +58,7 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
       in
       new_struct ~fields
   | T_type { forall; type_ } ->
-      let forall' = Forall.make Rank.generic in
+      let forall' = Forall.generic () in
       foralls := (forall, forall') :: !foralls;
 
       let type_ = instance type_ in

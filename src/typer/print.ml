@@ -37,17 +37,13 @@ let register_name ctx type_ =
   let name =
     match desc type_ with
     | T_forall _ | T_arrow _ | T_struct _ | T_type _ -> sprintf "[%d]" id
-    | T_var var ->
+    | T_var (Weak { forall } | Bound { forall; name = _ }) ->
         (* TODO: use bound name *)
-        let prefix = match var with Weak _ -> "_" | Bound _ -> "" in
+        let is_generic = Forall.is_generic forall in
+        let rank = Forall.rank forall in
+        let prefix = if is_generic then "" else "_" in
         let suffix =
-          if ctx.debug then
-            match var with
-            | Weak { rank; link = _ } -> asprintf "[%d:%a]" id Rank.pp rank
-            | Bound { forall; name = _ } ->
-                let var_rank = Forall.rank forall in
-                asprintf "[%d:%a]" id Rank.pp var_rank
-          else ""
+          if ctx.debug then asprintf "[%d:%a]" id Rank.pp rank else ""
         in
         prefix ^ new_name ctx ^ suffix
   in
