@@ -253,6 +253,7 @@ and type_let env ~bind ~body =
   let forall, bind, _names, inner_env = type_bind env ~bind in
   let body_type, body = type_expr inner_env body in
 
+  (* TODO: can use lower and maybe even lower contravariant *)
   let let_type_ = Instance.instance_bound env ~forall body_type in
   term_let env let_type_ ~bind ~body
 
@@ -303,14 +304,13 @@ and type_asterisk env =
 
 and type_annot env ~value ~type_ =
   (* TODO: fail when inside of type_ *)
-  let forall, inner_env = enter_forall env in
+  let forall = current_forall env in
 
-  let value_type, value = type_expr inner_env value in
-  let type_type, type_ = type_type inner_env type_ in
-  match_type inner_env ~forall ~expected:type_type ~value:value_type;
+  let value_type, value = type_expr env value in
+  let type_type, type_ = type_type env type_ in
+  match_type env ~forall ~expected:type_type ~value:value_type;
 
-  let annot_type_ = Instance.instance_bound env ~forall type_type in
-  term_annot env annot_type_ ~value ~type_
+  term_annot env type_type ~value ~type_
 
 and type_pat env term =
   let previous_loc = current_loc env in
