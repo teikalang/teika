@@ -24,8 +24,7 @@ and expr_desc =
   | TE_record of term_bind list
   (* TODO: what to put here as content? *)
   | TE_signature
-  | TE_asterisk
-  | TE_annot of { value : expr; type_ : expr }
+  | TE_annot of { value : expr; annot : annot }
 
 and term_bind =
   | TE_bind of {
@@ -49,4 +48,8 @@ and pat =
 and pat_desc =
   | TP_var of Ident.t
   | TP_record of pat list
-  | TP_annot of { pat : pat; type_ : expr }
+  | TP_annot of { pat : pat; annot : annot }
+
+and annot = TA_type of expr | TA_kind of kind
+and kind = TK of { loc : Location.t; desc : kind_desc }
+and kind_desc = TK_asterisk | TK_arrow of { param : kind; body : kind }

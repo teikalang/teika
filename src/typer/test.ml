@@ -315,7 +315,13 @@ let test case =
       test_match_type ~equal:false ~name ~code ~type_
 
 let _tests =
-  [ cursed_polymorphism_rank2; explicit_type_constructor (* regressions *) ]
+  [
+    cursed_polymorphism_rank2;
+    explicit_type_constructor;
+    (* regressions *)
+    kind_alias;
+    deep_kind_alias;
+  ]
 
 (* TODO: generate test, IDENTICAL (x: t = e1; e2) == ((x: t) => e1) e2 *)
 
@@ -338,8 +344,6 @@ let tests =
     module_is_not_value;
     term_type_alias;
     type_type_alias;
-    kind_alias;
-    deep_kind_alias;
     term_type_function;
     type_type_function;
     term_wrong_type_function;

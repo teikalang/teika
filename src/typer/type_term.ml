@@ -71,12 +71,11 @@ let term_bind env type_ ~names ~bound ~value =
 
 let term_record env type_ ~fields = return_term env type_ (TE_record fields)
 let term_signature env type_ = return_term env type_ TE_signature
-let term_asterisk env type_ = return_term env type_ TE_asterisk
 
-let term_annot env type_type ~value ~type_ =
-  return_term env type_type (TE_annot { value; type_ })
+let term_annot env type_type ~value ~annot =
+  return_term env type_type (TE_annot { value; annot })
 
-(* term_pat *)
+(* pat *)
 let return_pat env type_ names desc =
   let loc = current_loc env in
   (type_, TP { env; loc; names; type_; desc }, names, env)
@@ -88,47 +87,47 @@ let pat_var env type_ name ~var =
 let pat_record env type_ names ~fields =
   return_pat env type_ names (TP_record fields)
 
-let pat_annot env type_type names ~pat ~type_ =
-  return_pat env type_type names (TP_annot { pat; type_ })
+let pat_annot env type_type names ~pat ~annot =
+  return_pat env type_type names (TP_annot { pat; annot })
+
+(* annot *)
+let annot_type type_ expr = (type_, TA_type expr)
+let annot_kind type_ kind = (type_, TA_kind kind)
+
+(* kind *)
+let return_kind env type_ desc =
+  let loc = current_loc env in
+  (type_, TK { loc; desc })
+
+let kind_asterisk env type_ = return_kind env type_ TK_asterisk
+
+let _kind_arrow env type_ ~param ~body =
+  return_kind env type_ (TK_arrow { param; body })
 
 let rec type_expr env term =
   (* dispatch to the proper function *)
   let (LE { loc; desc = term }) = term in
   let env = set_loc loc env in
 
-  let type_, term =
-    match term with
-    | LE_var name -> type_var env ~name
-    | LE_number number -> type_number env ~number
-    | LE_arrow { implicit; param; body } ->
-        type_arrow env ~implicit ~param ~body
-    | LE_lambda { implicit; param; body } ->
-        type_lambda env ~implicit ~param ~body
-    | LE_apply { lambda; arg } -> type_apply env ~lambda ~arg
-    | LE_let { bind; body } -> type_let env ~bind ~body
-    | LE_record fields -> type_record env ~fields
-    | LE_signature fields -> type_signature env ~fields
-    | LE_asterisk -> type_asterisk env
-    | LE_annot { value; type_ } -> type_annot env ~value ~type_
-  in
-  (type_, term)
+  match term with
+  | LE_var name -> type_expr_var env ~name
+  | LE_number number -> type_expr_number env ~number
+  | LE_arrow { implicit; param; body } ->
+      type_expr_arrow env ~implicit ~param ~body
+  | LE_lambda { implicit; param; body } ->
+      type_expr_lambda env ~implicit ~param ~body
+  | LE_apply { lambda; arg } -> type_expr_apply env ~lambda ~arg
+  | LE_let { bind; body } -> type_expr_let env ~bind ~body
+  | LE_record fields -> type_expr_record env ~fields
+  | LE_signature fields -> type_expr_signature env ~fields
+  | LE_annot { value; annot } -> type_expr_annot env ~value ~annot
 
-and type_type env term =
-  (* TODO: this function is not great*)
-  let (LE { desc = _; loc }) = term in
-  let env = set_loc loc env in
-
-  (* TODO: this is probably wrong, make with_forall function *)
-  let type_, term = type_expr env term in
-  let type_ = extract_type env type_ in
-  (type_, term)
-
-and type_var env ~name =
+and type_expr_var env ~name =
   let name = Name.make name in
   let var, type_ = env |> Env.lookup name in
   term_var env type_ ~var
 
-and type_number env ~number =
+and type_expr_number env ~number =
   let number =
     match int_of_string_opt number with
     | Some number -> number
@@ -139,11 +138,11 @@ and type_number env ~number =
   let type_ = Env.int_type in
   term_number env type_ ~number
 
-and type_arrow env ~implicit ~param ~body =
-  if implicit then type_implicit_arrow env ~param ~body
-  else type_explicit_arrow env ~param ~body
+and type_expr_arrow env ~implicit ~param ~body =
+  if implicit then type_expr_implicit_arrow env ~param ~body
+  else type_expr_explicit_arrow env ~param ~body
 
-and type_implicit_arrow env ~param ~body =
+and type_expr_implicit_arrow env ~param ~body =
   let forall, env = enter_forall env in
   let env =
     let previous_loc = current_loc env in
@@ -162,18 +161,18 @@ and type_implicit_arrow env ~param ~body =
         set_loc previous_loc env
     | _ -> raise env Unimplemented
   in
-  let body_type, body = type_type env body in
+  let body_type, body = type_expr_type env body in
 
   let type_ = bind_forall forall ~body:body_type in
   let type_ = wrap_type type_ in
 
   term_forall env type_ ~body
 
-and type_explicit_arrow env ~param ~body =
+and type_expr_explicit_arrow env ~param ~body =
   (* TODO: param should be pattyern *)
   let forall, env = enter_forall env in
   let param_type, param, _names, env = type_pat env param in
-  let body_type, body = type_type env body in
+  let body_type, body = type_expr_type env body in
   (* TODO: what about this universe? *)
   let arrow_type_ = new_arrow ~param:param_type ~return:body_type in
   let type_ = bind_forall forall ~body:arrow_type_ in
@@ -181,11 +180,11 @@ and type_explicit_arrow env ~param ~body =
 
   term_arrow env type_ ~param ~body
 
-and type_lambda env ~implicit ~param ~body =
-  if implicit then type_implicit_lambda env ~param ~body
-  else type_explicit_lambda env ~param ~body
+and type_expr_lambda env ~implicit ~param ~body =
+  if implicit then type_expr_implicit_lambda env ~param ~body
+  else type_expr_explicit_lambda env ~param ~body
 
-and type_implicit_lambda env ~param ~body =
+and type_expr_implicit_lambda env ~param ~body =
   let forall, env = enter_forall env in
   let env =
     let previous_loc = current_loc env in
@@ -211,7 +210,7 @@ and type_implicit_lambda env ~param ~body =
 
   term_implicit_lambda env type_ ~body
 
-and type_explicit_lambda env ~param ~body =
+and type_expr_explicit_lambda env ~param ~body =
   let forall, env = enter_forall env in
 
   let param_type, param, _names, env = type_pat env param in
@@ -222,7 +221,7 @@ and type_explicit_lambda env ~param ~body =
 
   term_explicit_lambda env type_ ~param ~body
 
-and type_apply env ~lambda ~arg =
+and type_expr_apply env ~lambda ~arg =
   (* TODO: applying a type is different from applying a term? *)
   let lambda_type, lambda = type_expr env lambda in
   let arg_type, arg = type_expr env arg in
@@ -235,7 +234,7 @@ and type_apply env ~lambda ~arg =
 
   term_apply env return_type ~lambda ~arg
 
-and type_bind env ~bind =
+and type_expr_bind env ~bind =
   let previous_loc = current_loc env in
   let (LE_bind { loc; bound; value }) = bind in
   let env = set_loc loc env in
@@ -250,18 +249,18 @@ and type_bind env ~bind =
   let env = set_loc previous_loc env in
   (bind, names, env)
 
-and type_let env ~bind ~body =
-  let bind, _names, inner_env = type_bind env ~bind in
+and type_expr_let env ~bind ~body =
+  let bind, _names, inner_env = type_expr_bind env ~bind in
   let body_type, body = type_expr inner_env body in
 
   lower ~to_:(current_forall env) body_type;
   term_let env body_type ~bind ~body
 
-and type_record env ~fields =
+and type_expr_record env ~fields =
   let fields, names, _env =
     List.fold_left
       (fun (body_binds, body_names, env) bind ->
-        let bind, names, env = type_bind env ~bind in
+        let bind, names, env = type_expr_bind env ~bind in
         let names = names @ body_names in
         let fields = bind :: body_binds in
         (fields, names, env))
@@ -275,7 +274,7 @@ and type_record env ~fields =
   lower ~to_:(current_forall env) type_;
   term_record env type_ ~fields
 
-and type_signature env ~fields =
+and type_expr_signature env ~fields =
   (* TODO: each field should have it's own forall*)
   let forall, env = enter_forall env in
 
@@ -294,26 +293,15 @@ and type_signature env ~fields =
 
   term_signature env type_
 
-and type_asterisk env =
-  let forall, env = enter_forall env in
-  let type_ = new_bound_var ~name:None forall in
-  (* TODO: this is VERY weird, nested T_type *)
-  let type_ = wrap_type type_ in
-  let type_ = bind_type forall ~type_ in
-
-  term_asterisk env type_
-
-and type_annot env ~value ~type_ =
+and type_expr_annot env ~value ~annot =
   (* TODO: fail when inside of type_ *)
   let forall = current_forall env in
 
   let value_type, value = type_expr env value in
-  let type_type, type_ = type_type env type_ in
-  Format.eprintf "%a : %a : %a\n%!" Print.pp_type_debug value_type
-    Print.pp_type_debug type_type Rank.pp (current_rank env);
-  match_type env ~forall ~expected:type_type ~value:value_type;
+  let annot_type, annot = type_annot env annot in
+  match_type env ~forall ~expected:annot_type ~value:value_type;
 
-  term_annot env type_type ~value ~type_
+  term_annot env annot_type ~value ~annot
 
 and type_pat env term =
   let previous_loc = current_loc env in
@@ -324,7 +312,7 @@ and type_pat env term =
     match term with
     | LP_var name -> type_pat_ident env ~name
     | LP_record fields -> type_pat_record env ~fields
-    | LP_annot { pat; type_ } -> type_pat_annot env ~pat ~type_
+    | LP_annot { pat; annot } -> type_pat_annot env ~pat ~annot
   in
   let env = set_loc previous_loc env in
   (type_, term, names, env)
@@ -355,9 +343,46 @@ and type_pat_record env ~fields =
   let type_ = new_struct ~fields:fields_type in
   pat_record env type_ names ~fields
 
-and type_pat_annot env ~pat ~type_ =
+and type_pat_annot env ~pat ~annot =
   let pat_type, pat, names, env = type_pat env pat in
-  let type_type, type_ = type_type env type_ in
+  let annot_type, annot = type_annot env annot in
 
-  let () = unify env ~expected:type_type ~received:pat_type in
-  pat_annot env type_type names ~pat ~type_
+  let () = unify env ~expected:annot_type ~received:pat_type in
+  pat_annot env annot_type names ~pat ~annot
+
+and type_annot env annot =
+  match annot with
+  | LA_type type_ ->
+      let type_type, type_ = type_expr_type env type_ in
+
+      annot_type type_type type_
+  | LA_kind kind ->
+      let type_kind, kind = type_kind env kind in
+
+      annot_kind type_kind kind
+
+and type_expr_type env term =
+  (* TODO: this function is not great*)
+  let (LE { desc = _; loc }) = term in
+  let env = set_loc loc env in
+
+  (* TODO: this is probably wrong, make with_forall function *)
+  let type_, term = type_expr env term in
+  let type_ = extract_type env type_ in
+  (type_, term)
+
+and type_kind env kind =
+  let (LK { loc; desc = kind }) = kind in
+  let env = set_loc loc env in
+
+  match kind with
+  | LK_asterisk -> type_kind_asterisk env
+  | LK_arrow _ -> raise env Unimplemented
+
+and type_kind_asterisk env =
+  let forall = current_forall env in
+  let type_ = new_bound_var ~name:None forall in
+  (* TODO: this is VERY weird, nested T_type *)
+  let type_ = wrap_type type_ in
+
+  kind_asterisk env type_
