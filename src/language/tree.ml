@@ -24,10 +24,8 @@ and expr_desc =
   (* TODO: should LE_signature allow any pattern? *)
   (* { pat; } *)
   | LE_signature of pat list
-  (* * *)
-  | LE_asterisk
   (* expr : type *)
-  | LE_annot of { value : expr; type_ : expr }
+  | LE_annot of { value : expr; annot : annot }
 
 (* TODO: bind directly on parser *)
 and le_bind = LE_bind of { loc : Location.t; bound : pat; value : expr }
@@ -43,4 +41,14 @@ and pat_desc =
   | LP_var of identifier
   | LP_record of pat list
   (* pat : type *)
-  | LP_annot of { pat : pat; type_ : expr }
+  | LP_annot of { pat : pat; annot : annot }
+
+(* TODO: is this syntatic difference really needed? *)
+and annot = LA_type of expr | LA_kind of kind
+and kind = LK of { loc : Location.t; desc : kind_desc }
+
+and kind_desc =
+  (* * *)
+  | LK_asterisk
+  (* kind -> kind *)
+  | LK_arrow of { param : kind; body : kind }

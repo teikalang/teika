@@ -28,8 +28,7 @@ let le_apply loc ~lambda ~arg = make_expr loc (LE_apply { lambda; arg })
 let le_let loc ~bind ~body = make_expr loc (LE_let { bind; body })
 let le_record loc ~fields = make_expr loc (LE_record fields)
 let le_signature loc ~fields = make_expr loc (LE_signature fields)
-let le_asterisk loc = make_expr loc LE_asterisk
-let le_annot loc ~value ~type_ = make_expr loc (LE_annot { value; type_ })
+let le_annot loc ~value ~annot = make_expr loc (LE_annot { value; annot })
 
 let le_bind ~bound ~value =
   let loc =
@@ -45,8 +44,18 @@ let le_bind ~bound ~value =
 let make_pat loc desc = LP { loc; desc }
 let lp_var loc ~var = make_pat loc (LP_var var)
 let lp_record loc ~fields = make_pat loc (LP_record fields)
-let lp_annot loc ~pat ~type_ = make_pat loc (LP_annot { pat; type_ })
+let lp_annot loc ~pat ~annot = make_pat loc (LP_annot { pat; annot })
 
+(* annot *)
+let la_type expr = LA_type expr
+let la_kind kind = LA_kind kind
+
+(* kind *)
+let make_kind loc desc = LK { loc; desc }
+let lk_asterisk loc = make_kind loc LK_asterisk
+let lk_arrow loc ~param ~body = make_kind loc (LK_arrow { param; body })
+
+(* ambiguities *)
 let is_implicit ~param =
   (* TODO: this about optional arguments *)
   match param.s_desc with
@@ -55,6 +64,13 @@ let is_implicit ~param =
   (* TODO: None being false is quite weird *)
   | S_struct None -> (false, param)
   | _ -> (false, param)
+
+let rec is_kind term =
+  (* TODO: this is clearly not ideal *)
+  match term.s_desc with
+  | S_asterisk -> true
+  | S_arrow { param; body } -> is_kind param && is_kind body
+  | _ -> false
 
 let rec interpret_expr term =
   let { s_loc = loc; s_desc = term } = term in
@@ -68,8 +84,8 @@ let rec interpret_expr term =
   | S_struct content -> interpret_expr_record_ambiguous loc ~content
   | S_field _ -> raise loc Unimplemented
   | S_match _ -> raise loc Unimplemented
-  | S_asterisk -> interpret_expr_asterisk loc
-  | S_annot { value; type_ } -> interpret_expr_annot loc ~value ~type_
+  | S_asterisk -> raise loc Unimplemented
+  | S_annot { value; type_ } -> interpret_expr_annot loc ~value ~annot:type_
 
 and interpret_expr_var loc ~var = le_var loc ~var
 and interpret_expr_number loc ~number = le_number loc ~number
@@ -87,8 +103,8 @@ and interpret_expr_arrow loc ~param ~body =
           (* TODO: is generating this here bad? *)
           (* TODO: "_" should definitely go away *)
           let pat = lp_var loc ~var:"_" in
-          let type_ = interpret_expr param in
-          lp_annot loc ~pat ~type_
+          let annot = interpret_annot param in
+          lp_annot loc ~pat ~annot
   in
   let body = interpret_expr body in
   le_arrow loc ~implicit ~param ~body
@@ -179,12 +195,10 @@ and interpret_expr_signature content =
   in
   bound :: binds
 
-and interpret_expr_asterisk loc = le_asterisk loc
-
-and interpret_expr_annot loc ~value ~type_ =
+and interpret_expr_annot loc ~value ~annot =
   let value = interpret_expr value in
-  let type_ = interpret_expr type_ in
-  le_annot loc ~value ~type_
+  let annot = interpret_annot annot in
+  le_annot loc ~value ~annot
 
 and interpret_pat term =
   let { s_loc = loc; s_desc = term } = term in
@@ -199,8 +213,8 @@ and interpret_pat term =
       lp_record loc ~fields
   | S_annot { value = pat; type_ } ->
       let pat = interpret_pat pat in
-      let type_ = interpret_expr type_ in
-      lp_annot loc ~pat ~type_
+      let annot = interpret_annot type_ in
+      lp_annot loc ~pat ~annot
   | _ -> raise loc Unimplemented
 
 and interpret_pat_record content =
@@ -220,3 +234,25 @@ and interpret_pat_record content =
     match body with Some content -> interpret_pat_record content | None -> []
   in
   bound :: binds
+
+and interpret_annot term =
+  if is_kind term then
+    let kind = interpret_kind term in
+    la_kind kind
+  else
+    let type_ = interpret_expr term in
+    la_type type_
+
+and interpret_kind term =
+  let { s_loc = loc; s_desc = term } = term in
+  match term with
+  | S_asterisk -> interpret_kind_asterisk loc
+  | S_arrow { param; body } -> interpret_kind_arrow loc ~param ~body
+  | _ -> raise loc Unimplemented
+
+and interpret_kind_asterisk loc = lk_asterisk loc
+
+and interpret_kind_arrow loc ~param ~body =
+  let param = interpret_kind param in
+  let body = interpret_kind body in
+  lk_arrow loc ~param ~body
