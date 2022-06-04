@@ -64,6 +64,12 @@ In general it will be used in the direction of a type annotation,
 
 The syntax for an annotation has the format of `received_value : expected_type`.
 
+### Kind
+
+The type of a type, in general represented by something such as `*`, which can be read as the set of all types.
+
+Common usage is to say "A is a type" `(A: *)` and `* -> *` saying that it's a function that accepts a type and returns a type.
+
 ## Abbreviations
 
 To avoid noise, this code uses quite a bit of abbreviations.
