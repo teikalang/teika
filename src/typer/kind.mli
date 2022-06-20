@@ -1,1 +1,2 @@
-type t = K_type | K_arrow of t * t [@@deriving show]
+type kind = K_type
+type t = kind [@@deriving show]

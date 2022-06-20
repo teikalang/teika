@@ -1,7 +1,6 @@
-open Type
-
-val pp_type : Format.formatter -> type_ -> unit
-val pp_type_debug : Format.formatter -> type_ -> unit
+val pp_kind : Format.formatter
+val pp_type : Format.formatter -> Type.t -> unit
+val pp_type_debug : Format.formatter -> Type.t -> unit
 
 val with_pp_type :
-  ?debug:bool -> ((Format.formatter -> type_ -> unit) -> unit) -> unit
+  ?debug:bool -> ((Format.formatter -> Type.t -> unit) -> unit) -> unit
