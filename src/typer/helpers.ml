@@ -7,7 +7,7 @@ and in_type_desc ~var type_ =
   let in_type type_ = in_type ~var type_ in
   match desc type_ with
   | T_var _ -> false
-  | T_forall { forall = _; body } -> in_type body
+  | T_forall { forall = _; return } -> in_type return
   | T_arrow { param; return } -> in_type param || in_type return
   | T_record { fields } ->
       List.exists (fun { name = _; type_ } -> in_type type_) fields
@@ -27,7 +27,7 @@ let rec free_vars foralls vars type_ =
       if (not (in_foralls ~forall foralls)) && not (in_vars ~var:type_ vars)
       then type_ :: vars
       else vars
-  | T_forall { forall; body } -> free_vars (forall :: foralls) vars body
+  | T_forall { forall; return } -> free_vars (forall :: foralls) vars return
   | T_arrow { param; return } ->
       let vars = free_vars foralls vars param in
       free_vars foralls vars return

@@ -73,12 +73,12 @@ and pp_type_desc ctx fmt type_ =
   match desc type_ with
   (* just print name *)
   | T_var _ -> pp_type fmt type_
-  | T_forall { forall; body } ->
-      let vars = forall_vars ~forall body in
+  | T_forall { forall; return } ->
+      let vars = forall_vars ~forall return in
 
       (* not rev_map because order matters here *)
       List.rev vars |> List.iter (fun var -> fprintf fmt "{%a} -> " pp_type var);
-      fprintf fmt "%a" pp_type body
+      fprintf fmt "%a" pp_type return
   | T_arrow { param; return } ->
       let parens =
         match desc param with

@@ -279,7 +279,7 @@ let test_match_type ~equal ~name ~code ~type_ =
       let forall, env = Env.enter_forall env in
       let code_type, _code = type_expr env code in
       Typer.Forall.universal forall;
-      Typer.Type.new_forall forall ~body:code_type
+      Typer.Type.new_forall forall ~return:code_type
     in
 
     let checker = if equal then equal_type else subtype_type in

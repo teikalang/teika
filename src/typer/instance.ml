@@ -20,12 +20,12 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
     instance env ~bound_when_free ~forall foralls types type_
   in
   match desc type_ with
-  | T_forall { forall; body } ->
+  | T_forall { forall; return } ->
       let forall' = Forall.generic () in
       foralls := (forall, forall') :: !foralls;
 
-      let body = instance body in
-      new_forall forall' ~body
+      let return = instance return in
+      new_forall forall' ~return
   | T_var (Weak _) -> (* weak not copied *) type_
   | T_var (Bound { forall = var_forall }) -> (
       if Forall.same forall var_forall then
