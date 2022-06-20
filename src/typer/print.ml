@@ -1,7 +1,8 @@
+open Format
 open Utils
 open Type
 open Helpers
-open Format
+open Kind
 
 (* TODO: is this function the best that I can do? *)
 
@@ -13,6 +14,13 @@ let rec to_string acc int =
   if next > 0 then to_string acc (next - 1) else String.of_seq (List.to_seq acc)
 
 let to_string int = to_string [] int
+let rec pp_kind fmt kind = match kind with K_type -> fprintf fmt "*"
+(* | K_arrow { param; return } ->
+    let needs_parens =
+      match param with K_type -> false | K_arrow _ -> true
+    in
+    if needs_parens then fprintf fmt "(%a) -> %a" pp_kind param pp_kind return
+    else fprintf fmt "%a -> %a" pp_kind param pp_kind return *)
 
 (* TODO: print link optionally *)
 (* TODO: print rank optionally *)
