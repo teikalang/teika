@@ -99,7 +99,7 @@ let base, int_type, int_ident =
   in
 
   let int_name = Name.make "Int" in
-  let int_type = new_bound_var ~name:(Some int_name) predef_forall in
+  let int_type = new_bound_var predef_forall in
   let int_ident, predef =
     predef |> add int_name (new_type (Forall.generic ()) ~type_:int_type)
   in

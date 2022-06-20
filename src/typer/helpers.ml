@@ -23,7 +23,7 @@ let rec free_vars foralls vars type_ =
   match desc type_ with
   | T_var (Weak _) ->
       if not (in_vars ~var:type_ vars) then type_ :: vars else vars
-  | T_var (Bound { forall; name = _ }) ->
+  | T_var (Bound { forall }) ->
       if (not (in_foralls ~forall foralls)) && not (in_vars ~var:type_ vars)
       then type_ :: vars
       else vars
@@ -44,8 +44,7 @@ let forall_vars ~forall type_ =
     (fun var ->
       match desc var with
       | T_var (Weak _) -> false
-      | T_var (Bound { forall = var_forall; name = _ }) ->
-          Forall.same forall var_forall
+      | T_var (Bound { forall = var_forall }) -> Forall.same forall var_forall
       | _ -> assert false)
     (free_vars type_)
 

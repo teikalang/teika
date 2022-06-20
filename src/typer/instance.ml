@@ -27,11 +27,11 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
       let body = instance body in
       new_forall forall' ~body
   | T_var (Weak _) -> (* weak not copied *) type_
-  | T_var (Bound { forall = var_forall; name }) -> (
+  | T_var (Bound { forall = var_forall }) -> (
       if Forall.same forall var_forall then
         if bound_when_free then
           let forall = current_forall env in
-          new_bound_var ~name forall
+          new_bound_var forall
         else new_weak_var env
       else
         match
@@ -39,7 +39,7 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
             (fun (key, _forall') -> Forall.same key var_forall)
             !foralls
         with
-        | Some (_key, forall') -> new_bound_var ~name forall'
+        | Some (_key, forall') -> new_bound_var forall'
         | None ->
             (* TODO: isn't this breaking an invariant? *)
             type_)

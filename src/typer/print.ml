@@ -42,7 +42,7 @@ let register_name ctx type_ =
         let is_generic, forall =
           match var with
           | Weak { forall } -> (false, forall)
-          | Bound { forall; name = _ } -> (true, forall)
+          | Bound { forall } -> (true, forall)
         in
         let rank = Forall.rank forall in
         let prefix = if is_generic then "" else "_" in

@@ -30,7 +30,7 @@ let rec update_rank loc ~var ~max_forall type_ =
       let forall, is_bound =
         match var_desc with
         | Weak { forall } -> (forall, false)
-        | Bound { forall; name = _ } -> (forall, true)
+        | Bound { forall } -> (forall, true)
       in
       (* received is introduced after rank is incremented so >
                generic is the lowest, so it will always match this *)
