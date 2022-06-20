@@ -18,9 +18,8 @@ and type_ = LT of { loc : Location.t; desc : type_desc }
 
 and type_desc =
   | LT_var of identifier
-  (* TODO: likely body should be called return? *)
-  | LT_forall of { var : identifier; kind : kind; body : type_ }
-  | LT_arrow of { param : type_; body : type_ }
+  | LT_forall of { var : identifier; kind : kind; return : type_ }
+  | LT_arrow of { param : type_; return : type_ }
   | LT_record of type_bind list
 
 and type_bind =
@@ -28,8 +27,7 @@ and type_bind =
 
 and kind = LK of { loc : Location.t; desc : kind_desc }
 and kind_desc = LK_type
-(* TODO: likely body should be called return? *)
-(* | LK_arrow of { param : kind; body : kind } *)
+(* | LK_arrow of { param : kind; return : kind } *)
 
 and annot = LA_type of expr | LA_kind of kind
 and pat = LP of { loc : Location.t; desc : pat_desc }
