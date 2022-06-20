@@ -47,7 +47,7 @@ let lt_forall loc ~var ~kind ~return =
 
 let lt_arrow loc ~param ~return = make_typ loc (LT_arrow { param; return })
 let lt_record loc ~fields = make_typ loc (LT_record fields)
-let lt_bind ~bound_loc ~var ~type_ = LT_bind { loc = bound_loc; var; type_ }
+let lt_bind ~bound_loc ~var ~annot = LT_bind { loc = bound_loc; var; annot }
 
 (* pat *)
 let make_pat loc desc = LP { loc; desc }
@@ -257,10 +257,10 @@ and interpret_type_record_fields ~content =
 
   (*| Signature_pattern_must_be_var
     | Signature_without_annotation *)
-  let bound_loc, pattern, type_ =
+  let bound_loc, pattern, annot =
     let { s_loc = loc; s_desc = bound } = bound in
     match bound with
-    | S_annot { value = pattern; type_ } -> (loc, pattern, type_)
+    | S_annot { value = pattern; type_ = annot } -> (loc, pattern, annot)
     | _ -> raise loc Signature_without_annotation
   in
   let var =
@@ -269,13 +269,13 @@ and interpret_type_record_fields ~content =
     | S_ident var -> var
     | _ -> raise loc Signature_pattern_must_be_var
   in
-  let type_ = interpret_type type_ in
+  let annot = interpret_annot annot in
   let binds =
     match body with
     | Some content -> interpret_type_record_fields ~content
     | None -> []
   in
-  lt_bind ~bound_loc ~var ~type_ :: binds
+  lt_bind ~bound_loc ~var ~annot :: binds
 
 and interpret_pat term =
   let { s_loc = loc; s_desc = term } = term in

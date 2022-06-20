@@ -43,7 +43,7 @@ and type_desc =
   | LT_record of type_bind list
 
 and type_bind =
-  | LT_bind of { loc : Location.t; var : identifier; type_ : type_ }
+  | LT_bind of { loc : Location.t; var : identifier; annot : annot }
 
 (* TODO: can pattern be unified back on expr? *)
 and pat = LP of { loc : Location.t; desc : pat_desc }
