@@ -42,10 +42,10 @@ let le_bind ~bound ~value =
 let make_typ loc desc = LT { loc; desc }
 let lt_var loc ~var = make_typ loc (LT_var var)
 
-let lt_forall loc ~var ~kind ~body =
-  make_typ loc (LT_forall { var; kind; body })
+let lt_forall loc ~var ~kind ~return =
+  make_typ loc (LT_forall { var; kind; return })
 
-let lt_arrow loc ~param ~body = make_typ loc (LT_arrow { param; body })
+let lt_arrow loc ~param ~return = make_typ loc (LT_arrow { param; return })
 let lt_record loc ~fields = make_typ loc (LT_record fields)
 let lt_bind ~bound_loc ~var ~type_ = LT_bind { loc = bound_loc; var; type_ }
 
@@ -214,10 +214,10 @@ and interpret_type_arrow_ambiguous loc ~param ~body =
   (* TODO: is this lookahead worth it? *)
   match param_desc with
   | S_annot { value = bound; type_ = kind } ->
-      interpret_type_forall loc ~bound ~kind ~body
+      interpret_type_forall loc ~bound ~kind ~return:body
   | _ -> interpret_type_arrow loc ~param ~body
 
-and interpret_type_forall loc ~bound ~kind ~body =
+and interpret_type_forall loc ~bound ~kind ~return =
   let var =
     let { s_loc = loc; s_desc = bound } = bound in
     match bound with
@@ -225,13 +225,13 @@ and interpret_type_forall loc ~bound ~kind ~body =
     | _ -> raise loc Forall_parameter_must_be_var
   in
   let kind = interpret_kind kind in
-  let body = interpret_type body in
-  lt_forall loc ~var ~kind ~body
+  let return = interpret_type return in
+  lt_forall loc ~var ~kind ~return
 
 and interpret_type_arrow loc ~param ~body =
   let param = interpret_type param in
-  let body = interpret_type body in
-  lt_arrow loc ~param ~body
+  let return = interpret_type body in
+  lt_arrow loc ~param ~return
 
 and interpret_type_record loc ~content =
   match content with

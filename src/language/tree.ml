@@ -35,9 +35,9 @@ and type_desc =
   (* X *)
   | LT_var of identifier
   (* (X: kind) -> typ*)
-  | LT_forall of { var : identifier; kind : kind; body : type_ }
+  | LT_forall of { var : identifier; kind : kind; return : type_ }
   (* typ -> typ *)
-  | LT_arrow of { param : type_; body : type_ }
+  | LT_arrow of { param : type_; return : type_ }
   (* TODO: should LT_record allow any pattern? *)
   (* { X: typ; } *)
   | LT_record of type_bind list
@@ -54,6 +54,7 @@ and pat_desc =
   (* | LP_any *)
   (* x *)
   | LP_var of identifier
+  (* { A; B; }*)
   | LP_record of pat list
   (* pat : type *)
   | LP_annot of { pat : pat; annot : annot }
