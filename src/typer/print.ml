@@ -36,7 +36,7 @@ let register_name ctx type_ =
 
   let name =
     match desc type_ with
-    | T_forall _ | T_arrow _ | T_struct _ | T_type _ -> sprintf "[%d]" id
+    | T_forall _ | T_arrow _ | T_record _ | T_type _ -> sprintf "[%d]" id
     | T_var var ->
         (* TODO: use bound name *)
         let is_generic, forall =
@@ -75,12 +75,12 @@ and pp_type_desc ctx fmt type_ =
       let parens =
         match desc param with
         | T_var _ -> false
-        (* TODO: t_struct should need parens? *)
-        | T_forall _ | T_arrow _ | T_struct _ | T_type _ -> true
+        (* TODO: T_record should need parens? *)
+        | T_forall _ | T_arrow _ | T_record _ | T_type _ -> true
       in
       if parens then fprintf fmt "(%a) -> %a" pp_type param pp_type return
       else fprintf fmt "%a -> %a" pp_type param pp_type return
-  | T_struct { fields } ->
+  | T_record { fields } ->
       let pp_fields fmt fields =
         List.iter
           (fun { name; type_ } ->

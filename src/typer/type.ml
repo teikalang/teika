@@ -4,7 +4,7 @@ type type_ =
   | T_forall of { forall : Forall.t; body : type_ }
   | T_var of { mutable var : type_var }
   | T_arrow of { param : type_; return : type_ }
-  | T_struct of { fields : field list }
+  | T_record of { fields : field list }
   | T_type of { forall : Forall.t; type_ : type_ }
 
 and type_var =
@@ -24,7 +24,7 @@ type desc =
   | T_forall of { forall : Forall.t; body : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
-  | T_struct of { fields : field list }
+  | T_record of { fields : field list }
   | T_type of { forall : Forall.t; type_ : type_ }
 [@@ocaml.warning "-unused-constructor"]
 
@@ -83,5 +83,5 @@ let new_weak_var forall : type_ =
 
 let new_bound_var forall : type_ = T_var { var = Bound { forall } }
 let new_arrow ~param ~return : type_ = T_arrow { param; return }
-let new_struct ~fields : type_ = T_struct { fields }
+let new_record ~fields : type_ = T_record { fields }
 let new_type forall ~type_ : type_ = T_type { forall; type_ }

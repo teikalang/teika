@@ -9,7 +9,7 @@ and in_type_desc ~var type_ =
   | T_var _ -> false
   | T_forall { forall = _; body } -> in_type body
   | T_arrow { param; return } -> in_type param || in_type return
-  | T_struct { fields } ->
+  | T_record { fields } ->
       List.exists (fun { name = _; type_ } -> in_type type_) fields
   | T_type { forall = _; type_ } -> in_type type_
 
@@ -31,7 +31,7 @@ let rec free_vars foralls vars type_ =
   | T_arrow { param; return } ->
       let vars = free_vars foralls vars param in
       free_vars foralls vars return
-  | T_struct { fields } ->
+  | T_record { fields } ->
       List.fold_left
         (fun vars { name = _; type_ } -> free_vars foralls vars type_)
         vars fields

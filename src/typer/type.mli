@@ -9,7 +9,7 @@ type desc = private
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
   (* TODO: enforce that field list doesn't contain any duplicated name *)
-  | T_struct of { fields : field list }
+  | T_record of { fields : field list }
   (* TODO: T_type is weird *)
   | T_type of { forall : Forall.t; type_ : type_ }
 
@@ -39,5 +39,5 @@ val new_forall : Forall.t -> body:type_ -> type_
 val new_weak_var : Forall.t -> type_
 val new_bound_var : Forall.t -> type_
 val new_arrow : param:type_ -> return:type_ -> type_
-val new_struct : fields:field list -> type_
+val new_record : fields:field list -> type_
 val new_type : Forall.t -> type_:type_ -> type_
