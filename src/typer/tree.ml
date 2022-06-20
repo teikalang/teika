@@ -1,47 +1,69 @@
 open Utils
-open Type
 
-(* TODO: addapt tree to new Language tree *)
 type expr =
   | TE of {
       (* exposed env *)
       env : Env.t;
       loc : Location.t;
-      type_ : type_;
+      type_ : Type.t;
       desc : expr_desc;
     }
 
 and expr_desc =
   | TE_var of Ident.t
   | TE_number of int
-  (* TODO: what to put here as param? *)
-  | TE_forall of { body : expr }
-  | TE_arrow of { param : pat; body : expr }
-  | TE_implicit_lambda of { body : expr }
-  | TE_explicit_lambda of { param : pat; body : expr }
+  | TE_lambda of { param : pat; body : expr }
   | TE_apply of { lambda : expr; arg : expr }
-  | TE_let of { bind : term_bind; body : expr }
-  | TE_record of term_bind list
-  (* TODO: what to put here as content? *)
-  | TE_signature
+  | TE_let of { bind : expr_bind; return : expr }
+  | TE_record of expr_bind list
   | TE_annot of { value : expr; annot : annot }
+  | TE_type of type_
 
-and term_bind =
+and expr_bind =
   | TE_bind of {
+      (* exposed env *)
       env : Env.t;
       loc : Location.t;
-      names : (Name.t * type_) list;
-      type_ : type_;
+      names : (Name.t * Type.t) list;
+      type_ : Type.t;
       bound : pat;
       value : expr;
     }
+
+and type_ =
+  | TT of {
+      (* exposed env *)
+      env : Env.t;
+      loc : Location.t;
+      type_ : Type.t;
+      desc : type_desc;
+    }
+
+and type_desc =
+  | TT_var of Ident.t
+  | TT_forall of { var : Ident.t; kind : kind; return : type_ }
+  | TT_arrow of { param : type_; return : type_ }
+  | TT_record of type_bind list
+
+and type_bind =
+  | TT_bind of {
+      (* exposed env *)
+      env : Env.t;
+      loc : Location.t;
+      type_ : Type.t;
+      var : Ident.t;
+      desc : type_;
+    }
+
+and kind = TK of { loc : Location.t; desc : kind_desc }
+and kind_desc = TK_type
 
 and pat =
   | TP of {
       env : Env.t;
       loc : Location.t;
       names : (Name.t * type_) list;
-      type_ : type_;
+      type_ : Type.t;
       desc : pat_desc;
     }
 
@@ -51,5 +73,3 @@ and pat_desc =
   | TP_annot of { pat : pat; annot : annot }
 
 and annot = TA_type of expr | TA_kind of kind
-and kind = TK of { loc : Location.t; desc : kind_desc }
-and kind_desc = TK_asterisk | TK_arrow of { param : kind; body : kind }
