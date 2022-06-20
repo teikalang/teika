@@ -48,7 +48,7 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
       let return = instance return in
       new_arrow ~param ~return
   (* TODO: should this type_ be also copied? *)
-  | T_struct { fields } ->
+  | T_record { fields } ->
       let fields =
         List.map
           (fun { name; type_ } ->
@@ -56,7 +56,7 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
             { name; type_ })
           fields
       in
-      new_struct ~fields
+      new_record ~fields
   | T_type { forall; type_ } ->
       let forall' = Forall.generic () in
       foralls := (forall, forall') :: !foralls;

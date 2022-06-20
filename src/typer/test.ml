@@ -84,11 +84,11 @@ let choose_id_hm_incr =
 let number_types =
   equal ~name:"number_types" ~code:"x => 1" ~type_:"{A} -> A -> Int"
 
-let empty_struct_type =
-  equal ~name:"empty_struct_type" ~code:"(x: {}) => x" ~type_:"({}) -> {}"
+let empty_record_type =
+  equal ~name:"empty_record_type" ~code:"(x: {}) => x" ~type_:"({}) -> {}"
 
-let multiple_fields_struct =
-  equal ~name:"multiple_fields_struct" ~code:"(m: { x: Int; y: Int; }) => m"
+let multiple_fields_record =
+  equal ~name:"multiple_fields_record" ~code:"(m: { x: Int; y: Int; }) => m"
     ~type_:"({ x: Int; y: Int; }) -> { x: Int; y: Int; }"
 
 let module_is_not_value =
@@ -145,8 +145,8 @@ let cursed_destruct_arrow_return =
   equal ~name:"cursed_destruct_arrow_return" ~code:"1"
     ~type_:"(F = {A} => {B} => (T: A -> B) => B; f x = 1; F f)"
 
-let simple_struct =
-  equal ~name:"simple_struct" ~code:"{ x = 1; }" ~type_:"{ x: Int; }"
+let simple_record =
+  equal ~name:"simple_record" ~code:"{ x = 1; }" ~type_:"{ x: Int; }"
 
 let explicit_type =
   equal ~name:"explicit_type" ~code:"(A: *) => (x: A) => x"
@@ -169,15 +169,15 @@ let explicit_type_constructor =
     ~type_:"(A: *) -> A"
 
 (* TODO: solve semicolons problem *)
-let type_struct_id =
-  equal ~name:"type_struct_id" ~code:"({ A; }: { A: *; }) => (x: A) => x"
+let type_record_id =
+  equal ~name:"type_record_id" ~code:"({ A; }: { A: *; }) => (x: A) => x"
     ~type_:"({ A; }: { A: *; }) -> A -> A"
 
-let calling_type_struct_id =
-  equal ~name:"calling_type_struct_id"
+let calling_type_record_id =
+  equal ~name:"calling_type_record_id"
     ~code:
-      {|explicit_struct_id = ({ A; }: { A: *; }) => (x: A) => x;
-        explicit_struct_id { A = Int; }|}
+      {|explicit_record_id = ({ A; }: { A: *; }) => (x: A) => x;
+        explicit_record_id { A = Int; }|}
     ~type_:"Int -> Int"
 
 (* TODO: is this unsound even if called with a non struct type? *)
@@ -339,8 +339,8 @@ let tests =
     choose_id_hm;
     choose_id_hm_incr;
     number_types;
-    empty_struct_type;
-    multiple_fields_struct;
+    empty_record_type;
+    multiple_fields_record;
     module_is_not_value;
     term_type_alias;
     type_type_alias;
@@ -352,12 +352,12 @@ let tests =
     dont_lower_var;
     cursed_destruct_arrow_param;
     cursed_destruct_arrow_return;
-    simple_struct;
+    simple_record;
     explicit_type;
     calling_explicit_type;
     escape_scope;
-    type_struct_id;
-    calling_type_struct_id;
+    type_record_id;
+    calling_type_record_id;
     existential_record;
     double_existential_record;
     let_type_existential_record;

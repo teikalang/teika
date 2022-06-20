@@ -12,6 +12,6 @@ let rec lower ~to_ type_ =
   | T_arrow { param; return } ->
       lower param;
       lower return
-  | T_struct { fields } ->
+  | T_record { fields } ->
       List.iter (fun { name = _; type_ } -> lower type_) fields
   | T_type { forall = _; type_ } -> lower type_

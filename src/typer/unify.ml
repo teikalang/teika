@@ -43,7 +43,7 @@ let rec update_rank loc ~var ~max_forall type_ =
   | T_arrow { param; return } ->
       update_rank param;
       update_rank return
-  | T_struct { fields } ->
+  | T_record { fields } ->
       (* TODO: also check name *)
       List.iter (fun { name = _; type_ } -> update_rank type_) fields
   | T_type { forall = _; type_ } -> (* TODO: is this right? *) update_rank type_
@@ -94,7 +94,7 @@ and unify_desc env rank ~expected ~received =
       T_arrow { param = received_param; return = received_return } ) ->
       unify env rank ~expected:received_param ~received:expected_param;
       unify env rank ~expected:expected_return ~received:received_return
-  | T_struct { fields = expected_fields }, T_struct { fields = received_fields }
+  | T_record { fields = expected_fields }, T_record { fields = received_fields }
     ->
       if List.length expected_fields <> List.length received_fields then
         raise (Env.current_loc env) (Type_clash { expected; received });
@@ -110,8 +110,8 @@ and unify_desc env rank ~expected ~received =
       (* TODO: proper unification of types? *)
       (* TODO: does this make sense *)
       unify env rank ~expected ~received
-  | T_struct _, _
-  | _, T_struct _
+  | T_record _, _
+  | _, T_record _
   | T_var _, _
   | _, T_var _
   | T_type _, _
