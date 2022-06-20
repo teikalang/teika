@@ -6,7 +6,10 @@ type error =
   | Let_without_body
   | Record_without_value
   | Signature_with_value
+  | Signature_pattern_must_be_var
+  | Signature_without_annotation
   | Record_pattern_with_value
+  | Forall_parameter_must_be_var
   | Unimplemented
 
 exception Error of { loc : Location.t; error : error }
@@ -17,20 +20,15 @@ let raise loc error = raise (Error { loc; error })
 let make_expr loc desc = LE { loc; desc }
 let le_var loc ~var = make_expr loc (LE_var var)
 let le_number loc ~number = make_expr loc (LE_number number)
-
-let le_arrow loc ~implicit ~param ~body =
-  make_expr loc (LE_arrow { implicit; param; body })
-
-let le_lambda loc ~implicit ~param ~body =
-  make_expr loc (LE_lambda { implicit; param; body })
-
+let le_lambda loc ~param ~body = make_expr loc (LE_lambda { param; body })
 let le_apply loc ~lambda ~arg = make_expr loc (LE_apply { lambda; arg })
 let le_let loc ~bind ~body = make_expr loc (LE_let { bind; body })
 let le_record loc ~fields = make_expr loc (LE_record fields)
-let le_signature loc ~fields = make_expr loc (LE_signature fields)
 let le_annot loc ~value ~annot = make_expr loc (LE_annot { value; annot })
+let le_type loc ~type_ = make_expr loc (LE_type type_)
 
 let le_bind ~bound ~value =
+  (* TODO: loc arithmetic *)
   let loc =
     let (LP { loc = bound_loc; desc = _ }) = bound in
     let (LE { loc = value_loc; desc = _ }) = value in
@@ -39,6 +37,17 @@ let le_bind ~bound ~value =
     Location.{ loc_ghost = false; loc_start; loc_end }
   in
   LE_bind { loc : Location.t; bound : pat; value : expr }
+
+(* typ *)
+let make_typ loc desc = LT { loc; desc }
+let lt_var loc ~var = make_typ loc (LT_var var)
+
+let lt_forall loc ~var ~kind ~body =
+  make_typ loc (LT_forall { var; kind; body })
+
+let lt_arrow loc ~param ~body = make_typ loc (LT_arrow { param; body })
+let lt_record loc ~fields = make_typ loc (LT_record fields)
+let lt_bind ~bound_loc ~var ~type_ = LT_bind { loc = bound_loc; var; type_ }
 
 (* pat *)
 let make_pat loc desc = LP { loc; desc }
@@ -52,11 +61,11 @@ let la_kind kind = LA_kind kind
 
 (* kind *)
 let make_kind loc desc = LK { loc; desc }
-let lk_asterisk loc = make_kind loc LK_asterisk
+let lk_type loc = make_kind loc LK_type
 let lk_arrow loc ~param ~body = make_kind loc (LK_arrow { param; body })
 
 (* ambiguities *)
-let is_implicit ~param =
+let _is_implicit ~param =
   (* TODO: this about optional arguments *)
   match param.s_desc with
   | S_struct (Some { s_desc = S_bind _; s_loc = _ }) -> (false, param)
@@ -91,29 +100,14 @@ and interpret_expr_var loc ~var = le_var loc ~var
 and interpret_expr_number loc ~number = le_number loc ~number
 
 and interpret_expr_arrow loc ~param ~body =
-  let implicit, param = is_implicit ~param in
-  let param =
-    if implicit then interpret_pat param
-    else
-      let { s_loc = loc; s_desc = param_desc } = param in
-      (* TODO: is this lookahead worth it? *)
-      match param_desc with
-      | S_annot _ -> interpret_pat param
-      | _ ->
-          (* TODO: is generating this here bad? *)
-          (* TODO: "_" should definitely go away *)
-          let pat = lp_var loc ~var:"_" in
-          let annot = interpret_annot param in
-          lp_annot loc ~pat ~annot
-  in
-  let body = interpret_expr body in
-  le_arrow loc ~implicit ~param ~body
+  let type_ = interpret_type_arrow loc ~param ~body in
+  le_type loc ~type_
 
 and interpret_expr_lambda loc ~param ~body =
-  let implicit, param = is_implicit ~param in
+  (* let implicit, param = is_implicit ~param in *)
   let param = interpret_pat param in
   let body = interpret_expr body in
-  le_lambda loc ~implicit ~param ~body
+  le_lambda loc ~param ~body
 
 and interpret_expr_apply loc ~lambda ~arg =
   let lambda = interpret_expr lambda in
@@ -140,17 +134,17 @@ and interpret_expr_record_ambiguous loc ~content =
   match content with
   | Some content -> (
       (* TODO: weird lookahead *)
-      let { s_loc = loc; s_desc } = content in
-      match s_desc with
+      let { s_loc = _; s_desc = content_desc } = content in
+      match content_desc with
       | S_bind { bound = _; value = None; body = _ } ->
-          let fields = interpret_expr_signature content in
-          le_signature loc ~fields
+          let type_ = interpret_type_record loc ~content:(Some content) in
+          le_type loc ~type_
       | _ ->
-          let fields = interpret_expr_record content in
+          let fields = interpret_expr_record ~content in
           le_record loc ~fields)
-  | None -> le_signature loc ~fields:[]
+  | None -> le_record loc ~fields:[]
 
-and interpret_expr_record content =
+and interpret_expr_record ~content =
   let { s_loc = loc; s_desc = content } = content in
   let bound, value, body =
     match content with
@@ -170,35 +164,118 @@ and interpret_expr_record content =
     le_bind ~bound ~value
   in
   let binds =
-    match body with Some content -> interpret_expr_record content | None -> []
+    match body with
+    | Some content -> interpret_expr_record ~content
+    | None -> []
   in
   bind :: binds
 
-and interpret_expr_signature content =
-  let { s_loc = loc; s_desc = content } = content in
+and interpret_expr_annot loc ~value ~annot =
+  let value = interpret_expr value in
+  let annot = interpret_annot annot in
+  le_annot loc ~value ~annot
+
+and interpret_type term =
+  let { s_loc = loc; s_desc = term } = term in
+  match term with
+  | S_ident var -> interpret_type_var loc ~var
+  | S_number _ -> raise loc Unimplemented
+  | S_arrow { param; body } -> interpret_type_arrow_ambiguous loc ~param ~body
+  | S_lambda _ -> raise loc Unimplemented
+  | S_apply _ -> raise loc Unimplemented
+  | S_bind _ -> raise loc Unimplemented
+  | S_struct content -> interpret_type_record loc ~content
+  | S_field _ -> raise loc Unimplemented
+  | S_match _ -> raise loc Unimplemented
+  | S_asterisk -> raise loc Unimplemented
+  | S_annot _ -> raise loc Unimplemented
+
+and interpret_type_var loc ~var = lt_var loc ~var
+
+and interpret_type_arrow_ambiguous loc ~param ~body =
+  (* TODO:
+      let implicit, param = is_implicit ~param in
+     let param =
+       if implicit then interpret_pat param
+       else
+         let { s_loc = loc; s_desc = param_desc } = param in
+         (* TODO: is this lookahead worth it? *)
+         match param_desc with
+         | S_annot _ -> interpret_pat param
+         | _ ->
+             (* TODO: is generating this here bad? *)
+             (* TODO: "_" should definitely go away *)
+             let pat = lp_var loc ~var:"_" in
+             let annot = interpret_annot param in
+             lp_annot loc ~pat ~annot
+     in
+  *)
+  let { s_loc = _; s_desc = param_desc } = param in
+  (* TODO: is this lookahead worth it? *)
+  match param_desc with
+  | S_annot { value = bound; type_ = kind } ->
+      interpret_type_forall loc ~bound ~kind ~body
+  | _ -> interpret_type_arrow loc ~param ~body
+
+and interpret_type_forall loc ~bound ~kind ~body =
+  let var =
+    let { s_loc = loc; s_desc = bound } = bound in
+    match bound with
+    | S_ident var -> var
+    | _ -> raise loc Forall_parameter_must_be_var
+  in
+  let kind = interpret_kind kind in
+  let body = interpret_type body in
+  lt_forall loc ~var ~kind ~body
+
+and interpret_type_arrow loc ~param ~body =
+  let param = interpret_type param in
+  let body = interpret_type body in
+  lt_arrow loc ~param ~body
+
+and interpret_type_record loc ~content =
+  match content with
+  | Some content ->
+      let fields = interpret_type_record_fields ~content in
+      lt_record loc ~fields
+  | None -> lt_record loc ~fields:[]
+
+and interpret_type_record_fields ~content =
   let bound, body =
+    let { s_loc = loc; s_desc = content } = content in
     match content with
     | S_bind { bound; value; body } ->
         (match value with
-        | Some _ -> (* TODO: better locations *) raise loc Signature_with_value
+        | Some { s_loc = loc; s_desc = _ } ->
+            (* TODO: Should loc include the = sign? *)
+            raise loc Signature_with_value
         | None -> ());
 
         (bound, body)
     | _ -> raise loc Unimplemented
   in
 
-  let bound = interpret_pat bound in
+  (*| Signature_pattern_must_be_var
+    | Signature_without_annotation *)
+  let bound_loc, pattern, type_ =
+    let { s_loc = loc; s_desc = bound } = bound in
+    match bound with
+    | S_annot { value = pattern; type_ } -> (loc, pattern, type_)
+    | _ -> raise loc Signature_without_annotation
+  in
+  let var =
+    let { s_loc = loc; s_desc = pattern } = pattern in
+    match pattern with
+    | S_ident var -> var
+    | _ -> raise loc Signature_pattern_must_be_var
+  in
+  let type_ = interpret_type type_ in
   let binds =
     match body with
-    | Some content -> interpret_expr_signature content
+    | Some content -> interpret_type_record_fields ~content
     | None -> []
   in
-  bound :: binds
-
-and interpret_expr_annot loc ~value ~annot =
-  let value = interpret_expr value in
-  let annot = interpret_annot annot in
-  le_annot loc ~value ~annot
+  lt_bind ~bound_loc ~var ~type_ :: binds
 
 and interpret_pat term =
   let { s_loc = loc; s_desc = term } = term in
@@ -250,7 +327,7 @@ and interpret_kind term =
   | S_arrow { param; body } -> interpret_kind_arrow loc ~param ~body
   | _ -> raise loc Unimplemented
 
-and interpret_kind_asterisk loc = lk_asterisk loc
+and interpret_kind_asterisk loc = lk_type loc
 
 and interpret_kind_arrow loc ~param ~body =
   let param = interpret_kind param in
