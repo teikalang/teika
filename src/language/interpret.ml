@@ -62,7 +62,7 @@ let la_kind kind = LA_kind kind
 (* kind *)
 let make_kind loc desc = LK { loc; desc }
 let lk_type loc = make_kind loc LK_type
-let lk_arrow loc ~param ~body = make_kind loc (LK_arrow { param; body })
+(* let lk_arrow loc ~param ~body = make_kind loc (LK_arrow { param; body }) *)
 
 (* ambiguities *)
 let _is_implicit ~param =
@@ -324,12 +324,12 @@ and interpret_kind term =
   let { s_loc = loc; s_desc = term } = term in
   match term with
   | S_asterisk -> interpret_kind_asterisk loc
-  | S_arrow { param; body } -> interpret_kind_arrow loc ~param ~body
+  | S_arrow _ -> raise loc Unimplemented
   | _ -> raise loc Unimplemented
 
 and interpret_kind_asterisk loc = lk_type loc
 
-and interpret_kind_arrow loc ~param ~body =
-  let param = interpret_kind param in
-  let body = interpret_kind body in
-  lk_arrow loc ~param ~body
+(* and interpret_kind_arrow loc ~param ~body =
+   let param = interpret_kind param in
+   let body = interpret_kind body in
+   lk_arrow loc ~param ~body *)

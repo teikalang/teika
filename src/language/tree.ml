@@ -62,8 +62,8 @@ and pat_desc =
 and annot = LA_type of expr | LA_kind of kind
 and kind = LK of { loc : Location.t; desc : kind_desc }
 
-and kind_desc =
-  (* * *)
+and kind_desc = (* * *)
   | LK_type
-  (* kind -> kind *)
-  | LK_arrow of { param : kind; body : kind }
+(* TODO: *)
+(* kind -> kind *)
+(* | LK_arrow of { param : kind; body : kind } *)
