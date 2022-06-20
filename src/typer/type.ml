@@ -14,7 +14,7 @@ and type_var =
   (* TODO: should we have this name here? It's duplicated from Tree.t *)
   (* TODO: check name across codebase *)
   (* TODO: rename bound to rigid *)
-  | Bound of { mutable forall : Forall.t; name : Name.t option }
+  | Bound of { mutable forall : Forall.t }
 
 and field = { name : Name.t; type_ : type_ }
 
@@ -30,7 +30,7 @@ type desc =
 
 and var =
   | Weak of { mutable forall : Forall.t }
-  | Bound of { mutable forall : Forall.t; name : Name.t option }
+  | Bound of { mutable forall : Forall.t }
 [@@ocaml.warning "-unused-constructor"]
 
 (* externally opaque *)
@@ -42,8 +42,7 @@ let rec repr (type_ : type_) =
   | T_var ({ var = Weak { forall; link } } as var) ->
       if link == type_ then (
         (* fix outdated weak vars *)
-        if Forall.is_generic forall then
-          var.var <- Bound { forall; name = None };
+        if Forall.is_generic forall then var.var <- Bound { forall };
         type_)
       else repr link
   | _ -> type_
@@ -82,7 +81,7 @@ let new_weak_var forall : type_ =
   let rec var : type_ = T_var { var = Weak { forall; link = var } } in
   var
 
-let new_bound_var ~name forall : type_ = T_var { var = Bound { forall; name } }
+let new_bound_var forall : type_ = T_var { var = Bound { forall } }
 let new_arrow ~param ~return : type_ = T_arrow { param; return }
 let new_struct ~fields : type_ = T_struct { fields }
 let new_type forall ~type_ : type_ = T_type { forall; type_ }

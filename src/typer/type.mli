@@ -15,7 +15,7 @@ type desc = private
 
 and var = private
   | Weak of { mutable forall : Forall.t }
-  | Bound of { mutable forall : Forall.t; name : Name.t option }
+  | Bound of { mutable forall : Forall.t }
 
 and field = { name : Name.t; type_ : type_ }
 and link
@@ -37,7 +37,7 @@ val lower_var : to_:Forall.t -> type_ -> unit
 (* TODO: are those helpers useful? *)
 val new_forall : Forall.t -> body:type_ -> type_
 val new_weak_var : Forall.t -> type_
-val new_bound_var : name:Name.t option -> Forall.t -> type_
+val new_bound_var : Forall.t -> type_
 val new_arrow : param:type_ -> return:type_ -> type_
 val new_struct : fields:field list -> type_
 val new_type : Forall.t -> type_:type_ -> type_

@@ -5,7 +5,7 @@ let rec lower ~to_ type_ =
 
   match desc type_ with
   | T_forall { forall = _; body } -> lower body
-  | T_var (Weak { forall } | Bound { forall; name = _ }) ->
+  | T_var (Weak { forall } | Bound { forall }) ->
       let to_rank = Forall.rank to_ in
       let var_rank = Forall.rank forall in
       if Rank.(to_rank < var_rank) then lower_var ~to_ type_ else ()
