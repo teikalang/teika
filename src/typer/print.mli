@@ -1,4 +1,4 @@
-val pp_kind : Format.formatter
+val pp_kind : Format.formatter -> Kind.t -> unit
 val pp_type : Format.formatter -> Type.t -> unit
 val pp_type_debug : Format.formatter -> Type.t -> unit
 

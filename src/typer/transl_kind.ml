@@ -8,7 +8,7 @@ let tk_type loc kind = return_kind loc kind TK_type
 (* let tk_arrow loc kind ~param ~body =
    return_kind loc kind (TK_arrow { param; body }) *)
 
-let rec transl_kind kind =
+let transl_kind kind =
   let (LK { loc; desc = kind }) = kind in
   match kind with LK_type -> tk_type loc K_type
 (* | LK_arrow { param; body } ->
