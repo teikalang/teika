@@ -131,3 +131,54 @@ So this should be limited in such a way that conserves the decidability of Core 
   - Another option instead of checking for strict equality is do subtyping except the FORGET rule
 - disallow existential records to be weakend through FORGET and add specific
   - advantage of this is that it's a very principal rule, but requires more syntax.
+
+## Teika
+
+Everything here is highly WIP
+
+```rust
+// naturals
+(1);
+(Nat);
+// strings
+("a");
+(String);
+
+// tuples
+(1, "a");
+(Nat, String);
+
+// let binding
+(one = 1; one);
+
+// implicit type arguments
+({A} => (x: A) => x);
+({A} -> A -> A);
+
+// inference
+((x => x + 1): Nat -> Nat);
+// generalization
+((x => x): {A} -> A -> A);
+
+// named expressions
+((1: (x: Nat)): Nat);
+// strict named expressions
+((x = 1): !(x: Nat));
+
+// partial application
+(?add 1 _);
+(?(_ - 1));
+
+// variants
+(| Left Int | Right String);
+
+// jsx
+(<div> hello </div>);
+
+// effectful
+(String -[Read | Write]> ());
+```
+
+## Impredicative
+
+Impredicative means everything can be treated in a homogenous and expected manner, alternatives are possible such as universe polymorphism, sadly impredicative cannot be universaly extended to all features, such as implicit module abstraction as that lead to undecidability
