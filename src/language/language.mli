@@ -23,7 +23,7 @@ and type_desc =
   | LT_record of type_bind list
 
 and type_bind =
-  | LT_bind of { loc : Location.t; var : identifier; type_ : type_ }
+  | LT_bind of { loc : Location.t; var : identifier; annot : annot }
 
 and kind = LK of { loc : Location.t; desc : kind_desc }
 and kind_desc = LK_type
