@@ -4,7 +4,7 @@ let rec lower ~to_ type_ =
   let lower type_ = lower ~to_ type_ in
 
   match desc type_ with
-  | T_forall { forall = _; body } -> lower body
+  | T_forall { forall = _; return } -> lower return
   | T_var (Weak { forall } | Bound { forall }) ->
       let to_rank = Forall.rank to_ in
       let var_rank = Forall.rank forall in

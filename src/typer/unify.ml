@@ -39,7 +39,7 @@ let rec update_rank loc ~var ~max_forall type_ =
         if is_bound then raise loc (Escape_check { var; type_ })
         else (* TODO: assert is weak var *)
           lower_var ~to_:max_forall type_
-  | T_forall { forall = _; body } -> update_rank body
+  | T_forall { forall = _; return } -> update_rank return
   | T_arrow { param; return } ->
       update_rank param;
       update_rank return
@@ -74,7 +74,7 @@ and unify_desc env rank ~expected ~received =
   | T_var (Weak _), _ -> unify_var env ~var:expected received
   | _, T_var (Weak _) -> unify_var env ~var:received expected
   (* 3: expected forall *)
-  | T_forall { forall; body }, _ ->
+  | T_forall { forall; return }, _ ->
       (* TODO: tag + clear is weird *)
       let rank = Rank.next rank in
       let env =
@@ -83,12 +83,12 @@ and unify_desc env rank ~expected ~received =
         Env.with_forall forall env
       in
       Forall.with_rank
-        (fun () -> unify env rank ~expected:body ~received)
+        (fun () -> unify env rank ~expected:return ~received)
         rank forall
   (* 4: received forall *)
-  | _, T_forall { forall; body } ->
-      let body = instance_weaken env ~forall body in
-      unify env rank ~expected ~received:body
+  | _, T_forall { forall; return } ->
+      let return = instance_weaken env ~forall return in
+      unify env rank ~expected ~received:return
   (* simple *)
   | ( T_arrow { param = expected_param; return = expected_return },
       T_arrow { param = received_param; return = received_return } ) ->

@@ -5,7 +5,7 @@ type type_
 type t = type_
 
 type desc = private
-  | T_forall of { forall : Forall.t; body : type_ }
+  | T_forall of { forall : Forall.t; return : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
   (* TODO: enforce that field list doesn't contain any duplicated name *)
@@ -35,7 +35,7 @@ val lower_var : to_:Forall.t -> type_ -> unit
 
 (* helpers *)
 (* TODO: are those helpers useful? *)
-val new_forall : Forall.t -> body:type_ -> type_
+val new_forall : Forall.t -> return:type_ -> type_
 val new_weak_var : Forall.t -> type_
 val new_bound_var : Forall.t -> type_
 val new_arrow : param:type_ -> return:type_ -> type_

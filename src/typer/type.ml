@@ -1,7 +1,7 @@
 open Utils
 
 type type_ =
-  | T_forall of { forall : Forall.t; body : type_ }
+  | T_forall of { forall : Forall.t; return : type_ }
   | T_var of { mutable var : type_var }
   | T_arrow of { param : type_; return : type_ }
   | T_record of { fields : field list }
@@ -21,7 +21,7 @@ and field = { name : Name.t; type_ : type_ }
 type t = type_
 
 type desc =
-  | T_forall of { forall : Forall.t; body : type_ }
+  | T_forall of { forall : Forall.t; return : type_ }
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
   | T_record of { fields : field list }
@@ -75,7 +75,7 @@ let lower_var ~to_ type_ =
       bound.forall <- to_
   | _ -> assert false
 
-let new_forall forall ~body : type_ = T_forall { forall; body }
+let new_forall forall ~return : type_ = T_forall { forall; return }
 
 let new_weak_var forall : type_ =
   let rec var : type_ = T_var { var = Weak { forall; link = var } } in
