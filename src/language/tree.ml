@@ -60,7 +60,7 @@ and pat_desc =
   | LP_annot of { pat : pat; annot : annot }
 
 (* TODO: is this syntatic difference really needed? *)
-and annot = LA_type of expr | LA_kind of kind
+and annot = LA_type of type_ | LA_kind of kind
 and kind = LK of { loc : Location.t; desc : kind_desc }
 
 and kind_desc = (* * *)

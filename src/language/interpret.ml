@@ -317,7 +317,7 @@ and interpret_annot term =
     let kind = interpret_kind term in
     la_kind kind
   else
-    let type_ = interpret_expr term in
+    let type_ = interpret_type term in
     la_type type_
 
 and interpret_kind term =

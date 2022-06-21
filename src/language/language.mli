@@ -29,7 +29,7 @@ and kind = LK of { loc : Location.t; desc : kind_desc }
 and kind_desc = LK_type
 (* | LK_arrow of { param : kind; return : kind } *)
 
-and annot = LA_type of expr | LA_kind of kind
+and annot = LA_type of type_ | LA_kind of kind
 and pat = LP of { loc : Location.t; desc : pat_desc }
 
 and pat_desc =
