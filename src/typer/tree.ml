@@ -52,11 +52,12 @@ and type_bind =
       loc : Location.t;
       type_ : Type.t;
       var : Ident.t;
-      desc : type_;
+      annot : annot;
     }
 
 and kind = TK of { loc : Location.t; desc : kind_desc }
 and kind_desc = TK_type
+and annot = TA_type of type_ | TA_kind of kind
 
 and pat =
   | TP of {
@@ -71,5 +72,3 @@ and pat_desc =
   | TP_var of Ident.t
   | TP_record of pat list
   | TP_annot of { pat : pat; annot : annot }
-
-and annot = TA_type of expr | TA_kind of kind
