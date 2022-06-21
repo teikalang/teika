@@ -91,12 +91,14 @@ and pp_type_desc ctx fmt type_ =
   | T_record { fields } ->
       let pp_fields fmt fields =
         List.iter
-          (fun { name; type_ } ->
+          (fun field ->
+            (* TODO: this forall should be used *)
+            let (T_field { forall = _; name; type_ }) = field in
             fprintf fmt "%a: %a; " Name.pp name pp_type type_)
           fields
       in
       fprintf fmt "{ %a }" pp_fields fields
-  | T_type { forall = _; type_ } -> fprintf fmt "#(%a)" pp_type type_
+  | T_type type_ -> fprintf fmt "#(%a)" pp_type type_
 
 let with_pp_type ?(debug = false) f =
   let ctx = new_ctx ~debug in

@@ -13,5 +13,9 @@ let rec lower ~to_ type_ =
       lower param;
       lower return
   | T_record { fields } ->
-      List.iter (fun { name = _; type_ } -> lower type_) fields
-  | T_type { forall = _; type_ } -> lower type_
+      List.iter
+        (fun field ->
+          let (T_field { forall = _; name = _; type_ }) = field in
+          lower type_)
+        fields
+  | T_type type_ -> lower type_

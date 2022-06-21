@@ -51,18 +51,26 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
   | T_record { fields } ->
       let fields =
         List.map
-          (fun { name; type_ } ->
+          (fun field ->
+            let (T_field { forall; name; type_ }) = field in
+
+            let forall =
+              match forall with
+              | Some forall ->
+                  let forall' = Forall.generic () in
+                  foralls := (forall, forall') :: !foralls;
+                  Some forall'
+              | None -> None
+            in
+
             let type_ = instance type_ in
-            { name; type_ })
+            new_field ~forall ~name ~type_)
           fields
       in
       new_record ~fields
-  | T_type { forall; type_ } ->
-      let forall' = Forall.generic () in
-      foralls := (forall, forall') :: !foralls;
-
+  | T_type type_ ->
       let type_ = instance type_ in
-      new_type forall' ~type_
+      new_type ~type_
 
 (* TODO: those functions are badly named *)
 let instance env ~bound_when_free ~forall body =

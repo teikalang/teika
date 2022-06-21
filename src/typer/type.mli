@@ -11,13 +11,15 @@ type desc = private
   (* TODO: enforce that field list doesn't contain any duplicated name *)
   | T_record of { fields : field list }
   (* TODO: T_type is weird *)
-  | T_type of { forall : Forall.t; type_ : type_ }
+  | T_type of type_
 
 and var = private
   | Weak of { mutable forall : Forall.t }
   | Bound of { mutable forall : Forall.t }
 
-and field = { name : Name.t; type_ : type_ }
+and field = private
+  | T_field of { forall : Forall.t option; name : Name.t; type_ : type_ }
+
 and link
 
 val same : type_ -> type_ -> bool
@@ -40,4 +42,5 @@ val new_weak_var : Forall.t -> type_
 val new_bound_var : Forall.t -> type_
 val new_arrow : param:type_ -> return:type_ -> type_
 val new_record : fields:field list -> type_
-val new_type : Forall.t -> type_:type_ -> type_
+val new_field : forall:Forall.t option -> name:Name.t -> type_:type_ -> field
+val new_type : type_:type_ -> type_

@@ -5,7 +5,7 @@ type type_ =
   | T_var of { mutable var : type_var }
   | T_arrow of { param : type_; return : type_ }
   | T_record of { fields : field list }
-  | T_type of { forall : Forall.t; type_ : type_ }
+  | T_type of type_
 
 and type_var =
   (* when link points to type_ itself, then this is not linked *)
@@ -16,7 +16,9 @@ and type_var =
   (* TODO: rename bound to rigid *)
   | Bound of { mutable forall : Forall.t }
 
-and field = { name : Name.t; type_ : type_ }
+and field =
+  (* { Name: Type; } *)
+  | T_field of { forall : Forall.t option; name : Name.t; type_ : type_ }
 
 type t = type_
 
@@ -25,7 +27,7 @@ type desc =
   | T_var of var
   | T_arrow of { param : type_; return : type_ }
   | T_record of { fields : field list }
-  | T_type of { forall : Forall.t; type_ : type_ }
+  | T_type of type_
 [@@ocaml.warning "-unused-constructor"]
 
 and var =
@@ -84,4 +86,5 @@ let new_weak_var forall : type_ =
 let new_bound_var forall : type_ = T_var { var = Bound { forall } }
 let new_arrow ~param ~return : type_ = T_arrow { param; return }
 let new_record ~fields : type_ = T_record { fields }
-let new_type forall ~type_ : type_ = T_type { forall; type_ }
+let new_type ~type_ : type_ = T_type type_
+let new_field ~forall ~name ~type_ = T_field { forall; name; type_ }
