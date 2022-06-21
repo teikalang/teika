@@ -45,8 +45,10 @@ let rec update_rank loc ~var ~max_forall type_ =
       update_rank return
   | T_record { fields } ->
       (* TODO: also check name *)
-      List.iter (fun { name = _; type_ } -> update_rank type_) fields
-  | T_type { forall = _; type_ } -> (* TODO: is this right? *) update_rank type_
+      List.iter
+        (fun (T_field { forall = _; name = _; type_ }) -> update_rank type_)
+        fields
+  | T_type type_ -> (* TODO: is this right? *) update_rank type_
 
 (* also escape check *)
 let update_rank loc ~var type_ =
@@ -99,14 +101,39 @@ and unify_desc env rank ~expected ~received =
       if List.length expected_fields <> List.length received_fields then
         raise (Env.current_loc env) (Type_clash { expected; received });
       (* TODO: proper subtyping *)
+      (* TODO: the code below is terrible *)
       List.iter2
         (fun expected_field received_field ->
-          let { name = _; type_ = expected } = expected_field in
-          let { name = _; type_ = received } = received_field in
-          unify env rank ~expected ~received)
+          let (T_field { forall = expected_forall; name = _; type_ = expected })
+              =
+            expected_field
+          in
+          let expected =
+            match expected_forall with
+            | Some expected_forall ->
+                instance_weaken env ~forall:expected_forall expected
+            | None -> expected
+          in
+
+          let (T_field { forall = received_forall; name = _; type_ = received })
+              =
+            received_field
+          in
+          match received_forall with
+          | Some received_forall ->
+              (* TODO: tag + clear is weird *)
+              let rank = Rank.next rank in
+              let env =
+                (* TODO: neede because instance_weaken below, is this right? *)
+                let forall = Forall.weak rank in
+                Env.with_forall forall env
+              in
+              Forall.with_rank
+                (fun () -> unify env rank ~expected ~received)
+                rank received_forall
+          | None -> unify env rank ~expected ~received)
         expected_fields received_fields
-  | ( T_type { forall = _; type_ = expected },
-      T_type { forall = _; type_ = received } ) ->
+  | T_type expected, T_type received ->
       (* TODO: proper unification of types? *)
       (* TODO: does this make sense *)
       unify env rank ~expected ~received
