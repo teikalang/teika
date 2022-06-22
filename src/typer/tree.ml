@@ -63,7 +63,7 @@ and pat =
   | TP of {
       env : Env.t;
       loc : Location.t;
-      names : (Name.t * type_) list;
+      names : (Name.t * Type.t) list;
       type_ : Type.t;
       desc : pat_desc;
     }
