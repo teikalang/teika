@@ -55,12 +55,9 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
             let (T_field { forall; name; type_ }) = field in
 
             let forall =
-              match forall with
-              | Some forall ->
-                  let forall' = Forall.generic () in
-                  foralls := (forall, forall') :: !foralls;
-                  Some forall'
-              | None -> None
+              let forall' = Forall.generic () in
+              foralls := (forall, forall') :: !foralls;
+              forall'
             in
 
             let type_ = instance type_ in
