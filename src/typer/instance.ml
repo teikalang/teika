@@ -29,10 +29,8 @@ and instance_desc env ~bound_when_free ~forall foralls types type_ =
   | T_var (Weak _) -> (* weak not copied *) type_
   | T_var (Bound { forall = var_forall }) -> (
       if Forall.same forall var_forall then
-        if bound_when_free then
-          let forall = current_forall env in
-          new_bound_var forall
-        else new_weak_var env
+        let forall = current_forall env in
+        if bound_when_free then new_bound_var forall else new_weak_var forall
       else
         match
           List.find_opt

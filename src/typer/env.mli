@@ -24,6 +24,3 @@ val current_rank : t -> Rank.t
 val with_forall : Forall.t -> t -> t
 val current_forall : t -> Forall.t
 val enter_forall : t -> Forall.t * t
-
-(* types *)
-val new_weak_var : t -> Type.t
