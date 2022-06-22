@@ -19,9 +19,9 @@ let tt_arrow env type_ ~param ~return =
 
 let tt_record env type_ ~fields = return_type env type_ (TT_record fields)
 
-let tt_bind env field ~type_ ~var ~annot =
+let tt_bind env field ~var ~annot =
   let loc = current_loc env in
-  (env, field, TT_bind { env; loc; type_; var; annot })
+  (env, field, TT_bind { env; loc; field; var; annot })
 
 let rec transl_type env type_ =
   let (LT { loc; desc }) = type_ in
@@ -76,23 +76,25 @@ and transl_type_field env ~field =
   let env = set_loc loc env in
 
   let name = Name.make var in
-  match annot with
-  | LA_kind kind ->
-      (* TODO: use _kind_kind *)
-      let _kind_kind, kind = transl_kind kind in
-      let forall, env = enter_forall env in
-      let type_ =
-        let var = new_bound_var forall in
-        new_type ~type_:var
-      in
-      let var, env = Env.add name type_ env in
+  let forall, env = enter_forall env in
 
-      let field = new_field ~forall:(Some forall) ~name ~type_ in
-      let annot = TA_kind kind in
-      tt_bind env field ~type_ ~var ~annot
-  | LA_type type_ ->
-      let type_type, type_ = transl_type env type_ in
-      let var, env = Env.add name type_type env in
-      let field = new_field ~forall:None ~name ~type_:type_type in
-      let annot = TA_type type_ in
-      tt_bind env field ~type_:type_type ~var ~annot
+  let annot_type, annot =
+    match annot with
+    | LA_kind kind ->
+        (* TODO: use _kind_kind *)
+        let _kind_kind, kind = transl_kind kind in
+        let type_ =
+          let var = new_bound_var forall in
+          new_type ~type_:var
+        in
+        let annot = TA_kind kind in
+        (type_, annot)
+    | LA_type type_ ->
+        let type_type, type_ = transl_type env type_ in
+        let annot = TA_type type_ in
+        (type_type, annot)
+  in
+  let field = new_field ~forall ~name ~type_:annot_type in
+
+  let var, env = Env.add name annot_type env in
+  tt_bind env field ~var ~annot
