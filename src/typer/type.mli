@@ -18,7 +18,7 @@ and var = private
   | Bound of { mutable forall : Forall.t }
 
 and field = private
-  | T_field of { forall : Forall.t option; name : Name.t; type_ : type_ }
+  | T_field of { forall : Forall.t; name : Name.t; type_ : type_ }
 
 and link
 
@@ -42,5 +42,5 @@ val new_weak_var : Forall.t -> type_
 val new_bound_var : Forall.t -> type_
 val new_arrow : param:type_ -> return:type_ -> type_
 val new_record : fields:field list -> type_
-val new_field : forall:Forall.t option -> name:Name.t -> type_:type_ -> field
+val new_field : forall:Forall.t -> name:Name.t -> type_:type_ -> field
 val new_type : type_:type_ -> type_

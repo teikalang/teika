@@ -39,11 +39,7 @@ let rec free_vars foralls vars type_ =
       List.fold_left
         (fun vars field ->
           let (T_field { forall; name = _; type_ }) = field in
-          let foralls =
-            match forall with
-            | Some forall -> forall :: foralls
-            | None -> foralls
-          in
+          let foralls = forall :: foralls in
           free_vars foralls vars type_)
         vars fields
   | T_type type_ -> free_vars foralls vars type_

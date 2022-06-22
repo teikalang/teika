@@ -108,30 +108,23 @@ and unify_desc env rank ~expected ~received =
               =
             expected_field
           in
-          let expected =
-            match expected_forall with
-            | Some expected_forall ->
-                instance_weaken env ~forall:expected_forall expected
-            | None -> expected
-          in
+          let expected = instance_weaken env ~forall:expected_forall expected in
 
           let (T_field { forall = received_forall; name = _; type_ = received })
               =
             received_field
           in
-          match received_forall with
-          | Some received_forall ->
-              (* TODO: tag + clear is weird *)
-              let rank = Rank.next rank in
-              let env =
-                (* TODO: neede because instance_weaken below, is this right? *)
-                let forall = Forall.weak rank in
-                Env.with_forall forall env
-              in
-              Forall.with_rank
-                (fun () -> unify env rank ~expected ~received)
-                rank received_forall
-          | None -> unify env rank ~expected ~received)
+
+          (* TODO: tag + clear is weird *)
+          let rank = Rank.next rank in
+          let env =
+            (* TODO: neede because instance_weaken below, is this right? *)
+            let forall = Forall.weak rank in
+            Env.with_forall forall env
+          in
+          Forall.with_rank
+            (fun () -> unify env rank ~expected ~received)
+            rank received_forall)
         expected_fields received_fields
   | T_type expected, T_type received ->
       (* TODO: proper unification of types? *)

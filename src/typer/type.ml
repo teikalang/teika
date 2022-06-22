@@ -18,7 +18,7 @@ and type_var =
 
 and field =
   (* { Name: Type; } *)
-  | T_field of { forall : Forall.t option; name : Name.t; type_ : type_ }
+  | T_field of { forall : Forall.t; name : Name.t; type_ : type_ }
 
 type t = type_
 
