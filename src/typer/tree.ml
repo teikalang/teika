@@ -14,7 +14,7 @@ and expr_desc =
   | TE_number of int
   | TE_lambda of { param : pat; body : expr }
   | TE_apply of { lambda : expr; arg : expr }
-  | TE_let of { bind : expr_bind; return : expr }
+  | TE_let of { bind : expr_bind; body : expr }
   | TE_record of expr_bind list
   | TE_annot of { value : expr; annot : annot }
   | TE_type of type_
