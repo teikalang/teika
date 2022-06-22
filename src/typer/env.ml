@@ -77,10 +77,6 @@ let enter_forall t =
   let current_forall = Forall.weak current_rank in
   (current_forall, { names; current_forall; current_rank; current_loc })
 
-let new_weak_var env =
-  let forall = current_forall env in
-  new_weak_var forall
-
 (* base *)
 let base, int_type, int_ident =
   let predef_rank = Rank.initial in
