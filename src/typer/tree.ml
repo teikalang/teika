@@ -50,7 +50,7 @@ and type_bind =
       (* exposed env *)
       env : Env.t;
       loc : Location.t;
-      type_ : Type.t;
+      field : Type.field;
       var : Ident.t;
       annot : annot;
     }
