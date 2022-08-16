@@ -7,11 +7,16 @@ and expr_desc =
   | TE_apply of { funct : expr; arg : expr }
   | TE_pair of { left : bind; right : bind }
   | TE_exits of { var : Var.t; right : bind }
+  | TE_unpair of { unpair : unpair; return : expr }
   | TE_type of { type_ : type_ }
   | TE_let of { bind : bind; return : expr }
   | TE_annot of { expr : expr; type_ : type_ }
 
 and bind = TB of { type_ : Type.t; var : Var.t; value : expr }
+
+and unpair =
+  | TU of { type_ : Type.t; left : Var.t; right : Var.t; value : expr }
+
 and type_ = TT of { type_ : Type.t; desc : type_desc }
 
 and type_desc =
@@ -64,6 +69,10 @@ let te_exists ~var ~right =
   in
   te type_ (TE_exits { var; right })
 
+let te_unpair ~unpair ~return =
+  let (TE { type_; desc = _ }) = return in
+  te type_ (TE_unpair { unpair; return })
+
 let te_type ~type_ =
   let type_type =
     let (TT { type_; desc = _ }) = type_ in
@@ -79,9 +88,15 @@ let te_annot ~expr ~type_ =
   let (TT { type_ = type_type; desc = _ }) = type_ in
   te type_type (TE_annot { expr; type_ })
 
+(* bind *)
 let tb ~var ~value =
   let (TE { type_; desc = _ }) = value in
   TB { type_; var; value }
+
+(* unpair *)
+let tu ~left ~right ~value =
+  let (TE { type_; desc = _ }) = value in
+  TU { type_; left; right; value }
 
 (* type *)
 let tt type_ desc = TT { type_; desc }

@@ -7,9 +7,13 @@ and expr_desc =
   | LE_apply of { funct : expr; arg : expr }
   | LE_pair of { left : bind; right : bind }
   | LE_exists of { var : Name.t; right : bind }
+  | LE_unpair of { unpair : unpair; return : expr }
   | LE_type of { type_ : type_ }
   | LE_let of { bind : bind; return : expr }
   | LE_annot of { expr : expr; type_ : type_ }
+
+and unpair =
+  | LU of { loc : Location.t; left : Name.t; right : Name.t; value : expr }
 
 and bind = LB of { loc : Location.t; var : Name.t; value : expr }
 and type_ = LT of { loc : Location.t; desc : type_desc }
@@ -34,9 +38,13 @@ let le_forall loc ~var ~return = le loc (LE_forall { var; return })
 let le_apply loc ~funct ~arg = le loc (LE_apply { funct; arg })
 let le_pair loc ~left ~right = le loc (LE_pair { left; right })
 let le_exists loc ~var ~right = le loc (LE_exists { var; right })
+let le_unpair loc ~unpair ~return = le loc (LE_unpair { unpair; return })
 let le_type loc ~type_ = le loc (LE_type { type_ })
 let le_let loc ~bind ~return = le loc (LE_let { bind; return })
 let le_annot loc ~expr ~type_ = le loc (LE_annot { expr; type_ })
+
+(* unpair *)
+let lu loc ~left ~right ~value = LU { loc; left; right; value }
 
 (* bind *)
 let lb loc ~var ~value = LB { loc; var; value }

@@ -3,6 +3,7 @@ open Type
 exception Var_clash of { expected : Var.t; received : Var.t }
 exception Type_clash of { expected : type_; received : type_ }
 exception Not_a_function of { funct : type_ }
+exception Not_an_extractable_pair of { pair : type_ }
 exception Not_a_type of { type_ : type_ }
 
 let rec subst ~from ~to_ type_ =
@@ -82,4 +83,10 @@ let apply ~funct ~arg =
   | T_forall { var; return } ->
       let type_ = extract_type ~wrapped:arg in
       subst ~from:var ~to_:type_ return
-  | _ -> raise (Not_a_function { funct })
+  | T_var _ | T_pair _ | T_exists _ | T_type _ ->
+      raise (Not_a_function { funct })
+
+let unpair ~pair =
+  match pair with
+  | T_pair { left; right } -> (left, right)
+  | _ -> raise (Not_an_extractable_pair { pair })
