@@ -13,12 +13,18 @@ and expr_desc =
   | LE_pair of { left : bind; right : bind }
   (* (x: k, y = e) *)
   | LE_exists of { var : Name.t; right : bind }
+  (* (x; y) = e; e2 *)
+  | LE_unpair of { unpair : unpair; return : expr }
   (* #t *)
   | LE_type of { type_ : type_ }
   (* x = e1; e2 *)
   | LE_let of { bind : bind; return : expr }
   (* (e : t) *)
   | LE_annot of { expr : expr; type_ : type_ }
+
+and unpair =
+  (* (x, y) = e *)
+  | LU of { loc : Location.t; left : Name.t; right : Name.t; value : expr }
 
 and bind = (* x = e *)
   | LB of { loc : Location.t; var : Name.t; value : expr }
@@ -44,9 +50,13 @@ val le_forall : Location.t -> var:Name.t -> return:expr -> expr
 val le_apply : Location.t -> funct:expr -> arg:expr -> expr
 val le_pair : Location.t -> left:bind -> right:bind -> expr
 val le_exists : Location.t -> var:Name.t -> right:bind -> expr
+val le_unpair : Location.t -> unpair:unpair -> return:expr -> expr
 val le_type : Location.t -> type_:type_ -> expr
 val le_let : Location.t -> bind:bind -> return:expr -> expr
 val le_annot : Location.t -> expr:expr -> type_:type_ -> expr
+
+(* unpair *)
+val lu : Location.t -> left:Name.t -> right:Name.t -> value:expr -> unpair
 
 (* bind *)
 val lb : Location.t -> var:Name.t -> value:expr -> bind

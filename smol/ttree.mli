@@ -7,11 +7,16 @@ and expr_desc = private
   | TE_apply of { funct : expr; arg : expr }
   | TE_pair of { left : bind; right : bind }
   | TE_exits of { var : Var.t; right : bind }
+  | TE_unpair of { unpair : unpair; return : expr }
   | TE_type of { type_ : type_ }
   | TE_let of { bind : bind; return : expr }
   | TE_annot of { expr : expr; type_ : type_ }
 
 and bind = private TB of { type_ : Type.t; var : Var.t; value : expr }
+
+and unpair = private
+  | TU of { type_ : Type.t; left : Var.t; right : Var.t; value : expr }
+
 and type_ = private TT of { type_ : Type.t; desc : type_desc }
 
 and type_desc = private
@@ -28,12 +33,16 @@ val te_forall : var:Var.t -> return:expr -> expr
 val te_apply : Type.t -> funct:expr -> arg:expr -> expr
 val te_pair : left:bind -> right:bind -> expr
 val te_exists : var:Var.t -> right:bind -> expr
+val te_unpair : unpair:unpair -> return:expr -> expr
 val te_type : type_:type_ -> expr
 val te_let : bind:bind -> return:expr -> expr
 val te_annot : expr:expr -> type_:type_ -> expr
 
 (* bind *)
 val tb : var:Var.t -> value:expr -> bind
+
+(* unpair *)
+val tu : left:Var.t -> right:Var.t -> value:expr -> unpair
 
 (* type *)
 val tt_var : Type.t -> var:Var.t -> type_

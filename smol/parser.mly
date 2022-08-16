@@ -44,6 +44,7 @@ let expr_funct_let :=
   | expr_rec_apply
   | expr_lambda(expr_funct_let)
   | expr_forall(expr_funct_let)
+  | expr_unpair(expr_funct_let)
   | expr_let(expr_funct_let)
 
 let expr_rec_apply :=
@@ -90,6 +91,9 @@ let expr_pair ==
 let expr_exists ==
   | var = var; COLON; ASTERISK; right = bind;
     { le_exists (mk $loc) ~var ~right }
+let expr_unpair(self) ==
+  | unpair = unpair; SEMICOLON; return = self;
+    { le_unpair (mk $loc) ~unpair ~return }
 let expr_type ==
   | HASH_TAG; type_ = type_atom;
     { le_type (mk $loc) ~type_ }
@@ -101,6 +105,10 @@ let expr_annot ==
   | expr = expr_atom; COLON; type_ = type_atom;
     { le_annot (mk $loc) ~expr ~type_ }
 
+let unpair ==
+  | LEFT_PARENS; left = var; COMMA; right = var; RIGHT_PARENS;
+    EQUAL; value = expr;
+    { lu (mk $loc) ~left ~right ~value }
 
 let bind ==
   | var = var; EQUAL; value = expr;

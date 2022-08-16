@@ -50,6 +50,10 @@ let rec type_expr env expr =
       in
       let _env, right = type_bind env right in
       te_exists ~var ~right
+  | LE_unpair { unpair; return } ->
+      let env, unpair = type_unpair env unpair in
+      let return = type_expr env return in
+      te_unpair ~unpair ~return
   | LE_type { type_ } ->
       let type_ = transl_type env type_ in
       te_type ~type_
@@ -67,6 +71,24 @@ let rec type_expr env expr =
         subtype ~expected:type_ ~received:expr
       in
       te_annot ~expr ~type_
+
+and type_unpair env unpair =
+  (* TODO: use location *)
+  let (LU { loc = _; left; right; value }) = unpair in
+  let left = Var.create left in
+  let right = Var.create right in
+  let value = type_expr env value in
+
+  let env =
+    let (TE { type_ = value; desc = _ }) = value in
+    (* TODO: name clash *)
+    let left_type, right_type = Machinery.unpair ~pair:value in
+    let env = enter left left_type env in
+    let env = enter right right_type env in
+    env
+  in
+  let unpair = tu ~left ~right ~value in
+  (env, unpair)
 
 and type_bind env bind =
   (* TODO: use location *)

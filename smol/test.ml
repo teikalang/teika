@@ -31,6 +31,26 @@ let pair =
     ~type_:"(A: *) -> (B: *) -> A -> B -> (x: A, y: B)"
     ~expr:"(A: *) => (B: *) => (x: A) => (y: B) => (x = x, y = y)"
 
+let left_unpair =
+  type_expr "left_unpair" ~wrapper:false
+    ~type_:"(A: *) -> (B: *) -> A -> B -> A"
+    ~expr:
+      {|(A: *) => (B: *) => (x: A) => (y: B) => (
+          p = (x = x, y = y);
+          (y, x) = p;
+          y
+        )|}
+
+let right_unpair =
+  type_expr "right_unpair" ~wrapper:false
+    ~type_:"(A: *) -> (B: *) -> A -> B -> B"
+    ~expr:
+      {|(A: *) => (B: *) => (x: A) => (y: B) => (
+          p = (x = x, y = y);
+          (y, x) = p;
+          x
+        )|}
+
 (* TODO: something like pack *)
 (* let pack =
    type_expr "pack" ~wrapper:false
@@ -61,8 +81,6 @@ let annot_pack =
   type_expr "annot_pack" ~type_:"(A: *, x: A)"
     ~expr:"((A = Int, x = one): (A: *, x: A))"
 
-(* TODO: unpack *)
-
 let utils = [ id; sequence; choose; pair (* ;pack *) ]
 
 let tests =
@@ -82,6 +100,9 @@ let tests =
     pair_int_int;
     pair_int_int_one;
     pair_int_int_one_one;
+    (* unpair *)
+    left_unpair;
+    right_unpair;
     (* exists_a_a; *)
     annot_pack;
   ]
