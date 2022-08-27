@@ -76,7 +76,7 @@ let te_unpair ~unpair ~return =
 let te_type ~type_ =
   let type_type =
     let (TT { type_; desc = _ }) = type_ in
-    t_type ~type_
+    t_alias ~type_
   in
   te type_type (TE_type { type_ })
 

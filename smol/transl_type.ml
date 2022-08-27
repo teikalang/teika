@@ -4,12 +4,12 @@ open Type
 open Machinery
 
 let enter var type_ env =
-  let type_ = t_type ~type_ in
+  let type_ = t_alias ~type_ in
   Env.enter var type_ env
 
 let lookup var env =
-  let var, type_ = Env.lookup var env in
-  let type_ = extract_type ~wrapped:type_ in
+  let var, wrapped = Env.lookup var env in
+  let type_ = extract ~wrapped in
   (var, type_)
 
 let rec transl_type env type_ =
