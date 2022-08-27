@@ -24,7 +24,7 @@ let rec type_expr env expr =
   | LE_forall { var; return } ->
       let var = Var.create var in
       let env =
-        let param = t_type ~type_:(t_var ~var) in
+        let param = t_alias ~type_:(t_var ~var) in
         enter var param env
       in
       let return = type_expr env return in
@@ -45,7 +45,7 @@ let rec type_expr env expr =
   | LE_exists { var; right } ->
       let var = Var.create var in
       let env =
-        let left = t_type ~type_:(t_var ~var) in
+        let left = t_alias ~type_:(t_var ~var) in
         enter var left env
       in
       let _env, right = type_bind env right in

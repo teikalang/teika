@@ -6,6 +6,6 @@ exception Not_a_function of { funct : type_ }
 exception Not_a_type of { type_ : type_ }
 
 val subtype : expected:type_ -> received:type_ -> unit
-val extract_type : wrapped:type_ -> type_
+val extract : wrapped:type_ -> type_
 val apply : funct:type_ -> arg:type_ -> type_
 val unpair : pair:type_ -> type_ * type_

@@ -143,7 +143,7 @@ let wrapped_env =
     let env = Env.empty in
     let int = var "Int" in
     let int_type = Type.t_var ~var:int in
-    let env = Env.enter int (t_type ~type_:int_type) env in
+    let env = Env.enter int (t_alias ~type_:int_type) env in
     let env = Env.enter (var "one") int_type env in
 
     List.fold_left
@@ -152,7 +152,7 @@ let wrapped_env =
         let expr = type_expr env expr in
 
         let upper_name = String.capitalize_ascii name in
-        let env = Env.enter (var upper_name) (t_type ~type_) env in
+        let env = Env.enter (var upper_name) (t_alias ~type_) env in
         Env.enter (var name) expr env)
       env utils)
 
