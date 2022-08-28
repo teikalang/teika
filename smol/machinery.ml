@@ -15,13 +15,10 @@ let rec subst ~from ~to_ type_ =
       let param = subst param in
       let return = if Var.equal var from then return else subst return in
       t_arrow ~var ~param ~return
-  | T_pair { left; right } ->
+  | T_pair { var; left; right } ->
       let left = subst left in
-      let right = subst right in
-      t_pair ~left ~right
-  | T_exists { var; right } ->
       let right = if Var.equal var from then right else subst right in
-      t_exists ~var ~right
+      t_pair ~var ~left ~right
   | T_alias { type_ } ->
       let type_ = subst type_ in
       t_alias ~type_
@@ -54,36 +51,34 @@ let rec subtype ~expected ~received =
         subst ~from:received_var ~to_:internal received_return
       in
       subtype ~expected:expected_return ~received:received_return
-  | ( T_pair { left = expected_left; right = expected_right },
-      T_pair { left = received_left; right = received_right } ) ->
-      subtype ~expected:expected_left ~received:received_left;
-      subtype ~expected:expected_right ~received:received_right
-  | ( T_exists { var = expected_var; right = expected_right },
-      T_exists { var = received_var; right = received_right } ) ->
-      let expected_right =
-        subst ~from:expected_var ~to_:(t_var ~var:received_var) expected_right
-      in
-      subtype ~expected:expected_right ~received:received_right
-  | ( T_exists { var = expected_var; right = expected_right },
+  | ( T_pair { var = expected_var; left = expected_left; right = expected_right },
       T_pair
-        { left = T_alias { type_ = received_type }; right = received_right } )
+        { var = received_var; left = received_left; right = received_right } )
     ->
-      (* TODO: limit this to achieve decidability *)
+      subtype ~expected:expected_left ~received:received_left;
+
+      let internal =
+        match received_left with
+        | T_alias { type_ } -> type_
+        | _param -> t_var ~var:expected_var
+      in
       let expected_right =
-        subst ~from:expected_var ~to_:received_type expected_right
+        subst ~from:expected_var ~to_:internal expected_right
+      in
+      let received_right =
+        subst ~from:received_var ~to_:internal received_right
       in
       subtype ~expected:expected_right ~received:received_right
-  | T_pair _, T_exists _ -> failwith "not implemented"
   | T_alias { type_ = expected }, T_alias { type_ = received } ->
       subtype ~expected ~received
-  | ( (T_type | T_var _ | T_arrow _ | T_pair _ | T_exists _ | T_alias _),
-      (T_type | T_var _ | T_arrow _ | T_pair _ | T_exists _ | T_alias _) ) ->
+  | ( (T_type | T_var _ | T_arrow _ | T_pair _ | T_alias _),
+      (T_type | T_var _ | T_arrow _ | T_pair _ | T_alias _) ) ->
       raise (Type_clash { expected; received })
 
 let extract ~wrapped:type_ =
   match type_ with
   | T_alias { type_ } -> type_
-  | T_type | T_var _ | T_arrow _ | T_pair _ | T_exists _ ->
+  | T_type | T_var _ | T_arrow _ | T_pair _ ->
       raise (Not_a_wrapped_type { type_ })
 
 let apply ~funct ~arg =
@@ -94,13 +89,12 @@ let apply ~funct ~arg =
         (* TODO: super hacky *)
         match param with
         | T_type | T_alias _ -> extract ~wrapped:arg
-        | T_var _ | T_arrow _ | T_pair _ | T_exists _ -> arg
+        | T_var _ | T_arrow _ | T_pair _ -> arg
       in
       subst ~from:var ~to_:arg return
-  | T_type | T_var _ | T_pair _ | T_exists _ | T_alias _ ->
-      raise (Not_a_function { funct })
+  | T_type | T_var _ | T_pair _ | T_alias _ -> raise (Not_a_function { funct })
 
 let unpair ~pair =
   match pair with
-  | T_pair { left; right } -> (left, right)
+  | T_pair { var = _; left; right } -> (left, right)
   | _ -> raise (Not_an_extractable_pair { pair })

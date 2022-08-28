@@ -57,16 +57,17 @@ let te_apply type_ ~funct ~arg = te type_ (TE_apply { funct; arg })
 
 let te_pair ~left ~right =
   let type_ =
-    let (TB { type_ = left; var = _; value = _ }) = left in
+    let (TB { type_ = left; var; value = _ }) = left in
     let (TB { type_ = right; var = _; value = _ }) = right in
-    t_pair ~left ~right
+    t_pair ~var ~left ~right
   in
   te type_ (TE_pair { left; right })
 
 let te_exists ~var ~right =
   let type_ =
     let (TB { type_ = right; var = _; value = _ }) = right in
-    t_exists ~var ~right
+    let left = t_type in
+    t_pair ~var ~left ~right
   in
   te type_ (TE_exits { var; right })
 
@@ -123,15 +124,18 @@ let tt_forall ~var ~return =
 
 let tt_pair ~left ~right =
   let type_ =
+    (* TODO: this is weird *)
+    let var = Var.create (Name.make "_") in
     let (TT { type_ = left; desc = _ }) = left in
     let (TT { type_ = right; desc = _ }) = right in
-    t_pair ~left ~right
+    t_pair ~var ~left ~right
   in
   tt type_ (TT_pair { left; right })
 
 let tt_exists ~var ~right =
   let type_ =
     let (TT { type_ = right; desc = _ }) = right in
-    t_exists ~var ~right
+    let left = t_type in
+    t_pair ~var ~left ~right
   in
   tt type_ (TT_exists { var; right })
