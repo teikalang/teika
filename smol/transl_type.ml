@@ -42,3 +42,6 @@ let rec transl_type env type_ =
       in
       let right = transl_type env right in
       tt_exists ~var ~right
+  | LT_alias { type_ } ->
+      let type_ = transl_type env type_ in
+      tt_alias ~type_

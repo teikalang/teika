@@ -25,6 +25,7 @@ and type_desc = private
   | TT_forall of { var : Var.t; return : type_ }
   | TT_pair of { left : type_; right : type_ }
   | TT_exists of { var : Var.t; right : type_ }
+  | TT_alias of { type_ : type_ }
 
 (* expr *)
 val te_var : Type.t -> var:Var.t -> expr
@@ -50,3 +51,4 @@ val tt_arrow : param:type_ -> return:type_ -> type_
 val tt_forall : var:Var.t -> return:type_ -> type_
 val tt_pair : left:type_ -> right:type_ -> type_
 val tt_exists : var:Var.t -> right:type_ -> type_
+val tt_alias : type_:type_ -> type_

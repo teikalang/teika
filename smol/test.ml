@@ -81,7 +81,11 @@ let annot_pack =
   type_expr "annot_pack" ~type_:"(A: *, x: A)"
     ~expr:"((A = Int, x = one): (A: *, x: A))"
 
-let utils = [ id; sequence; choose; pair (* ;pack *) ]
+let alias_apply =
+  type_expr "alias_function" ~type_:"Int -> Int"
+    ~expr:"((A := Int) => (x: A) => incr x) Int"
+
+let utils = [ id; sequence; choose; pair (* ;pack *); incr ]
 
 let tests =
   [
@@ -105,6 +109,8 @@ let tests =
     right_unpair;
     (* exists_a_a; *)
     annot_pack;
+    (* alias *)
+    alias_apply;
   ]
 
 open Smol

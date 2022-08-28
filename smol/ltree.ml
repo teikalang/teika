@@ -24,6 +24,7 @@ and type_desc =
   | LT_forall of { var : Name.t; return : type_ }
   | LT_pair of { left : type_; right : type_ }
   | LT_exists of { var : Name.t; right : type_ }
+  | LT_alias of { type_ : type_ }
 
 (* and kind = LK_type | LK_arrow of { param : kind; return : kind } *)
 
@@ -56,3 +57,4 @@ let lt_arrow loc ~param ~return = lt loc (LT_arrow { param; return })
 let lt_forall loc ~var ~return = lt loc (LT_forall { var; return })
 let lt_pair loc ~left ~right = lt loc (LT_pair { left; right })
 let lt_exists loc ~var ~right = lt loc (LT_exists { var; right })
+let lt_alias loc ~type_ = lt loc (LT_alias { type_ })
