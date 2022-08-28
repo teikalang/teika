@@ -41,14 +41,15 @@ let te_lambda ~var ~param ~return =
   let type_ =
     let (TT { type_ = param; desc = _ }) = param in
     let (TE { type_ = return; desc = _ }) = return in
-    t_arrow ~param ~return
+    t_arrow ~var ~param ~return
   in
   te type_ (TE_lambda { var; param; return })
 
 let te_forall ~var ~return =
   let type_ =
     let (TE { type_ = return; desc = _ }) = return in
-    t_forall ~var ~return
+    let param = t_type in
+    t_arrow ~var ~param ~return
   in
   te type_ (TE_forall { var; return })
 
@@ -104,16 +105,19 @@ let tt_var type_ ~var = tt type_ (TT_var { var })
 
 let tt_arrow ~param ~return =
   let type_ =
+    (* TODO: this is weird *)
+    let var = Var.create (Name.make "_") in
     let (TT { type_ = param; desc = _ }) = param in
     let (TT { type_ = return; desc = _ }) = return in
-    t_arrow ~param ~return
+    t_arrow ~var ~param ~return
   in
   tt type_ (TT_arrow { param; return })
 
 let tt_forall ~var ~return =
   let type_ =
     let (TT { type_ = return; desc = _ }) = return in
-    t_forall ~var ~return
+    let param = t_type in
+    t_arrow ~var ~param ~return
   in
   tt type_ (TT_forall { var; return })
 
