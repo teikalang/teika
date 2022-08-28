@@ -4,11 +4,12 @@ exception Var_clash of { expected : Var.t; received : Var.t }
 exception Type_clash of { expected : type_; received : type_ }
 exception Not_a_function of { funct : type_ }
 exception Not_an_extractable_pair of { pair : type_ }
-exception Not_a_type of { type_ : type_ }
+exception Not_a_wrapped_type of { type_ : type_ }
 
 let rec subst ~from ~to_ type_ =
   let subst type_ = subst ~from ~to_ type_ in
   match type_ with
+  | T_type -> t_type
   | T_var { var } -> if Var.equal var from then to_ else type_
   | T_arrow { param; return } ->
       let param = subst param in
@@ -31,6 +32,9 @@ let rec subst ~from ~to_ type_ =
 (* TODO: this is undecidable on forget *)
 let rec subtype ~expected ~received =
   match (expected, received) with
+  | T_type, T_type -> ()
+  (* TODO: this is very weird *)
+  | T_type, T_alias _ -> ()
   | T_var { var = expected }, T_var { var = received } ->
       if Var.equal expected received then ()
       else raise (Var_clash { expected; received })
@@ -66,16 +70,17 @@ let rec subtype ~expected ~received =
   | T_pair _, T_exists _ -> failwith "not implemented"
   | T_alias { type_ = expected }, T_alias { type_ = received } ->
       subtype ~expected ~received
-  | ( (T_var _ | T_arrow _ | T_forall _ | T_pair _ | T_exists _ | T_alias _),
-      (T_var _ | T_arrow _ | T_forall _ | T_pair _ | T_exists _ | T_alias _) )
-    ->
+  | ( ( T_type | T_var _ | T_arrow _ | T_forall _ | T_pair _ | T_exists _
+      | T_alias _ ),
+      ( T_type | T_var _ | T_arrow _ | T_forall _ | T_pair _ | T_exists _
+      | T_alias _ ) ) ->
       raise (Type_clash { expected; received })
 
 let extract ~wrapped:type_ =
   match type_ with
   | T_alias { type_ } -> type_
-  | T_var _ | T_forall _ | T_pair _ | T_exists _ | T_arrow _ ->
-      raise (Not_a_type { type_ })
+  | T_type | T_var _ | T_arrow _ | T_forall _ | T_pair _ | T_exists _ ->
+      raise (Not_a_wrapped_type { type_ })
 
 let apply ~funct ~arg =
   match funct with
@@ -85,7 +90,7 @@ let apply ~funct ~arg =
   | T_forall { var; return } ->
       let type_ = extract ~wrapped:arg in
       subst ~from:var ~to_:type_ return
-  | T_var _ | T_pair _ | T_exists _ | T_alias _ ->
+  | T_type | T_var _ | T_pair _ | T_exists _ | T_alias _ ->
       raise (Not_a_function { funct })
 
 let unpair ~pair =

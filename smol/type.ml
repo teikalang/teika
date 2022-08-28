@@ -1,4 +1,5 @@
 type type_ =
+  | T_type
   | T_var of { var : Var.t }
   | T_arrow of { param : type_; return : type_ }
   | T_forall of { var : Var.t; return : type_ }
@@ -9,6 +10,7 @@ type type_ =
 
 type t = type_ [@@deriving show]
 
+let t_type = T_type
 let t_var ~var = T_var { var }
 let t_arrow ~param ~return = T_arrow { param; return }
 let t_forall ~var ~return = T_forall { var; return }
