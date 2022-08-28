@@ -25,6 +25,7 @@ and type_desc =
   | TT_forall of { var : Var.t; return : type_ }
   | TT_pair of { left : type_; right : type_ }
   | TT_exists of { var : Var.t; right : type_ }
+  | TT_alias of { type_ : type_ }
 
 (* helpers *)
 open Type
@@ -139,3 +140,10 @@ let tt_exists ~var ~right =
     t_pair ~var ~left ~right
   in
   tt type_ (TT_exists { var; right })
+
+let tt_alias ~type_ =
+  let type_alias =
+    let (TT { type_; desc = _ }) = type_ in
+    t_alias ~type_
+  in
+  tt type_alias (TT_alias { type_ })

@@ -42,6 +42,8 @@ and type_desc =
   | LT_pair of { left : type_; right : type_ }
   (* (x: k, y: t) *)
   | LT_exists of { var : Name.t; right : type_ }
+  (* =t *)
+  | LT_alias of { type_ : type_ }
 
 (* expr *)
 val le_var : Location.t -> var:Name.t -> expr
@@ -67,3 +69,4 @@ val lt_arrow : Location.t -> param:type_ -> return:type_ -> type_
 val lt_forall : Location.t -> var:Name.t -> return:type_ -> type_
 val lt_pair : Location.t -> left:type_ -> right:type_ -> type_
 val lt_exists : Location.t -> var:Name.t -> right:type_ -> type_
+val lt_alias : Location.t -> type_:type_ -> type_

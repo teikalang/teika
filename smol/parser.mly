@@ -124,6 +124,7 @@ let type_funct :=
 
 let type_atom :=
   | type_var
+  | type_alias(type_atom)
   | type_parens
 
 let type_parens :=
@@ -152,3 +153,7 @@ let type_pair ==
 let type_exists ==
   | var = var; COLON; ASTERISK; COMMA; var; COLON; right = type_;
     { lt_exists (mk $loc) ~var ~right }
+let type_alias(self) ==
+  | EQUAL; type_ = self;
+    { lt_alias (mk $loc) ~type_ }
+
