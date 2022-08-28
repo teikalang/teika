@@ -11,13 +11,10 @@ let rec subst ~from ~to_ type_ =
   match type_ with
   | T_type -> t_type
   | T_var { var } -> if Var.equal var from then to_ else type_
-  | T_arrow { param; return } ->
+  | T_arrow { var; param; return } ->
       let param = subst param in
-      let return = subst return in
-      t_arrow ~param ~return
-  | T_forall { var; return } ->
       let return = if Var.equal var from then return else subst return in
-      t_forall ~var ~return
+      t_arrow ~var ~param ~return
   | T_pair { left; right } ->
       let left = subst left in
       let right = subst right in
@@ -38,14 +35,23 @@ let rec subtype ~expected ~received =
   | T_var { var = expected }, T_var { var = received } ->
       if Var.equal expected received then ()
       else raise (Var_clash { expected; received })
-  | ( T_arrow { param = expected_param; return = expected_return },
-      T_arrow { param = received_param; return = received_return } ) ->
+  | ( T_arrow
+        { var = expected_var; param = expected_param; return = expected_return },
+      T_arrow
+        { var = received_var; param = received_param; return = received_return }
+    ) ->
       subtype ~expected:received_param ~received:expected_param;
-      subtype ~expected:expected_return ~received:received_return
-  | ( T_forall { var = expected_var; return = expected_return },
-      T_forall { var = received_var; return = received_return } ) ->
+
+      let internal =
+        match received_param with
+        | T_alias { type_ } -> type_
+        | _param -> t_var ~var:expected_var
+      in
+      let expected_return =
+        subst ~from:expected_var ~to_:internal expected_return
+      in
       let received_return =
-        subst ~from:received_var ~to_:(t_var ~var:expected_var) received_return
+        subst ~from:received_var ~to_:internal received_return
       in
       subtype ~expected:expected_return ~received:received_return
   | ( T_pair { left = expected_left; right = expected_right },
@@ -70,26 +76,27 @@ let rec subtype ~expected ~received =
   | T_pair _, T_exists _ -> failwith "not implemented"
   | T_alias { type_ = expected }, T_alias { type_ = received } ->
       subtype ~expected ~received
-  | ( ( T_type | T_var _ | T_arrow _ | T_forall _ | T_pair _ | T_exists _
-      | T_alias _ ),
-      ( T_type | T_var _ | T_arrow _ | T_forall _ | T_pair _ | T_exists _
-      | T_alias _ ) ) ->
+  | ( (T_type | T_var _ | T_arrow _ | T_pair _ | T_exists _ | T_alias _),
+      (T_type | T_var _ | T_arrow _ | T_pair _ | T_exists _ | T_alias _) ) ->
       raise (Type_clash { expected; received })
 
 let extract ~wrapped:type_ =
   match type_ with
   | T_alias { type_ } -> type_
-  | T_type | T_var _ | T_arrow _ | T_forall _ | T_pair _ | T_exists _ ->
+  | T_type | T_var _ | T_arrow _ | T_pair _ | T_exists _ ->
       raise (Not_a_wrapped_type { type_ })
 
 let apply ~funct ~arg =
   match funct with
-  | T_arrow { param; return } ->
+  | T_arrow { var; param; return } ->
       subtype ~expected:param ~received:arg;
-      return
-  | T_forall { var; return } ->
-      let type_ = extract ~wrapped:arg in
-      subst ~from:var ~to_:type_ return
+      let arg =
+        (* TODO: super hacky *)
+        match param with
+        | T_type | T_alias _ -> extract ~wrapped:arg
+        | T_var _ | T_arrow _ | T_pair _ | T_exists _ -> arg
+      in
+      subst ~from:var ~to_:arg return
   | T_type | T_var _ | T_pair _ | T_exists _ | T_alias _ ->
       raise (Not_a_function { funct })
 
