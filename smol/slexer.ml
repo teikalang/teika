@@ -1,4 +1,4 @@
-open Parser
+open Sparser
 open Sedlexing.Utf8
 
 let whitespace = [%sedlex.regexp? Plus (' ' | '\t' | '\n')]
@@ -17,7 +17,6 @@ let rec tokenizer buf =
   | ":" -> COLON
   | ";" -> SEMICOLON
   | "*" -> ASTERISK
-  | "#" -> HASH_TAG
   | "(" -> LEFT_PARENS
   | ")" -> RIGHT_PARENS
   | eof -> EOF
