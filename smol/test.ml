@@ -4,49 +4,77 @@ let type_expr ?(wrapper = true) name ~type_ ~expr =
   { name; expr; type_; wrapper }
 
 let id =
-  type_expr "id" ~wrapper:false ~type_:"(A: *) -> A -> A"
+  type_expr "id" ~wrapper:false ~type_:"(A: *) -> (x: A) -> A"
     ~expr:"(A: *) => (x: A) => x"
 
 let sequence =
-  type_expr "sequence" ~wrapper:false ~type_:"(A: *) -> A -> (B: *) -> B -> B"
+  type_expr "sequence" ~wrapper:false
+    ~type_:"(A: *) -> (x: A) -> (B: *) -> (y: B) -> B"
     ~expr:"(A: *) => (x: A) => (B: *) => (y: B) => y"
 
-let choose =
-  type_expr "choose" ~wrapper:false ~type_:"(A: *) -> A -> A -> A"
+let bool =
+  type_expr "bool" ~wrapper:false ~type_:"(A: *) -> (x: A) -> (y: A) -> A"
     ~expr:"(A: *) => (x: A) => (y: A) => x"
 
-let incr = type_expr "incr" ~type_:"Int -> Int" ~expr:"(x: Int) => x"
-let id_int = type_expr "id_int" ~type_:"Int -> Int" ~expr:"id Int"
+let true_ =
+  type_expr "true" ~wrapper:false ~type_:"(A: *) -> (x: A) -> (y: A) -> A"
+    ~expr:"(A: *) => (x: A) => (y: A) => x"
+
+let false_ =
+  type_expr "false" ~wrapper:false ~type_:"(A: *) -> (x: A) -> (y: A) -> A"
+    ~expr:"(A: *) => (x: A) => (y: A) => y"
+
+let incr = type_expr "incr" ~type_:"(x: Int) -> Int" ~expr:"(x: Int) => x"
+let id_int = type_expr "id_int" ~type_:"(x: Int) -> Int" ~expr:"id Int"
 let id_int_one = type_expr "id_int_one" ~type_:"Int" ~expr:"id Int one"
-let choose_id = type_expr "choose_id" ~type_:"Id -> Id -> Id" ~expr:"choose Id"
 
-let choose_id_id =
-  type_expr "choose_id_id" ~type_:"Id -> Id" ~expr:"choose Id id"
+let bool_id =
+  type_expr "bool_id" ~type_:"(x: Id) -> (y: Id) -> Id" ~expr:"bool Id"
 
-let choose_id_id_id =
-  type_expr "choose_id_id_id" ~type_:"Id" ~expr:"choose Id id id"
+let bool_id_id =
+  type_expr "bool_id_id" ~type_:"(x: Id) -> Id" ~expr:"bool Id id"
+
+let bool_id_id_id = type_expr "bool_id_id_id" ~type_:"Id" ~expr:"bool Id id id"
+
+let true_type =
+  type_expr "true_type" ~type_:"(x: *) -> (y: *) -> *" ~expr:"true *"
+
+let true_type_int =
+  type_expr "true_type_int" ~type_:"(y: *) -> *" ~expr:"true * Int"
+
+let true_type_int_id =
+  type_expr "true_type_int_id" ~type_:"*" ~expr:"true * Int Id"
+
+let pred_dependent_type =
+  type_expr "pred_dependent_type"
+    ~type_:"(pred: Bool) -> (x: pred * Int Id) -> pred * Int Id"
+    ~expr:"(pred: Bool) => (x: pred * Int Id) => x"
+
+let true_dependent_type =
+  type_expr "true_dependent_type" ~type_:"(x: Int) -> Int"
+    ~expr:"((pred: Bool) => (x: pred * Int Id) => x) true"
 
 let pair =
   type_expr "pair" ~wrapper:false
-    ~type_:"(A: *) -> (B: *) -> A -> B -> (x: A, y: B)"
-    ~expr:"(A: *) => (B: *) => (x: A) => (y: B) => (x = x, y = y)"
+    ~type_:"(A: *) -> (B: *) -> (x: A) -> (y: B) -> (x: A, B)"
+    ~expr:"(A: *) => (B: *) => (x: A) => (y: B) => (x = x, y : B)"
 
 let left_unpair =
   type_expr "left_unpair" ~wrapper:false
-    ~type_:"(A: *) -> (B: *) -> A -> B -> A"
+    ~type_:"(A: *) -> (B: *) -> (x: A) -> (y: B) -> A"
     ~expr:
       {|(A: *) => (B: *) => (x: A) => (y: B) => (
-          p = (x = x, y = y);
+          p = (x = x, y : B);
           (y, x) = p;
           y
         )|}
 
 let right_unpair =
   type_expr "right_unpair" ~wrapper:false
-    ~type_:"(A: *) -> (B: *) -> A -> B -> B"
+    ~type_:"(A: *) -> (B: *) -> (x: A) -> (y: B) -> B"
     ~expr:
       {|(A: *) => (B: *) => (x: A) => (y: B) => (
-          p = (x = x, y = y);
+          p = (x = x, y : B);
           (y, x) = p;
           x
         )|}
@@ -58,48 +86,46 @@ let right_unpair =
      ~expr:"(R: *) => (p: (A: *, x: R)) => p" *)
 
 let pair_int =
-  type_expr "pair_int" ~type_:"(A: *) -> Int -> A -> (x: Int, y: A)"
+  type_expr "pair_int" ~type_:"(A: *) -> (fst: Int) -> (snd: A) -> (x: Int, A)"
     ~expr:"pair Int"
 
 let pair_int_int =
-  type_expr "pair_int_int" ~type_:"Int -> Int -> (x: Int, y: Int)"
+  type_expr "pair_int_int" ~type_:"(fst: Int) -> (snd: Int) -> (x: Int, Int)"
     ~expr:"pair Int Int"
 
 let pair_int_int_one =
-  type_expr "pair_int_int_one" ~type_:"Int -> (x: Int, y: Int)"
+  type_expr "pair_int_int_one" ~type_:"(snd: Int) -> (x: Int, Int)"
     ~expr:"pair Int Int one"
 
 let pair_int_int_one_one =
-  type_expr "pair_int_int_one_one" ~type_:"(x: Int, y: Int)"
+  type_expr "pair_int_int_one_one" ~type_:"(x: Int, Int)"
     ~expr:"pair Int Int one one"
 
-(* let exists_a_a =
-   type_expr "exists_a_a" ~type_:"(A: *, x: A)"
-     ~expr:"pack #(A: *, x: A) (A = Int, x = one)" *)
+let exists_a_a =
+  type_expr "exists_a_a" ~type_:"(A : *, A)" ~expr:"(A = Int, one : A)"
 
-let annot_pack =
-  type_expr "annot_pack" ~type_:"(A: *, x: A)"
-    ~expr:"((A = Int, x = one): (A: *, x: A))"
-
-let alias_apply =
-  type_expr "alias_function" ~type_:"Int -> Int"
-    ~expr:"((A := Int) => (x: A) => incr x) Int"
-
-let utils = [ id; sequence; choose; pair (* ;pack *); incr ]
+let utils = [ id; sequence; bool; true_; false_; pair (* ;pack *); incr ]
 
 let tests =
   [
     id;
     sequence;
-    choose;
+    bool;
+    true_;
+    false_;
     incr;
     id_int;
     id_int_one;
-    choose_id;
-    choose_id_id;
-    choose_id_id_id;
-    pair;
+    bool_id;
+    bool_id_id;
+    bool_id_id_id;
+    true_type;
+    true_type_int;
+    true_type_int_id;
+    pred_dependent_type;
+    true_dependent_type;
     (* pack; *)
+    pair;
     pair_int;
     pair_int_int;
     pair_int_int_one;
@@ -107,58 +133,54 @@ let tests =
     (* unpair *)
     left_unpair;
     right_unpair;
-    (* exists_a_a; *)
-    annot_pack;
-    (* alias *)
-    alias_apply;
+    exists_a_a;
   ]
 
 open Smol
 
-let parse_expr expr = Lexer.from_string Parser.expr_opt expr |> Option.get
-let parse_type expr = Lexer.from_string Parser.type_opt expr |> Option.get
+let parse_term term =
+  let term_opt = Slexer.from_string Sparser.term_opt term in
+  Option.get term_opt
 
-let type_expr env expr =
-  let expr = parse_expr expr in
-  let expr = Type_expr.type_expr env expr in
-  let (TE { type_ = expr; desc = _ }) = expr in
-  expr
-
-let type_type env type_ =
-  let type_ = parse_type type_ in
-  let type_ = Transl_type.transl_type env type_ in
-  let (TT { type_; desc = _ }) = type_ in
-  type_
+let type_term env term =
+  let term = parse_term term in
+  let term = Lparser.from_stree term in
+  Typer.type_term env term
 
 let equal_type =
   Alcotest.testable
-    (fun fmt typ -> Type.pp fmt typ)
+    (fun fmt typ -> Term.pp fmt typ)
     (fun a b ->
       let open Machinery in
-      (* TODO: only works because there is no weak var  *)
       try
-        subtype ~expected:a ~received:b;
-        subtype ~expected:b ~received:a;
+        equal ~expected:a ~received:b;
+        equal ~expected:b ~received:a;
         true
       with _ -> false)
 
 let wrapped_env =
   lazy
-    (let open Type in
+    (let open Term in
+    let open Env in
     let var s = Var.create (Name.make s) in
-    let env = Env.empty in
-    let int = var "Int" in
-    let int_type = Type.t_var ~var:int in
-    let env = Env.enter int (t_alias ~type_:int_type) env in
-    let env = Env.enter (var "one") int_type env in
+    let env = empty in
+
+    let env =
+      let int_var = var "Int" in
+      let int = t_var ~var:int_var ~type_:t_type in
+
+      let env = enter int_var int env in
+      let one_var = var "one" in
+      enter one_var (t_var ~var:one_var ~type_:int) env
+    in
 
     List.fold_left
       (fun env { name; type_; expr; wrapper = _ } ->
-        let type_ = type_type env type_ in
-        let expr = type_expr env expr in
+        let type_ = type_term env type_ in
+        let expr = type_term env expr in
 
         let upper_name = String.capitalize_ascii name in
-        let env = Env.enter (var upper_name) (t_alias ~type_) env in
+        let env = Env.enter (var upper_name) type_ env in
         Env.enter (var name) expr env)
       env utils)
 
@@ -167,8 +189,9 @@ let test { name; type_; expr; wrapper } =
     let env = Env.empty in
     let env = if wrapper then Lazy.force wrapped_env else env in
 
-    let type_ = type_type env type_ in
-    let expr = type_expr env expr in
+    let type_ = type_term env type_ in
+    let expr = type_term env expr in
+    let expr = Machinery.typeof expr in
 
     Alcotest.check equal_type "type" type_ expr
   in

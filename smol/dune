@@ -7,8 +7,8 @@
   (pps ppx_deriving.show sedlex.ppx)))
 
 (menhir
- (modules parser)
- (flags --explain))
+ (modules sparser)
+ (flags --dump --explain))
 
 (executable
  (name test)
