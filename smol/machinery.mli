@@ -1,11 +1,14 @@
-open Type
+open Term
 
 exception Var_clash of { expected : Var.t; received : Var.t }
-exception Type_clash of { expected : type_; received : type_ }
-exception Not_a_function of { funct : type_ }
-exception Not_a_wrapped_type of { type_ : type_ }
+exception Type_clash of { expected : term; received : term }
+exception Not_a_function of { lambda : term }
+exception Not_a_pair of { pair : term }
 
-val subtype : expected:type_ -> received:type_ -> unit
-val extract : wrapped:type_ -> type_
-val apply : funct:type_ -> arg:type_ -> type_
-val unpair : pair:type_ -> type_ * type_
+val normalize : term -> term
+val equal : expected:term -> received:term -> unit
+val typeof : term -> term
+val apply : lambda:term -> arg:term -> unit
+val pair : var:Var.t -> left:term -> right:term -> annot:term -> unit
+val unpair : left:Var.t -> pair:term -> term * term
+val annot : value:term -> type_:term -> unit
