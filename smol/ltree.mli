@@ -1,72 +1,40 @@
-type expr = LE of { loc : Location.t; desc : expr_desc }
+type term = private LT of { loc : Location.t; desc : term_desc }
 
-and expr_desc =
-  (* x *)
-  | LE_var of { var : Name.t }
-  (* (x: t) => e *)
-  | LE_lambda of { var : Name.t; param : type_; return : expr }
-  (* (x: k) => e *)
-  | LE_forall of { var : Name.t; return : expr }
-  (* e1 e2 *)
-  | LE_apply of { funct : expr; arg : expr }
-  (* (x = e1, y = e2) *)
-  | LE_pair of { left : bind; right : bind }
-  (* (x: k, y = e) *)
-  | LE_exists of { var : Name.t; right : bind }
-  (* (x; y) = e; e2 *)
-  | LE_unpair of { unpair : unpair; return : expr }
-  (* #t *)
-  | LE_type of { type_ : type_ }
-  (* x = e1; e2 *)
-  | LE_let of { bind : bind; return : expr }
-  (* (e : t) *)
-  | LE_annot of { expr : expr; type_ : type_ }
-
-and unpair =
-  (* (x, y) = e *)
-  | LU of { loc : Location.t; left : Name.t; right : Name.t; value : expr }
-
-and bind = (* x = e *)
-  | LB of { loc : Location.t; var : Name.t; value : expr }
-
-and type_ = LT of { loc : Location.t; desc : type_desc }
-
-and type_desc =
+and term_desc = private
+  (* * *)
+  | LT_type
   (* x *)
   | LT_var of { var : Name.t }
-  (* t -> t *)
-  | LT_arrow of { param : type_; return : type_ }
-  (* (x: k) -> t *)
-  | LT_forall of { var : Name.t; return : type_ }
-  (* (x: t, y: t) *)
-  | LT_pair of { left : type_; right : type_ }
-  (* (x: k, y: t) *)
-  | LT_exists of { var : Name.t; right : type_ }
-  (* =t *)
-  | LT_alias of { type_ : type_ }
+  (* (x: a) -> b *)
+  | LT_arrow of { var : Name.t; param : term; return : term }
+  (* (x: a) => m *)
+  | LT_lambda of { var : Name.t; param : term; return : term }
+  (* (m n) *)
+  | LT_apply of { lambda : term; arg : term }
+  (* (x: a, b) *)
+  | LT_sigma of { var : Name.t; left : term; right : term }
+  (* (x = m, n : a) *)
+  | LT_pair of { var : Name.t; left : term; right : term; annot : term }
+  (* (x, y) = m; n *)
+  | LT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
+  (* x = m; n *)
+  | LT_let of { var : Name.t; value : term; return : term }
+  (* (m : a) *)
+  | LT_annot of { value : term; type_ : term }
+[@@deriving show]
 
-(* expr *)
-val le_var : Location.t -> var:Name.t -> expr
-val le_lambda : Location.t -> var:Name.t -> param:type_ -> return:expr -> expr
-val le_forall : Location.t -> var:Name.t -> return:expr -> expr
-val le_apply : Location.t -> funct:expr -> arg:expr -> expr
-val le_pair : Location.t -> left:bind -> right:bind -> expr
-val le_exists : Location.t -> var:Name.t -> right:bind -> expr
-val le_unpair : Location.t -> unpair:unpair -> return:expr -> expr
-val le_type : Location.t -> type_:type_ -> expr
-val le_let : Location.t -> bind:bind -> return:expr -> expr
-val le_annot : Location.t -> expr:expr -> type_:type_ -> expr
+val lt_type : Location.t -> term
+val lt_var : Location.t -> var:Name.t -> term
+val lt_arrow : Location.t -> var:Name.t -> param:term -> return:term -> term
+val lt_lambda : Location.t -> var:Name.t -> param:term -> return:term -> term
+val lt_apply : Location.t -> lambda:term -> arg:term -> term
+val lt_sigma : Location.t -> var:Name.t -> left:term -> right:term -> term
 
-(* unpair *)
-val lu : Location.t -> left:Name.t -> right:Name.t -> value:expr -> unpair
+val lt_pair :
+  Location.t -> var:Name.t -> left:term -> right:term -> annot:term -> term
 
-(* bind *)
-val lb : Location.t -> var:Name.t -> value:expr -> bind
+val lt_unpair :
+  Location.t -> left:Name.t -> right:Name.t -> pair:term -> return:term -> term
 
-(* type *)
-val lt_var : Location.t -> var:Name.t -> type_
-val lt_arrow : Location.t -> param:type_ -> return:type_ -> type_
-val lt_forall : Location.t -> var:Name.t -> return:type_ -> type_
-val lt_pair : Location.t -> left:type_ -> right:type_ -> type_
-val lt_exists : Location.t -> var:Name.t -> right:type_ -> type_
-val lt_alias : Location.t -> type_:type_ -> type_
+val lt_let : Location.t -> var:Name.t -> value:term -> return:term -> term
+val lt_annot : Location.t -> value:term -> type_:term -> term
