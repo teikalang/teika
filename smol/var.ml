@@ -15,8 +15,14 @@ end
 
 let _ = Id.show
 
-type var = { id : Id.t; name : Name.t } [@@deriving show]
-type t = var [@@deriving show]
+type var = { id : Id.t; name : Name.t }
+type t = var
+
+let pp fmt var =
+  let { id; name } = var in
+  Format.fprintf fmt "\\%a/%a" Name.pp name Id.pp id
+
+let show var = Format.asprintf "%a" pp var
 
 let create name =
   let id = Id.next () in
