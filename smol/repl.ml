@@ -15,27 +15,59 @@ let write_exception buf exn =
 let write_term buf term =
   Eio.Buf_write.string buf (Format.asprintf "%a" Term.pp term)
 
-let check buf line =
-  match Slexer.from_string Sparser.term_opt line with
+let term_of_string string =
+  match Slexer.from_string Sparser.term_opt string with
   | Some term ->
       let env = Env.empty in
       let term = Lparser.from_stree term in
-      let term = Typer.type_term env term in
+      Some (Typer.type_term env term)
+  | None -> None
+
+let check buf line =
+  match term_of_string line with
+  | Some term ->
       let type_ = Machinery.typeof term in
       write_term buf type_
   | None -> ()
 
-let check buf line =
-  (try check buf line with exn -> write_exception buf exn);
-  write_newline buf;
-  write_pending buf
+let reduce buf line =
+  match term_of_string line with
+  | Some term ->
+      let normal = Machinery.normalize term in
+      write_term buf normal
+  | None -> ()
+
+type state = Check | Reduce
+
+let run state buf line =
+  match state with Check -> check buf line | Reduce -> reduce buf line
+
+let run state buf line =
+  try run state buf line with exn -> write_exception buf exn
+
+let command state buf line =
+  let state =
+    match line with
+    | ".check" -> Check
+    | ".reduce" -> Reduce
+    | _ ->
+        run state buf line;
+        write_newline buf;
+        state
+  in
+  write_pending buf;
+  state
 
 let repl read_buf write_buf =
   write_welcome write_buf;
   write_newline write_buf;
   write_pending write_buf;
   let lines = Eio.Buf_read.lines read_buf in
-  Seq.iter (fun line -> check write_buf line) lines
+  let initial = Check in
+  let _state =
+    Seq.fold_left (fun state line -> command state write_buf line) initial lines
+  in
+  ()
 
 let main () =
   Eio_main.run @@ fun env ->
