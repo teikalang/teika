@@ -14,7 +14,7 @@
           (import ./nix/overlay.nix)
         ];
       }).extend (self: super: {
-        ocamlPackages = super.ocaml-ng.ocamlPackages_4_14;
+        ocamlPackages = super.ocaml-ng.ocamlPackages_5_00;
       }); in
       let teika = pkgs.callPackage ./nix { doCheck = true; }; in
       rec {
