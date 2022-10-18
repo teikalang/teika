@@ -1,8 +1,6 @@
 type term = private LT of { loc : Location.t; desc : term_desc }
 
 and term_desc = private
-  (* * *)
-  | LT_type
   (* x *)
   | LT_var of { var : Name.t }
   (* (x: a) -> b *)
@@ -23,7 +21,6 @@ and term_desc = private
   | LT_annot of { value : term; type_ : term }
 [@@deriving show]
 
-val lt_type : Location.t -> term
 val lt_var : Location.t -> var:Name.t -> term
 val lt_arrow : Location.t -> var:Name.t -> param:term -> return:term -> term
 val lt_lambda : Location.t -> var:Name.t -> param:term -> return:term -> term

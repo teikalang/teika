@@ -1,7 +1,6 @@
 type term = private ST of { loc : Location.t; desc : term_desc }
 
 and term_desc = private
-  | ST_type
   | ST_var of { var : Name.t }
   | ST_arrow of { param : term; return : term }
   | ST_lambda of { param : term; return : term }
@@ -12,7 +11,6 @@ and term_desc = private
   | ST_annot of { value : term; type_ : term }
 [@@deriving show]
 
-val st_type : Location.t -> term
 val st_var : Location.t -> var:Name.t -> term
 val st_arrow : Location.t -> param:term -> return:term -> term
 val st_lambda : Location.t -> param:term -> return:term -> term

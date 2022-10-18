@@ -18,7 +18,7 @@ let write_term buf term =
 let term_of_string string =
   match Slexer.from_string Sparser.term_opt string with
   | Some term ->
-      let env = Env.empty in
+      let env = Env.initial in
       let term = Lparser.from_stree term in
       Some (Typer.type_term env term)
   | None -> None

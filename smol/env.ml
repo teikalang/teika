@@ -5,8 +5,6 @@ exception Unbound_variable of { var : Name.t }
 type env = Term.t Name_map.t
 type t = env
 
-let empty = Name_map.empty
-
 let enter var type_ env =
   let name = Var.name var in
   let env = Name_map.add name type_ env in
@@ -16,3 +14,7 @@ let lookup name env =
   match Name_map.find_opt name env with
   | Some type_ -> type_
   | None -> raise (Unbound_variable { var = name })
+
+let initial =
+  let env = Name_map.empty in
+  enter Var.type_ Term.t_type env

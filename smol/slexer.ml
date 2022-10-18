@@ -16,7 +16,6 @@ let rec tokenizer buf =
   | "," -> COMMA
   | ":" -> COLON
   | ";" -> SEMICOLON
-  | "*" -> ASTERISK
   | "(" -> LEFT_PARENS
   | ")" -> RIGHT_PARENS
   | eof -> EOF
