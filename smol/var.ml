@@ -41,3 +41,7 @@ let compare a b =
 let name var =
   let { id = _; name } = var in
   name
+
+let type_ =
+  let name = Name.make "Type" in
+  create name

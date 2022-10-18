@@ -12,7 +12,6 @@ let rec type_term env term =
   (* TODO: use location *)
   let (LT { loc = _; desc = term }) = term in
   match term with
-  | LT_type -> t_type
   | LT_var { var } -> lookup var env
   | LT_arrow { var; param; return } ->
       let var = Var.create var in

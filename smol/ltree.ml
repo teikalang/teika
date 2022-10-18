@@ -1,7 +1,6 @@
 type term = LT of { loc : Location.t; [@opaque] desc : term_desc }
 
 and term_desc =
-  | LT_type
   | LT_var of { var : Name.t }
   | LT_arrow of { var : Name.t; param : term; return : term }
   | LT_lambda of { var : Name.t; param : term; return : term }
@@ -14,7 +13,6 @@ and term_desc =
 [@@deriving show { with_path = false }]
 
 let lt loc desc = LT { loc; desc }
-let lt_type loc = lt loc LT_type
 let lt_var loc ~var = lt loc (LT_var { var })
 let lt_arrow loc ~var ~param ~return = lt loc (LT_arrow { var; param; return })
 

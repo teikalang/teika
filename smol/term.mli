@@ -1,5 +1,5 @@
 type term = private
-  | T_type
+  | T_type of { var : Var.t }
   | T_var of { var : Var.t; type_ : term }
   | T_arrow of { var : Var.t; param : term; return : term }
   | T_lambda of { var : Var.t; param : term; return : term }

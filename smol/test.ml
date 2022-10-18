@@ -4,25 +4,25 @@ let type_expr ?(wrapper = true) name ~type_ ~expr =
   { name; expr; type_; wrapper }
 
 let id =
-  type_expr "id" ~wrapper:false ~type_:"(A: *) -> (x: A) -> A"
-    ~expr:"(A: *) => (x: A) => x"
+  type_expr "id" ~wrapper:false ~type_:"(A: Type) -> (x: A) -> A"
+    ~expr:"(A: Type) => (x: A) => x"
 
 let sequence =
   type_expr "sequence" ~wrapper:false
-    ~type_:"(A: *) -> (x: A) -> (B: *) -> (y: B) -> B"
-    ~expr:"(A: *) => (x: A) => (B: *) => (y: B) => y"
+    ~type_:"(A: Type) -> (x: A) -> (B: Type) -> (y: B) -> B"
+    ~expr:"(A: Type) => (x: A) => (B: Type) => (y: B) => y"
 
 let bool =
-  type_expr "bool" ~wrapper:false ~type_:"(A: *) -> (x: A) -> (y: A) -> A"
-    ~expr:"(A: *) => (x: A) => (y: A) => x"
+  type_expr "bool" ~wrapper:false ~type_:"(A: Type) -> (x: A) -> (y: A) -> A"
+    ~expr:"(A: Type) => (x: A) => (y: A) => x"
 
 let true_ =
-  type_expr "true" ~wrapper:false ~type_:"(A: *) -> (x: A) -> (y: A) -> A"
-    ~expr:"(A: *) => (x: A) => (y: A) => x"
+  type_expr "true" ~wrapper:false ~type_:"(A: Type) -> (x: A) -> (y: A) -> A"
+    ~expr:"(A: Type) => (x: A) => (y: A) => x"
 
 let false_ =
-  type_expr "false" ~wrapper:false ~type_:"(A: *) -> (x: A) -> (y: A) -> A"
-    ~expr:"(A: *) => (x: A) => (y: A) => y"
+  type_expr "false" ~wrapper:false ~type_:"(A: Type) -> (x: A) -> (y: A) -> A"
+    ~expr:"(A: Type) => (x: A) => (y: A) => y"
 
 let incr = type_expr "incr" ~type_:"(x: Int) -> Int" ~expr:"(x: Int) => x"
 let id_int = type_expr "id_int" ~type_:"(x: Int) -> Int" ~expr:"id Int"
@@ -37,33 +37,34 @@ let bool_id_id =
 let bool_id_id_id = type_expr "bool_id_id_id" ~type_:"Id" ~expr:"bool Id id id"
 
 let true_type =
-  type_expr "true_type" ~type_:"(x: *) -> (y: *) -> *" ~expr:"true *"
+  type_expr "true_type" ~type_:"(x: Type) -> (y: Type) -> Type"
+    ~expr:"true Type"
 
 let true_type_int =
-  type_expr "true_type_int" ~type_:"(y: *) -> *" ~expr:"true * Int"
+  type_expr "true_type_int" ~type_:"(y: Type) -> Type" ~expr:"true Type Int"
 
 let true_type_int_id =
-  type_expr "true_type_int_id" ~type_:"*" ~expr:"true * Int Id"
+  type_expr "true_type_int_id" ~type_:"Type" ~expr:"true Type Int Id"
 
 let pred_dependent_type =
   type_expr "pred_dependent_type"
-    ~type_:"(pred: Bool) -> (x: pred * Int Id) -> pred * Int Id"
-    ~expr:"(pred: Bool) => (x: pred * Int Id) => x"
+    ~type_:"(pred: Bool) -> (x: pred Type Int Id) -> pred Type Int Id"
+    ~expr:"(pred: Bool) => (x: pred Type Int Id) => x"
 
 let true_dependent_type =
   type_expr "true_dependent_type" ~type_:"(x: Int) -> Int"
-    ~expr:"((pred: Bool) => (x: pred * Int Id) => x) true"
+    ~expr:"((pred: Bool) => (x: pred Type Int Id) => x) true"
 
 let pair =
   type_expr "pair" ~wrapper:false
-    ~type_:"(A: *) -> (B: *) -> (x: A) -> (y: B) -> (x: A, B)"
-    ~expr:"(A: *) => (B: *) => (x: A) => (y: B) => (x = x, y : B)"
+    ~type_:"(A: Type) -> (B: Type) -> (x: A) -> (y: B) -> (x: A, B)"
+    ~expr:"(A: Type) => (B: Type) => (x: A) => (y: B) => (x = x, y : B)"
 
 let left_unpair =
   type_expr "left_unpair" ~wrapper:false
-    ~type_:"(A: *) -> (B: *) -> (x: A) -> (y: B) -> A"
+    ~type_:"(A: Type) -> (B: Type) -> (x: A) -> (y: B) -> A"
     ~expr:
-      {|(A: *) => (B: *) => (x: A) => (y: B) => (
+      {|(A: Type) => (B: Type) => (x: A) => (y: B) => (
           p = (x = x, y : B);
           (y, x) = p;
           y
@@ -71,9 +72,9 @@ let left_unpair =
 
 let right_unpair =
   type_expr "right_unpair" ~wrapper:false
-    ~type_:"(A: *) -> (B: *) -> (x: A) -> (y: B) -> B"
+    ~type_:"(A: Type) -> (B: Type) -> (x: A) -> (y: B) -> B"
     ~expr:
-      {|(A: *) => (B: *) => (x: A) => (y: B) => (
+      {|(A: Type) => (B: Type) => (x: A) => (y: B) => (
           p = (x = x, y : B);
           (y, x) = p;
           x
@@ -82,12 +83,12 @@ let right_unpair =
 (* TODO: something like pack *)
 (* let pack =
    type_expr "pack" ~wrapper:false
-     ~type_:"(R: *) -> (A: *, r: R) -> (A: *, r: R)"
-     ~expr:"(R: *) => (p: (A: *, x: R)) => p" *)
+     ~type_:"(R: Type) -> (A: Type, r: R) -> (A: Type, r: R)"
+     ~expr:"(R: Type) => (p: (A: Type, x: R)) => p" *)
 
 let pair_int =
-  type_expr "pair_int" ~type_:"(A: *) -> (fst: Int) -> (snd: A) -> (x: Int, A)"
-    ~expr:"pair Int"
+  type_expr "pair_int"
+    ~type_:"(A: Type) -> (fst: Int) -> (snd: A) -> (x: Int, A)" ~expr:"pair Int"
 
 let pair_int_int =
   type_expr "pair_int_int" ~type_:"(fst: Int) -> (snd: Int) -> (x: Int, Int)"
@@ -102,7 +103,7 @@ let pair_int_int_one_one =
     ~expr:"pair Int Int one one"
 
 let exists_a_a =
-  type_expr "exists_a_a" ~type_:"(A : *, A)" ~expr:"(A = Int, one : A)"
+  type_expr "exists_a_a" ~type_:"(A : Type, A)" ~expr:"(A = Int, one : A)"
 
 let utils = [ id; sequence; bool; true_; false_; pair (* ;pack *); incr ]
 
@@ -163,7 +164,7 @@ let wrapped_env =
     (let open Term in
     let open Env in
     let var s = Var.create (Name.make s) in
-    let env = empty in
+    let env = initial in
 
     let env =
       let int_var = var "Int" in
@@ -186,7 +187,7 @@ let wrapped_env =
 
 let test { name; type_; expr; wrapper } =
   let check () =
-    let env = Env.empty in
+    let env = Env.initial in
     let env = if wrapper then Lazy.force wrapped_env else env in
 
     let type_ = type_term env type_ in

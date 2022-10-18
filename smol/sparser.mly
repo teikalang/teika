@@ -12,7 +12,6 @@ let mk (loc_start, loc_end) =
 %token COMMA (* , *)
 %token COLON (* : *)
 %token SEMICOLON (* ; *)
-%token ASTERISK (* * *)
 %token LEFT_PARENS (* ( *)
 %token RIGHT_PARENS (* ) *)
 
@@ -50,7 +49,6 @@ let term_rec_apply :=
   | term_apply(term_rec_apply, term_atom)
 
 let term_atom :=
-  | term_type
   | term_var
   | term_parens(term_parens_maybe_pair)
 
@@ -62,9 +60,6 @@ let term_parens_maybe_annot :=
   | term
   | term_annot(term_parens_maybe_annot, term)
 
-let term_type ==
-  | ASTERISK;
-    { st_type (mk $loc) }
 let term_var ==
   | var = VAR;
     { st_var (mk $loc) ~var:(Name.make var) }

@@ -1,5 +1,5 @@
 type term =
-  | T_type
+  | T_type of { var : Var.t }
   | T_var of { var : Var.t; type_ : term }
   | T_arrow of { var : Var.t; param : term; return : term }
   | T_lambda of { var : Var.t; param : term; return : term }
@@ -11,7 +11,10 @@ type term =
 
 type t = term [@@deriving show]
 
-let t_type = T_type
+let t_type =
+  let var = Var.type_ in
+  T_type { var }
+
 let t_var ~var ~type_ = T_var { var; type_ }
 let t_arrow ~var ~param ~return = T_arrow { var; param; return }
 let t_lambda ~var ~param ~return = T_lambda { var; param; return }

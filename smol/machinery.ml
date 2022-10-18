@@ -8,7 +8,7 @@ exception Not_a_pair of { pair : term }
 let rec subst ~from ~to_ term =
   let subst term = subst ~from ~to_ term in
   match term with
-  | T_type -> t_type
+  | T_type { var = _ } -> t_type
   | T_var { var; type_ } -> (
       let type_ = subst type_ in
       match Var.equal var from with
@@ -62,7 +62,7 @@ let expand ~from ~to_ term =
 
 let rec normalize term =
   match term with
-  | T_type -> t_type
+  | T_type { var = _ } -> t_type
   | T_var { var; type_ } ->
       let type_ = normalize type_ in
       t_var ~var ~type_
@@ -102,7 +102,7 @@ let rec normalize term =
 
 let rec equal ~expected ~received =
   match (expected, received) with
-  | T_type, T_type -> ()
+  | T_type { var = expected }, T_type { var = received }
   | T_var { var = expected; type_ = _ }, T_var { var = received; type_ = _ } ->
       if Var.equal expected received then ()
       else raise (Var_clash { expected; received })
@@ -173,9 +173,9 @@ let rec equal ~expected ~received =
         rename ~from:received_right ~to_:expected_right received_return
       in
       equal ~expected:expected_return ~received:received_return
-  | ( ( T_type | T_var _ | T_arrow _ | T_lambda _ | T_apply _ | T_sigma _
+  | ( ( T_type _ | T_var _ | T_arrow _ | T_lambda _ | T_apply _ | T_sigma _
       | T_pair _ | T_unpair _ ),
-      ( T_type | T_var _ | T_arrow _ | T_lambda _ | T_apply _ | T_sigma _
+      ( T_type _ | T_var _ | T_arrow _ | T_lambda _ | T_apply _ | T_sigma _
       | T_pair _ | T_unpair _ ) ) ->
       raise (Type_clash { expected; received })
 
@@ -186,7 +186,7 @@ let equal ~expected ~received =
 
 let rec typeof term =
   match term with
-  | T_type -> t_type
+  | T_type { var = _ } -> t_type
   | T_var { var = _; type_ } -> type_
   | T_arrow { var = _; param = _; return = _ } -> t_type
   | T_lambda { var; param; return } ->
