@@ -45,3 +45,7 @@ let name var =
 let type_ =
   let name = Name.make "Type" in
   create name
+
+let debug =
+  let name = Name.make "debug" in
+  create name

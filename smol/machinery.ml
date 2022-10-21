@@ -80,6 +80,10 @@ let rec normalize term =
       | T_lambda { var; param = _; return } ->
           let return = expand ~from:var ~to_:arg return in
           normalize return
+      (* TODO: primitives *)
+      | T_var { var; type_ = _ } when Var.(equal var debug) ->
+          Format.eprintf "debug: %a\n%!" Term.pp arg;
+          arg
       | lambda -> t_apply ~lambda ~arg)
   | T_sigma { var; left; right } ->
       let left = normalize left in
