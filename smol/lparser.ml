@@ -10,22 +10,23 @@ let extract_var term =
   let (ST { loc; desc }) = term in
   match desc with
   | ST_var { var } -> var
-  | ST_arrow _ | ST_lambda _ | ST_apply _ | ST_pair _ | ST_bind _ | ST_semi _
-  | ST_annot _ ->
+  | ST_literal _ | ST_arrow _ | ST_lambda _ | ST_apply _ | ST_pair _ | ST_bind _
+  | ST_semi _ | ST_annot _ ->
       invalid_notation loc
 
 let extract_annot param =
   let (ST { loc; desc }) = param in
   match desc with
   | ST_annot { value; type_ = param } -> (value, param)
-  | ST_var _ | ST_arrow _ | ST_lambda _ | ST_apply _ | ST_pair _ | ST_bind _
-  | ST_semi _ ->
+  | ST_var _ | ST_literal _ | ST_arrow _ | ST_lambda _ | ST_apply _ | ST_pair _
+  | ST_bind _ | ST_semi _ ->
       invalid_notation loc
 
 let rec from_stree term =
   let (ST { loc; desc }) = term in
   match desc with
   | ST_var { var } -> lt_var loc ~var
+  | ST_literal { literal } -> lt_literal loc ~literal
   | ST_arrow { param; return } ->
       let var, param = extract_annot param in
       let var = extract_var var in
@@ -57,8 +58,8 @@ let rec from_stree term =
           let left = from_stree left in
           let right = from_stree right in
           lt_sigma loc ~var ~left ~right
-      | ST_var _ | ST_arrow _ | ST_lambda _ | ST_apply _ | ST_pair _ | ST_semi _
-        ->
+      | ST_var _ | ST_literal _ | ST_arrow _ | ST_lambda _ | ST_apply _
+      | ST_pair _ | ST_semi _ ->
           invalid_notation loc)
   | ST_bind _ ->
       Format.eprintf "%a" Stree.pp_term term;
@@ -68,8 +69,8 @@ let rec from_stree term =
         let (ST { loc; desc }) = left in
         match desc with
         | ST_bind { bound; value } -> (bound, value)
-        | ST_var _ | ST_arrow _ | ST_lambda _ | ST_apply _ | ST_pair _
-        | ST_semi _ | ST_annot _ ->
+        | ST_var _ | ST_literal _ | ST_arrow _ | ST_lambda _ | ST_apply _
+        | ST_pair _ | ST_semi _ | ST_annot _ ->
             invalid_notation loc
       in
       let return = from_stree right in
@@ -83,8 +84,8 @@ let rec from_stree term =
           let right = extract_var right in
           let pair = from_stree value in
           lt_unpair loc ~left ~right ~pair ~return
-      | ST_arrow _ | ST_lambda _ | ST_apply _ | ST_semi _ | ST_bind _
-      | ST_annot _ ->
+      | ST_literal _ | ST_arrow _ | ST_lambda _ | ST_apply _ | ST_semi _
+      | ST_bind _ | ST_annot _ ->
           invalid_notation loc)
   | ST_annot { value; type_ } ->
       let value = from_stree value in

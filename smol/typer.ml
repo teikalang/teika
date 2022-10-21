@@ -13,6 +13,7 @@ let rec type_term env term =
   let (LT { loc = _; desc = term }) = term in
   match term with
   | LT_var { var } -> lookup var env
+  | LT_literal { literal } -> t_literal ~literal
   | LT_arrow { var; param; return } ->
       let var = Var.create var in
       let param = type_term env param in

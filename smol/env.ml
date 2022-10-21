@@ -18,8 +18,8 @@ let lookup name env =
 let initial =
   let open Term in
   let env = Name_map.empty in
-  let env = enter Var.type_ Term.t_type env in
-
+  let env = enter Var.type_ t_type env in
+  let env = enter Var.string t_string env in
   let debug_type =
     (* debug : (M : (A : Type, A)) -> ((A, _) = M; A) *)
     let var = Var.create (Name.make "M") in

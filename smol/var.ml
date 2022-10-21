@@ -42,10 +42,10 @@ let name var =
   let { id = _; name } = var in
   name
 
-let type_ =
-  let name = Name.make "Type" in
+let predef name =
+  let name = Name.make name in
   create name
 
-let debug =
-  let name = Name.make "debug" in
-  create name
+let type_ = predef "Type"
+let string = predef "String"
+let debug = predef "debug"
