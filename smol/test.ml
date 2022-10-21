@@ -105,6 +105,18 @@ let pair_int_int_one_one =
 let exists_a_a =
   type_expr "exists_a_a" ~type_:"(A : Type, A)" ~expr:"(A = Int, one : A)"
 
+let transparent_functor =
+  type_expr "transparent_functor" ~type_:"(A : Type, Int)"
+    ~expr:
+      {|
+        x = (
+          F = (M : (A : Type, A)) => M;
+          (A, x) = F (A = Int, one : A);
+          x
+        );
+        (A = Int, x : Int)
+      |}
+
 let utils = [ id; sequence; bool; true_; false_; pair (* ;pack *); incr ]
 
 let tests =
@@ -135,6 +147,7 @@ let tests =
     left_unpair;
     right_unpair;
     exists_a_a;
+    transparent_functor;
   ]
 
 open Smol
