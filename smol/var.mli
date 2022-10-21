@@ -9,3 +9,6 @@ val name : var -> Name.t
 (* predefined *)
 (* Type *)
 val type_ : var
+
+(* debug *)
+val debug : var
