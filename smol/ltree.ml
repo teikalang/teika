@@ -2,6 +2,7 @@ type term = LT of { loc : Location.t; [@opaque] desc : term_desc }
 
 and term_desc =
   | LT_var of { var : Name.t }
+  | LT_literal of { literal : Literal.t }
   | LT_arrow of { var : Name.t; param : term; return : term }
   | LT_lambda of { var : Name.t; param : term; return : term }
   | LT_apply of { lambda : term; arg : term }
@@ -14,6 +15,7 @@ and term_desc =
 
 let lt loc desc = LT { loc; desc }
 let lt_var loc ~var = lt loc (LT_var { var })
+let lt_literal loc ~literal = lt loc (LT_literal { literal })
 let lt_arrow loc ~var ~param ~return = lt loc (LT_arrow { var; param; return })
 
 let lt_lambda loc ~var ~param ~return =

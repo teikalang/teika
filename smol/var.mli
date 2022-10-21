@@ -10,5 +10,8 @@ val name : var -> Name.t
 (* Type *)
 val type_ : var
 
+(* String *)
+val string : var
+
 (* debug *)
 val debug : var

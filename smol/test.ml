@@ -117,6 +117,7 @@ let transparent_functor =
         (A = Int, x : Int)
       |}
 
+let hello = type_expr "hello" ~type_:"String" ~expr:{|"hello"|}
 let utils = [ id; sequence; bool; true_; false_; pair (* ;pack *); incr ]
 
 let tests =
@@ -148,6 +149,8 @@ let tests =
     right_unpair;
     exists_a_a;
     transparent_functor;
+    (* literal *)
+    hello;
   ]
 
 open Smol

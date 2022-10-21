@@ -2,6 +2,7 @@ open Term
 
 exception Var_clash of { expected : Var.t; received : Var.t }
 exception Type_clash of { expected : term; received : term }
+exception Literal_clash of { expected : Literal.t; received : Literal.t }
 exception Not_a_function of { lambda : term }
 exception Not_a_pair of { pair : term }
 
@@ -14,6 +15,7 @@ let rec subst ~from ~to_ term =
       match Var.equal var from with
       | true -> to_ ~type_
       | false -> t_var ~var ~type_)
+  | T_literal { literal } -> t_literal ~literal
   | T_arrow { var; param; return } ->
       let param = subst param in
       let return =
@@ -66,6 +68,7 @@ let rec normalize term =
   | T_var { var; type_ } ->
       let type_ = normalize type_ in
       t_var ~var ~type_
+  | T_literal { literal } -> t_literal ~literal
   | T_arrow { var; param; return } ->
       let param = normalize param in
       let return = normalize return in
@@ -109,6 +112,9 @@ let rec equal ~expected ~received =
   | T_var { var = expected; type_ = _ }, T_var { var = received; type_ = _ } ->
       if Var.equal expected received then ()
       else raise (Var_clash { expected; received })
+  | T_literal { literal = expected }, T_literal { literal = received } ->
+      if Literal.equal expected received then ()
+      else raise (Literal_clash { expected; received })
   | ( T_arrow
         { var = expected_var; param = expected_param; return = expected_return },
       T_arrow
@@ -176,10 +182,10 @@ let rec equal ~expected ~received =
         rename ~from:received_right ~to_:expected_right received_return
       in
       equal ~expected:expected_return ~received:received_return
-  | ( ( T_type _ | T_var _ | T_arrow _ | T_lambda _ | T_apply _ | T_sigma _
-      | T_pair _ | T_unpair _ ),
-      ( T_type _ | T_var _ | T_arrow _ | T_lambda _ | T_apply _ | T_sigma _
-      | T_pair _ | T_unpair _ ) ) ->
+  | ( ( T_type _ | T_var _ | T_literal _ | T_arrow _ | T_lambda _ | T_apply _
+      | T_sigma _ | T_pair _ | T_unpair _ ),
+      ( T_type _ | T_var _ | T_literal _ | T_arrow _ | T_lambda _ | T_apply _
+      | T_sigma _ | T_pair _ | T_unpair _ ) ) ->
       raise (Type_clash { expected; received })
 
 let equal ~expected ~received =
@@ -191,6 +197,7 @@ let rec typeof term =
   match term with
   | T_type { var = _ } -> t_type
   | T_var { var = _; type_ } -> type_
+  | T_literal { literal } -> ( match literal with L_string _ -> t_string)
   | T_arrow { var = _; param = _; return = _ } -> t_type
   | T_lambda { var; param; return } ->
       let return = typeof return in

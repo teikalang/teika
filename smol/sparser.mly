@@ -6,6 +6,7 @@ let mk (loc_start, loc_end) =
 
 %}
 %token <string> VAR (* x *)
+%token <string> STRING (* "string" *)
 %token ARROW (* -> *)
 %token FAT_ARROW (* => *)
 %token EQUAL (* = *)
@@ -50,6 +51,7 @@ let term_rec_apply :=
 
 let term_atom :=
   | term_var
+  | term_string
   | term_parens(term_parens_maybe_pair)
 
 let term_parens_maybe_pair :=
@@ -63,6 +65,9 @@ let term_parens_maybe_annot :=
 let term_var ==
   | var = VAR;
     { st_var (mk $loc) ~var:(Name.make var) }
+let term_string ==
+  | string = STRING;
+    { st_string (mk $loc) ~string }
 let term_arrow(self, lower) ==
   | param = lower; ARROW; return = self;
     { st_arrow (mk $loc) ~param ~return }

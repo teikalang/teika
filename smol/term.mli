@@ -1,6 +1,7 @@
 type term = private
   | T_type of { var : Var.t }
   | T_var of { var : Var.t; type_ : term }
+  | T_literal of { literal : Literal.t }
   | T_arrow of { var : Var.t; param : term; return : term }
   | T_lambda of { var : Var.t; param : term; return : term }
   | T_apply of { lambda : term; arg : term }
@@ -12,6 +13,8 @@ type t = term [@@deriving show]
 
 val t_type : term
 val t_var : var:Var.t -> type_:term -> term
+val t_string : term
+val t_literal : literal:Literal.t -> term
 val t_arrow : var:Var.t -> param:term -> return:term -> term
 val t_lambda : var:Var.t -> param:term -> return:term -> term
 val t_apply : lambda:term -> arg:term -> term

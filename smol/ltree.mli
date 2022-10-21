@@ -3,6 +3,8 @@ type term = private LT of { loc : Location.t; desc : term_desc }
 and term_desc = private
   (* x *)
   | LT_var of { var : Name.t }
+  (* "string" *)
+  | LT_literal of { literal : Literal.t }
   (* (x: a) -> b *)
   | LT_arrow of { var : Name.t; param : term; return : term }
   (* (x: a) => m *)
@@ -22,6 +24,7 @@ and term_desc = private
 [@@deriving show]
 
 val lt_var : Location.t -> var:Name.t -> term
+val lt_literal : Location.t -> literal:Literal.t -> term
 val lt_arrow : Location.t -> var:Name.t -> param:term -> return:term -> term
 val lt_lambda : Location.t -> var:Name.t -> param:term -> return:term -> term
 val lt_apply : Location.t -> lambda:term -> arg:term -> term
