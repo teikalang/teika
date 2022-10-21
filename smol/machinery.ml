@@ -72,7 +72,6 @@ let rec normalize term =
       t_arrow ~var ~param ~return
   | T_lambda { var; param; return } ->
       let param = normalize param in
-      let return = normalize return in
       t_lambda ~var ~param ~return
   | T_apply { lambda; arg } -> (
       let lambda = normalize lambda in
