@@ -36,11 +36,14 @@ let rec pp fmt term =
   | T_lambda { var; param; return } ->
       fprintf fmt "(%a : %a) => %a" var_pp var pp param pp return
   | T_apply { lambda; arg } -> (
-      match lambda with
+      (match lambda with
       | T_type _ | T_var _ | T_sigma _ | T_pair _ | T_apply _ ->
-          fprintf fmt "%a %a" pp lambda pp arg
-      | T_arrow _ | T_lambda _ | T_unpair _ ->
-          fprintf fmt "(%a) %a" pp lambda pp arg)
+          fprintf fmt "%a" pp lambda
+      | T_arrow _ | T_lambda _ | T_unpair _ -> fprintf fmt "(%a)" pp lambda);
+      match arg with
+      | T_type _ | T_var _ | T_sigma _ | T_pair _ -> fprintf fmt " %a" pp arg
+      | T_arrow _ | T_lambda _ | T_apply _ | T_unpair _ ->
+          fprintf fmt " (%a)" pp arg)
   | T_sigma { var; left; right } ->
       fprintf fmt "(%a : %a, %a)" var_pp var pp left pp right
   | T_pair { var; left; right; annot } ->
