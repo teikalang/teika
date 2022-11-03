@@ -4,181 +4,188 @@ This document intends to describe the Teika Language. Which refers to all the fe
 
 ## Goals
 
-Those are the current goals and they should be treated as temporary solution to viabilize an initial implementation.
+Those are the current goals in order of importance and they may change.
 
-1. Soundness should provide confidence
-2. Predictability is helpful to everyone
-3. HM inference as most code is simple
-4. System F-omega power means consistency
-5. Decidability as no one likes typer stack overflow
+1. Soundness, type preservation
+2. Convenience, inference and effects
+3. Uniformity, calculus of construction
+4. Logical consistency, predicativity
+5. Decidability, subtyping
 
 ## Warning
 
-This document was written by me(@EduardoRFS) and I'm not proficient in type theory, so mistakes and changes are very likely to happen with time.
+This document was written by me(@EduardoRFS) and I'm not proficient in type theory, so mistakes and changes are very likely to happen here.
 
-## Core Teika
+## Smol
 
-This is the canonical language and should contain all the power on Teika after, everything else should be describable in terms of the following features.
+This is the canonical language and should contain all the theoritical power on Teika, everything else should be describable in terms of the following features.
 
 ```rust
-// abstraction
-((x: Nat) => x + 1);
-(Nat -> Nat);
+// Type in Type
+(Type : Type);
 
-// polymorphism
-((A: *) => (x: A) => x);
-((A: *) -> A -> A);
+// variable
+(A);
 
-// higher kinds
-((T: * -> *) => (x: T Nat) => x);
-((T: * -> *) -> T Nat -> T Nat);
-
-// application
+// forall
+((A : Type) -> (x : A) -> A);
+// lambda
+((A : Type) => (x : A) => x);
+// apply
 (id Nat 1);
 
-// classical record
-({ x = 1; y = "a"; });
-(({ x; y; }) => x + y);
+// exists
+(A : Type, A);
+// pair
+(A = Nat, 1 : A);
+// split
+((A, x) = p; x);
 
-// existential record
-({ A = Nat; x: A = 1; });
-(({ A: *; x: A; }) => x);
+// equal
+Equal : (A : Type) -> (B : Type) -> Type;
+// refl
+Refl : (A : Type) -> Equal A A;
+// subst
+Subst :
+  (P : Type -> Type) ->
+  (A : Type) ->
+  (B : Type) ->
+  (A_eq_B : Equal A B) ->
+  (P_A : P A) ->
+  P B;
 ```
 
-### Abstraction
+### Forall, Lambda and Apply
 
-This is term abstraction, those are classical functions, functions where the expected parameter is a term, those are your work horse, the majority of your code should be about declaring and calling those.
+This is abstraction and can be seen as universal quantification. Those are functions, they're your work horse, the majority of your code will likely be about declaring and calling those.
+
+#### Forall
+
+The forall is the description of a function, it describes the type of the paramater and the type of the return, the return may depend on the type such as in polymorphic functions and dependent functions. Those are values.
 
 ```rust
-add: Nat -> Nat -> Nat;
-print: String -> ();
+/* forall syntax */
+((A : T) -> A);
+
+/* rule */
+A : Type  B : Type
+------------------
+  (x : A) -> B
 ```
 
-### Polymorphism
+#### Lambda
 
-Abstract over types, they're also called generics, functions where the expected parameter is a type, those allows your code to be more general and work across a large number of types.
-
-Extends the computational power of the pure language, with this you can already start describing things like numbers directly on the language without any extension.
+The lambda is the way to introduce a function, the type of a lambda will always be a forall. The body may dependend on the parameter. Those are values.
 
 ```rust
-id: (A: *) -> A -> A;
-map: (A: *) -> (B: *) -> (A -> B) -> [A] -> [B];
+/* lambda syntax */
+((A : Type) => A);
+
+/* rule */
+           b : B
+---------------------------
+(x : A) => b : (x : A) -> B
 ```
 
-### Higher Kinds
+#### Apply
 
-Allows your abstractions to hide type functions, while still exponsing the fact that it is a type function. This is mostly a feature for advanced use cases.
-
-Extends the computational power of the pure language even further, likely as powerful computationally as the core calculus gets.
+This is the source of computing, the left side is anything of an arrow type and the right side must have the same type of the paramater expected by the lambda.
 
 ```rust
-Monad = {
-  Monad: * -> *;
-  return: (A: *) -> A -> Monad A;
-  bind: (A: *) -> (B: *) -> Monad A -> (A -> Monad B) -> Monad B;
-};
+/* apply syntax */
+(lambda argument);
+
+/* rule */
+l : (x : A) -> B  a : A
+-----------------------
+      l a : B
 ```
 
-### Application
+### Exists, Pair and Split
 
-This is how abstractions can be eliminated, aka how to call functions. It doesn't discriminate between parameters that are terms or types.
+This is allows pairing and can be seen as existential quantification. Those are pairs, they're the fundamental way to pack data together, all of your modules can be represented using those.
+
+#### Exists
+
+This is the description of pairs, it describes the type of the left value and the type of the right value, the type of the right value may depend on the left value. Those are values.
 
 ```rust
-id Nat 1;
-map Nat String Nat.to_string [1];
+/* exists syntax */
+(A : Type, A);
+
+/* rule */
+A : Type  B : Type
+------------------
+   (x : A, B)
 ```
 
-### Classical Records
+#### Pair
 
-Those are also called "structs", they're the canonical way to pack data together and are expected to be used on a daily basis.
-
-In Core Teika they offer subtyping, they're technically an existential record where the quantifier is empty.
+This is how you introduce a pair, the type of a pair will always be an exists. The type of the right side may depend on the left side, but the value itself cannot depended on the left side. Those are values.
 
 ```rust
-User = {
-  id: Nat;
-  name: String;
-};
-eduardo = { id = 0; name = "Eduardo"; };
+/* pair syntax */
+(A = Nat, 1 : A)
+
+/* rule */
+      l : A   R : B
+---------------------------
+(x = l, r : B) : (x : A, B)
 ```
 
-### Existential Record
+#### Split
 
-Those are also called "modules" they are records where some of the types were abstracted away, those should be your first tool to make implementation details go away.
-
-Technically, they're weak existential records, in the future strong existential records may be desirable but they should not conflict with the weak version.
+This is how you destruct a pair, it is like a let, but it can extract pairs. The body may depend on the pair values. The type of the body may depend on the pair values.
 
 ```rust
-Name: {
-  Name: *;
-  make: String -> Name;
-  show: Name -> String;
-} = {
-  Name = String;
-  make x = x;
-  show x = x;
-};
+/* split syntax */
+((A, one) = p; A);
+
+/* rule */
+p : (x : A, B)  b : C
+---------------------
+((x, y) = p; b) : C
 ```
 
-#### Forget Rule
+### Equal, Refl and Subst
 
-The above abstractin is only possible because of the forget rule, that allows to weaken the type, but as existential records are impredicative here, allowing this to apply in an unbounded manner makes the system undecidable.
+This is leibniz equality, it can be used as a way to do some form of dependent elimination, they hopefully only matters as a stepping stone for building libraries.
 
-So this should be limited in such a way that conserves the decidability of Core Teika, the main options here are:
+#### Equal
 
-- if the type being weakend is an existential record in a contravariant position it is rigid and should check only for equality, not for subtyping
-  - Easy subset of this to implements, if it is below the existential weakend record it should always check for strict equality.
-  - Another option instead of checking for strict equality is do subtyping except the FORGET rule
-- disallow existential records to be weakend through FORGET and add specific
-  - advantage of this is that it's a very principal rule, but requires more syntax.
+This is the type of an equality, it states that the first and second values are literally the same, allowing to replace one for the other.
 
-## Teika
+#### Refl
 
-Everything here is highly WIP
+This is the introduction of an equality, it is the only way to construct an equality and any equality is equivalent to this.
+
+#### Subst
+
+This is how you can eliminate an equality, it is enough to derive all the other transformations that are desirable for equalities
 
 ```rust
-// naturals
-(1);
-(Nat);
-// strings
-("a");
-(String);
-
-// tuples
-(1, "a");
-(Nat, String);
-
-// let binding
-(one = 1; one);
-
-// implicit type arguments
-({A} => (x: A) => x);
-({A} -> A -> A);
-
-// inference
-((x => x + 1): Nat -> Nat);
-// generalization
-((x => x): {A} -> A -> A);
-
-// named expressions
-((1: (x: Nat)): Nat);
-// strict named expressions
-((x = 1): !(x: Nat));
-
-// partial application
-(?add 1 _);
-(?(_ - 1));
-
-// variants
-(| Left Int | Right String);
-
-// jsx
-(<div> hello </div>);
-
-// effectful
-(String -[Read | Write]> ());
+/* sym */
+Sym =
+  (A : Type) =>
+  (B : Type) =>
+  (A_eq_B : Equal A B) =>
+    subst
+      ((B : Type) => Equal B A)
+      A
+      B
+      A_eq_B
+      (Refl A)
+/* trans */
+Trans =
+  (A : Type) =>
+  (B : Type) =>
+  (C : Type) =>
+  (A_eq_B : Equal A B) =>
+  (B_eq_C : Equal B C) =>
+    subst
+      ((C : Type) => Equal A C)
+      B
+      C
+      B_eq_C
+      A_eq_B;
 ```
-
-## Impredicative
-
-Impredicative means everything can be treated in a homogenous and expected manner, alternatives are possible such as universe polymorphism, sadly impredicative cannot be universaly extended to all features, such as implicit module abstraction as that lead to undecidability
