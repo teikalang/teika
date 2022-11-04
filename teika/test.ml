@@ -60,10 +60,29 @@ module Sparser = struct
       ("lambda", works "x => x" (var "x" @=> var "x"));
       ("apply", works "x y z" ((var "x" @@ var "y") @@ var "z"));
       ("pair", works "(x, y, z)" (parens (var "x" + (var "y" + var "z"))));
+      ( "pair annot",
+        works "(x : A, y : B)"
+          (parens ((var "x" @: var "A") + (var "y" @: var "B"))) );
+      ( "pair bind",
+        works "(x = A, y = B)"
+          (parens ((var "x" = var "A") + (var "y" = var "B"))) );
       ("both", works "(x & y & z)" (parens (var "x" & var "y" & var "z")));
+      ( "both annot",
+        works "(x : A & y : B)"
+          (parens ((var "x" @: var "A") & (var "y" @: var "B"))) );
+      ( "both bind",
+        works "(x = A & y = B)" (parens (var "x" = var "A" & var "y" = var "B"))
+      );
+      ( "pair and both",
+        works "(x : A & y : B, z : C)"
+          (parens
+             (((var "x" @: var "A") & (var "y" @: var "B"))
+             + (var "z" @: var "C"))) );
       ("bind", works "x = y" (var "x" = var "y"));
       ("semi", works "x; y; z" (var "x" * (var "y" * var "z")));
       ("annot", works "(x : y)" (parens (var "x" @: var "y")));
+      ( "nested annot",
+        works "(x : A : B)" (parens (var "x" @: var "A" @: var "B")) );
       ("parens", works "(x)" (parens (var "x")));
       ("braces", works "{x}" (braces (var "x")));
       ( "let",

@@ -54,24 +54,19 @@ let term_atom :=
   | term_parens(term_wrapped)
   | term_braces(term_wrapped)
 
-let term_wrapped :=
-  | term
-  | term_annot(term_rec_annot, term_rec_funct)
-  | term_pair(term_rec_pair, term_rec_bind)
-  | term_both(term_rec_both, term_rec_bind)
-
-let term_rec_annot :=
-  (* TODO: why not term_rec_bind? *)
-  | term_rec_funct
-  | term_annot(term_rec_annot, term_rec_funct)
+let term_wrapped := term_rec_pair
 
 let term_rec_pair :=
-  | term_rec_bind
-  | term_pair(term_rec_pair, term_rec_bind)
+  | term_rec_both
+  | term_pair(term_rec_pair, term_rec_both)
 
 let term_rec_both :=
-  | term_rec_bind
-  | term_both(term_rec_both, term_rec_bind)
+  | term_rec_annot
+  | term_both(term_rec_both, term_rec_annot)
+
+let term_rec_annot :=
+  | term
+  | term_annot(term_rec_annot, term_rec_funct)
 
 let term_var ==
   | var = VAR;
