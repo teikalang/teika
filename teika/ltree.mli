@@ -15,12 +15,6 @@ and term_desc = private
   | LT_pair of { left : bind; right : bind }
   (* (x, y) = v; r *)
   | LT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
-  (* (x : A & y : B) *)
-  | LT_either of { left : annot; right : annot }
-  (* (x = 0 & y = 0) *)
-  | LT_both of { left : bind; right : bind }
-  (* (x & y) = v; r *)
-  | LT_unboth of { left : Name.t; right : Name.t; both : term; return : term }
   (* x = v; r *)
   | LT_let of { bound : bind; return : term }
   (* v : T *)
@@ -41,12 +35,6 @@ val lt_pair : Location.t -> left:bind -> right:bind -> term
 
 val lt_unpair :
   Location.t -> left:Name.t -> right:Name.t -> pair:term -> return:term -> term
-
-val lt_either : Location.t -> left:annot -> right:annot -> term
-val lt_both : Location.t -> left:bind -> right:bind -> term
-
-val lt_unboth :
-  Location.t -> left:Name.t -> right:Name.t -> both:term -> return:term -> term
 
 val lt_let : Location.t -> bound:bind -> return:term -> term
 val lt_annot : Location.t -> value:term -> type_:term -> term

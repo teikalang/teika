@@ -35,20 +35,7 @@ let rec from_stree term =
       | ST_var _ | ST_forall _ | ST_lambda _ | ST_apply _ | ST_pair _
       | ST_both _ | ST_semi _ | ST_parens _ | ST_braces _ ->
           invalid_notation loc)
-  | ST_both { left; right } -> (
-      let (ST { loc = left_loc; desc }) = left in
-      match desc with
-      | ST_bind _ ->
-          let left = extract_bind left in
-          let right = extract_bind right in
-          lt_both loc ~left ~right
-      | ST_annot _ ->
-          let left = extract_annot left in
-          let right = extract_annot right in
-          lt_either loc ~left ~right
-      | ST_var _ | ST_forall _ | ST_lambda _ | ST_apply _ | ST_pair _
-      | ST_both _ | ST_semi _ | ST_parens _ | ST_braces _ ->
-          invalid_notation left_loc)
+  | ST_both _ -> invalid_notation loc
   | ST_bind _ -> invalid_notation loc
   | ST_semi { left; right } -> (
       let (ST { loc = left_loc; desc = left }) = left in
@@ -112,12 +99,6 @@ and extract_semi loc ~bound ~value ~return =
       let value = from_stree value in
       let return = from_stree return in
       lt_unpair loc ~left ~right ~pair:value ~return
-  | ST_both { left; right } ->
-      let left = extract_var left in
-      let right = extract_var right in
-      let value = from_stree value in
-      let return = from_stree return in
-      lt_unboth loc ~left ~right ~both:value ~return
-  | ST_forall _ | ST_lambda _ | ST_apply _ | ST_bind _ | ST_semi _ | ST_annot _
-  | ST_braces _ ->
+  | ST_forall _ | ST_lambda _ | ST_apply _ | ST_both _ | ST_bind _ | ST_semi _
+  | ST_annot _ | ST_braces _ ->
       invalid_notation bound_loc
