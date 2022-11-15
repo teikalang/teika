@@ -126,9 +126,6 @@ module Ltree_utils = struct
     | LT_exists of { left : annot; right : annot }
     | LT_pair of { left : bind; right : bind }
     | LT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
-    | LT_either of { left : annot; right : annot }
-    | LT_both of { left : bind; right : bind }
-    | LT_unboth of { left : Name.t; right : Name.t; both : term; return : term }
     | LT_let of { bound : bind; return : term }
     | LT_annot of { value : term; type_ : term }
 
@@ -155,14 +152,6 @@ module Ltree_utils = struct
     let left = Name.make left in
     let right = Name.make right in
     lt_unpair loc ~left ~right ~pair ~return
-
-  let either ?(loc = loc) left right = lt_either loc ~left ~right
-  let both ?(loc = loc) left right = lt_both loc ~left ~right
-
-  let unboth ?(loc = loc) left right both return =
-    let left = Name.make left in
-    let right = Name.make right in
-    lt_unboth loc ~left ~right ~both ~return
 
   let let_ ?(loc = loc) bound return = lt_let loc ~bound ~return
   let ( $ ) left right = left right
@@ -194,10 +183,6 @@ module Lparser = struct
         works "(x : A, y : B)" (exists ("x" @: var "A") ("y" @: var "B")) );
       ("pair", works "(x = l, y = r)" (pair ("x" @= var "l") ("y" @= var "r")));
       ("unpair", works "(x, y) = p; z" (unpair "x" "y" (var "p") $ var "z"));
-      ( "either",
-        works "(x : A & y : B)" (either ("x" @: var "A") ("y" @: var "B")) );
-      ("both", works "(x = l & y = r)" (both ("x" @= var "l") ("y" @= var "r")));
-      ("unboth", works "(x & y) = p; z" (unboth "x" "y" (var "p") $ var "z"));
       ( "let",
         works "x = y; z = x; z"
           (let_ ("x" @= var "y") $ (let_ ("z" @= var "x") $ var "z")) );

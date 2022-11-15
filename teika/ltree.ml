@@ -8,9 +8,6 @@ and term_desc =
   | LT_exists of { left : annot; right : annot }
   | LT_pair of { left : bind; right : bind }
   | LT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
-  | LT_either of { left : annot; right : annot }
-  | LT_both of { left : bind; right : bind }
-  | LT_unboth of { left : Name.t; right : Name.t; both : term; return : term }
   | LT_let of { bound : bind; return : term }
   | LT_annot of { value : term; type_ : term }
 
@@ -31,12 +28,6 @@ let lt_pair loc ~left ~right = lterm loc (LT_pair { left; right })
 
 let lt_unpair loc ~left ~right ~pair ~return =
   lterm loc (LT_unpair { left; right; pair; return })
-
-let lt_either loc ~left ~right = lterm loc (LT_either { left; right })
-let lt_both loc ~left ~right = lterm loc (LT_both { left; right })
-
-let lt_unboth loc ~left ~right ~both ~return =
-  lterm loc (LT_unboth { left; right; both; return })
 
 let lt_let loc ~bound ~return = lterm loc (LT_let { bound; return })
 let lt_annot loc ~value ~type_ = lterm loc (LT_annot { value; type_ })
