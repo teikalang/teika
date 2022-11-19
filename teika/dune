@@ -4,7 +4,7 @@
  (modules
   (:standard \ Test))
  (preprocess
-  (pps ppx_deriving.show ppx_deriving.eq sedlex.ppx)))
+  (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord sedlex.ppx)))
 
 (menhir
  (modules sparser)
@@ -15,7 +15,7 @@
  (modules Test)
  (libraries alcotest teika)
  (preprocess
-  (pps ppx_deriving.show ppx_deriving.eq)))
+  (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord)))
 
 (rule
  (alias runtest)
