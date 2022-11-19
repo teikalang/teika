@@ -9,7 +9,7 @@ and term_desc = private
   | ST_both of { left : term; right : term }
   | ST_bind of { bound : term; value : term }
   | ST_semi of { left : term; right : term }
-  | ST_annot of { value : term; type_ : term }
+  | ST_annot of { value : term; annot : term }
   | ST_parens of { content : term }
   | ST_braces of { content : term }
 [@@deriving show]
@@ -22,6 +22,6 @@ val st_pair : Location.t -> left:term -> right:term -> term
 val st_both : Location.t -> left:term -> right:term -> term
 val st_bind : Location.t -> bound:term -> value:term -> term
 val st_semi : Location.t -> left:term -> right:term -> term
-val st_annot : Location.t -> value:term -> type_:term -> term
+val st_annot : Location.t -> value:term -> annot:term -> term
 val st_parens : Location.t -> content:term -> term
 val st_braces : Location.t -> content:term -> term

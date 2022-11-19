@@ -9,7 +9,7 @@ and term_desc =
   | ST_both of { left : term; right : term }
   | ST_bind of { bound : term; value : term }
   | ST_semi of { left : term; right : term }
-  | ST_annot of { value : term; type_ : term }
+  | ST_annot of { value : term; annot : term }
   | ST_parens of { content : term }
   | ST_braces of { content : term }
 [@@deriving show { with_path = false }]
@@ -23,6 +23,6 @@ let st_pair loc ~left ~right = st loc (ST_pair { left; right })
 let st_both loc ~left ~right = st loc (ST_both { left; right })
 let st_bind loc ~bound ~value = st loc (ST_bind { bound; value })
 let st_semi loc ~left ~right = st loc (ST_semi { left; right })
-let st_annot loc ~value ~type_ = st loc (ST_annot { value; type_ })
+let st_annot loc ~value ~annot = st loc (ST_annot { value; annot })
 let st_parens loc ~content = st loc (ST_parens { content })
 let st_braces loc ~content = st loc (ST_braces { content })

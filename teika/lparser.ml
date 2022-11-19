@@ -44,10 +44,10 @@ let rec from_stree term =
       | ST_var _ | ST_forall _ | ST_lambda _ | ST_apply _ | ST_pair _
       | ST_both _ | ST_semi _ | ST_annot _ | ST_parens _ | ST_braces _ ->
           invalid_notation left_loc)
-  | ST_annot { value; type_ } ->
+  | ST_annot { value; annot } ->
       let value = from_stree value in
-      let type_ = from_stree type_ in
-      lt_annot loc ~value ~type_
+      let annot = from_stree annot in
+      lt_annot loc ~value ~annot
   | ST_parens { content } -> from_stree content
   | ST_braces _ -> invalid_notation loc
 
@@ -64,10 +64,10 @@ and extract_annot annot =
   let (ST { loc; desc }) = annot in
   match desc with
   | ST_parens { content } -> extract_annot content
-  | ST_annot { value; type_ } ->
+  | ST_annot { value; annot } ->
       let var = extract_var value in
-      let type_ = from_stree type_ in
-      lannot loc ~var ~type_
+      let annot = from_stree annot in
+      lannot loc ~var ~annot
   | ST_var _ | ST_forall _ | ST_lambda _ | ST_apply _ | ST_pair _ | ST_both _
   | ST_bind _ | ST_semi _ | ST_braces _ ->
       invalid_notation loc
