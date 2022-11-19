@@ -42,6 +42,12 @@ let name var =
   let { id = _; name } = var in
   name
 
+let predef name =
+  let name = Name.make name in
+  create name
+
+let type_ = predef "Type"
+
 module Map = Map.Make (struct
   type t = var
 

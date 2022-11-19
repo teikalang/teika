@@ -21,7 +21,7 @@ module Stree_utils = struct
     | ST_both of { left : term; right : term }
     | ST_bind of { bound : term; value : term }
     | ST_semi of { left : term; right : term }
-    | ST_annot of { value : term; type_ : term }
+    | ST_annot of { value : term; annot : term }
     | ST_parens of { content : term }
     | ST_braces of { content : term }
   [@@deriving eq]
@@ -40,7 +40,7 @@ module Stree_utils = struct
   let ( & ) ?(loc = loc) left right = st_both loc ~left ~right
   let ( = ) ?(loc = loc) bound value = st_bind loc ~bound ~value
   let ( * ) ?(loc = loc) left right = st_semi loc ~left ~right
-  let ( @: ) ?(loc = loc) value type_ = st_annot loc ~value ~type_
+  let ( @: ) ?(loc = loc) value annot = st_annot loc ~value ~annot
   let parens ?(loc = loc) content = st_parens loc ~content
   let braces ?(loc = loc) content = st_braces loc ~content
 end
@@ -127,10 +127,10 @@ module Ltree_utils = struct
     | LT_pair of { left : bind; right : bind }
     | LT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
     | LT_let of { bound : bind; return : term }
-    | LT_annot of { value : term; type_ : term }
+    | LT_annot of { value : term; annot : term }
 
   and annot = Ltree.annot = private
-    | LAnnot of { loc : Location.t; [@opaque] var : Name.t; type_ : term }
+    | LAnnot of { loc : Location.t; [@opaque] var : Name.t; annot : term }
 
   and bind = Ltree.bind = private
     | LBind of { loc : Location.t; [@opaque] var : Name.t; value : term }
@@ -155,11 +155,11 @@ module Ltree_utils = struct
 
   let let_ ?(loc = loc) bound return = lt_let loc ~bound ~return
   let ( $ ) left right = left right
-  let annot ?(loc = loc) value type_ = lt_annot loc ~value ~type_
+  let annot ?(loc = loc) value annot = lt_annot loc ~value ~annot
 
-  let ( @: ) ?(loc = loc) var type_ =
+  let ( @: ) ?(loc = loc) var annot =
     let var = Name.make var in
-    lannot loc ~var ~type_
+    lannot loc ~var ~annot
 
   let ( @= ) ?(loc = loc) var value =
     let var = Name.make var in
