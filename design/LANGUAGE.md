@@ -42,17 +42,18 @@ This is the canonical language and should contain all the theoritical power on T
 ((A, x) = p; x);
 
 // equal
-Equal : (A : Type) -> (B : Type) -> Type;
+Equal : (A : Type) -> (x : A) -> (y : B) -> Type;
 // refl
-Refl : (A : Type) -> Equal A A;
+Refl : (A : Type) -> (x : A) -> Equal A x x;
 // subst
 Subst :
-  (P : Type -> Type) ->
   (A : Type) ->
-  (B : Type) ->
-  (A_eq_B : Equal A B) ->
-  (P_A : P A) ->
-  P B;
+  (x : A) ->
+  (y : A) ->
+  (x_eq_y : Equal A x y) ->
+  (P : (x_or_y : A) -> Type) ->
+  (p_x : P x) ->
+  P y;
 ```
 
 ### Forall, Lambda and Apply
