@@ -1,8 +1,6 @@
-type t [@@deriving show]
+type t [@@deriving show, eq, ord]
 
 val make : string -> t
-val equal : t -> t -> bool
-val compare : t -> t -> int
 val repr : t -> string
 
 (* TODO: stop exposing this *)
