@@ -18,9 +18,9 @@ and term_desc = private
   (* x = v; r *)
   | LT_let of { bound : bind; return : term }
   (* v : T *)
-  | LT_annot of { value : term; type_ : term }
+  | LT_annot of { value : term; annot : term }
 
-and annot = private LAnnot of { loc : Location.t; var : Name.t; type_ : term }
+and annot = private LAnnot of { loc : Location.t; var : Name.t; annot : term }
 
 and bind = private LBind of { loc : Location.t; var : Name.t; value : term }
 [@@deriving show]
@@ -37,10 +37,10 @@ val lt_unpair :
   Location.t -> left:Name.t -> right:Name.t -> pair:term -> return:term -> term
 
 val lt_let : Location.t -> bound:bind -> return:term -> term
-val lt_annot : Location.t -> value:term -> type_:term -> term
+val lt_annot : Location.t -> value:term -> annot:term -> term
 
 (* annot *)
-val lannot : Location.t -> var:Name.t -> type_:term -> annot
+val lannot : Location.t -> var:Name.t -> annot:term -> annot
 
 (* bind *)
 val lbind : Location.t -> var:Name.t -> value:term -> bind

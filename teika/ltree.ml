@@ -9,10 +9,10 @@ and term_desc =
   | LT_pair of { left : bind; right : bind }
   | LT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
   | LT_let of { bound : bind; return : term }
-  | LT_annot of { value : term; type_ : term }
+  | LT_annot of { value : term; annot : term }
 
 and annot =
-  | LAnnot of { loc : Location.t; [@opaque] var : Name.t; type_ : term }
+  | LAnnot of { loc : Location.t; [@opaque] var : Name.t; annot : term }
 
 and bind = LBind of { loc : Location.t; [@opaque] var : Name.t; value : term }
 [@@deriving show]
@@ -30,10 +30,10 @@ let lt_unpair loc ~left ~right ~pair ~return =
   lterm loc (LT_unpair { left; right; pair; return })
 
 let lt_let loc ~bound ~return = lterm loc (LT_let { bound; return })
-let lt_annot loc ~value ~type_ = lterm loc (LT_annot { value; type_ })
+let lt_annot loc ~value ~annot = lterm loc (LT_annot { value; annot })
 
 (* annot *)
-let lannot loc ~var ~type_ = LAnnot { loc; var; type_ }
+let lannot loc ~var ~annot = LAnnot { loc; var; annot }
 
 (* bind *)
 let lbind loc ~var ~value = LBind { loc; var; value }

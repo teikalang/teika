@@ -93,8 +93,8 @@ let term_semi(self, lower) ==
   | left = lower; SEMICOLON; right = self;
     { st_semi (mk $loc) ~left ~right }
 let term_annot(self, lower) ==
-  | value = lower; COLON; type_ = self;
-    { st_annot (mk $loc) ~value ~type_ }
+  | value = lower; COLON; annot = self;
+    { st_annot (mk $loc) ~value ~annot }
 let term_parens(content) ==
   | LEFT_PARENS; content = content; RIGHT_PARENS;
     { st_parens (mk $loc) ~content }
