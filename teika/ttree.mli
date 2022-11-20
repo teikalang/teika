@@ -1,9 +1,8 @@
-type term = private
-  | TTerm of { loc : Location.t; desc : term_desc; type_ : type_ }
+(* TODO: make this private again *)
+type term = TTerm of { loc : Location.t; desc : term_desc; type_ : type_ }
+and type_ = TType of { loc : Location.t; desc : term_desc }
 
-and type_ = private TType of { loc : Location.t; desc : term_desc }
-
-and term_desc = private
+and term_desc =
   (* x *)
   | TT_var of { var : Var.t }
   (* (x : A) -> B *)
