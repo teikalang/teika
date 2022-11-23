@@ -205,3 +205,45 @@ struct
   let[@inline always] normalize_type type_ =
     with_normalize_context @@ fun () -> Normalize.normalize_type type_
 end
+
+module Instance_context = struct
+  type 'a instance_context = {
+    (* TODO: accumulate locations during instantiation *)
+    context :
+      'k. offset:Offset.t -> ok:('a -> 'k) -> error:(error_desc -> 'k) -> 'k;
+  }
+  [@@ocaml.unboxed]
+
+  type 'a t = 'a instance_context
+
+  let[@inline always] test ~loc ~offset f =
+    let { context } = f () in
+    let ok value = Ok value in
+    let error desc = Error (CError { loc; desc }) in
+    context ~offset ~ok ~error
+
+  let[@inline always] return value =
+    let context ~offset:_ ~ok ~error:_ = ok value in
+    { context }
+
+  let[@inline always] bind context f =
+    let { context } = context in
+    let context ~offset ~ok ~error =
+      let ok data =
+        let { context } = f data in
+        context ~offset ~ok ~error
+      in
+      context ~offset ~ok ~error
+    in
+    { context }
+
+  let ( let* ) = bind
+
+  let[@inline always] ( let+ ) context f =
+    let* value = context in
+    return @@ f value
+
+  let[@inline always] offset () =
+    let context ~offset ~ok ~error:_ = ok offset in
+    { context }
+end
