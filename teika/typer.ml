@@ -1,23 +1,5 @@
 open Ttree
 
-module Level : sig
-  type level
-  type t = level [@@deriving eq]
-
-  val zero : level
-  val next : level -> level
-  val ( < ) : level -> level -> bool
-end = struct
-  type level = int
-  and t = level [@@deriving eq]
-
-  let zero = 0
-
-  (* TODO: check for overflows *)
-  let next n = n + 1
-  let ( < ) : level -> level -> bool = ( < )
-end
-
 module Context : sig
   (* TODO: maybe call it var_desc? *)
   (** This describes which kind of variable are we dealing with
