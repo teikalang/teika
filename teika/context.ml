@@ -61,3 +61,69 @@ module Subst_context = struct
     in
     { context }
 end
+
+module Normalize_context (Subst : sig
+  val subst_term : term -> term Subst_context.t
+  val subst_type : type_ -> type_ Subst_context.t
+  val subst_desc : term_desc -> term_desc Subst_context.t
+  val subst_annot : annot -> annot Subst_context.t
+  val subst_bind : bind -> bind Subst_context.t
+end) =
+struct
+  type 'a normalize_context = {
+    (* TODO: accumulate locations during normalization *)
+    context : 'k. ok:('a -> 'k) -> error:(error_desc -> 'k) -> 'k;
+  }
+  [@@ocaml.unboxed]
+
+  type 'a t = 'a normalize_context
+
+  let[@inline always] test ~loc f =
+    let { context } = f () in
+    let ok value = Ok value in
+    let error desc = Error (CError { loc; desc }) in
+    context ~ok ~error
+
+  let[@inline always] return value =
+    let context ~ok ~error:_ = ok value in
+    { context }
+
+  let[@inline always] bind context f =
+    let { context } = context in
+    let context ~ok ~error =
+      let ok data =
+        let { context } = f data in
+        context ~ok ~error
+      in
+      context ~ok ~error
+    in
+    { context }
+
+  let ( let* ) = bind
+
+  let[@inline always] ( let+ ) context f =
+    let* value = context in
+    return @@ f value
+
+  let[@inline always] with_subst_context ~from ~to_ f =
+    let context ~ok ~error =
+      let Subst_context.{ context } = f () in
+      context ~from ~to_ ~ok ~error
+    in
+    { context }
+
+  let[@inline always] subst_term ~from ~to_ term =
+    with_subst_context ~from ~to_ @@ fun () -> Subst.subst_term term
+
+  let[@inline always] subst_type ~from ~to_ type_ =
+    with_subst_context ~from ~to_ @@ fun () -> Subst.subst_type type_
+
+  let[@inline always] subst_desc ~from ~to_ desc =
+    with_subst_context ~from ~to_ @@ fun () -> Subst.subst_desc desc
+
+  let[@inline always] subst_annot ~from ~to_ annot =
+    with_subst_context ~from ~to_ @@ fun () -> Subst.subst_annot annot
+
+  let[@inline always] subst_bind ~from ~to_ bind =
+    with_subst_context ~from ~to_ @@ fun () -> Subst.subst_bind bind
+end
