@@ -30,3 +30,40 @@ module Subst_context : sig
   (* to_ *)
   val to_ : unit -> term_desc subst_context
 end
+
+module Normalize_context (Subst : sig
+  val subst_term : term -> term Subst_context.t
+  val subst_type : type_ -> type_ Subst_context.t
+  val subst_desc : term_desc -> term_desc Subst_context.t
+  val subst_annot : annot -> annot Subst_context.t
+  val subst_bind : bind -> bind Subst_context.t
+end) : sig
+  type 'a normalize_context
+  type 'a t = 'a normalize_context
+
+  (* monad *)
+  val test : loc:Warnings.loc -> (unit -> 'a t) -> ('a, error) result
+  val return : 'a -> 'a normalize_context
+
+  val bind :
+    'a normalize_context -> ('a -> 'b normalize_context) -> 'b normalize_context
+
+  val ( let* ) : 'a t -> ('a -> 'b t) -> 'b t
+  val ( let+ ) : 'a t -> ('a -> 'b) -> 'b t
+
+  (* subst *)
+  val subst_term :
+    from:Offset.t -> to_:term_desc -> term -> term normalize_context
+
+  val subst_type :
+    from:Offset.t -> to_:term_desc -> type_ -> type_ normalize_context
+
+  val subst_desc :
+    from:Offset.t -> to_:term_desc -> term_desc -> term_desc normalize_context
+
+  val subst_annot :
+    from:Offset.t -> to_:term_desc -> annot -> annot normalize_context
+
+  val subst_bind :
+    from:Offset.t -> to_:term_desc -> bind -> bind normalize_context
+end
