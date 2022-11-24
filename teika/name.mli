@@ -1,7 +1,9 @@
-type t [@@deriving show, eq, ord]
+type name
+type t = name [@@deriving show, eq, ord]
 
-val make : string -> t
-val repr : t -> string
+val make : string -> name
+val repr : name -> string
 
-(* TODO: stop exposing this *)
-module Map : Map.S with type key = t
+(* TODO: stop exposing this? *)
+module Map : Map.S with type key = name
+module Tbl : Hashtbl.S with type key = name
