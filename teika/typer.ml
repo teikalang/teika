@@ -2,7 +2,7 @@ open Ltree
 open Ttree
 
 module Typer_context =
-  Context.Typer_context (Subst) (Normalize) (Instance) (Unify)
+  Context.Typer_context (Instance) (Subst) (Normalize) (Unify)
 
 open Typer_context
 

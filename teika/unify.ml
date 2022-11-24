@@ -1,5 +1,5 @@
 open Ttree
-module Unify_context = Context.Unify_context (Subst) (Normalize)
+module Unify_context = Context.Unify_context (Instance) (Subst) (Normalize)
 open Unify_context
 
 (* TODO: ensure this is eliminated *)

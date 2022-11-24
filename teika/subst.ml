@@ -1,5 +1,5 @@
 open Ttree
-open Context
+module Subst_context = Context.Subst_context (Instance)
 open Subst_context
 
 (* TODO: also do substitution using mutation *)

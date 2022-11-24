@@ -1,5 +1,5 @@
 open Ttree
-module Normalize_context = Context.Normalize_context (Subst)
+module Normalize_context = Context.Normalize_context (Instance) (Subst)
 open Normalize_context
 
 let rec normalize_term term =
@@ -78,6 +78,7 @@ and normalize_desc desc =
   | TT_let { bound; return } ->
       let* desc, _bound = normalize_bind bound in
       let (TTerm { loc = _; desc = return; type_ = _ }) = return in
+      (* TODO: let may be let dependent *)
       let* return = subst_desc ~from:Offset.zero ~to_:desc return in
       normalize_desc return
   | TT_annot { value; annot = _ } ->
