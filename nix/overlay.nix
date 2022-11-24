@@ -3,26 +3,8 @@ with super; {
   # ocaml-ng = builtins.mapAttrs (_: ocamlVersion: ocamlVersion) super.ocaml-ng;
   # TODO: this is clearly not right, I should be overriding only 4_14
   ocaml-ng = ocaml-ng // (with ocaml-ng; {
-    ocamlPackages_5_00 = ocamlPackages_5_00.overrideScope'
+    ocamlPackages_5_0 = ocamlPackages_5_0.overrideScope'
       (_: super: {
-        dune-rpc = super.dune-rpc.overrideAttrs (_: {
-          src = fetchFromGitHub {
-            owner = "ocaml";
-            repo = "dune";
-            rev = "3df932f7f91ea68c3fee789f133b4aa8f9bea807";
-            sha256 = "m0HDamHAyOFQlh6P4vbbe8UhARZ4NjwbANInnJ4OZ6U=";
-            fetchSubmodules = true;
-          };
-        });
-        dune = super.dune.overrideAttrs (_: {
-          src = fetchFromGitHub {
-            owner = "ocaml";
-            repo = "dune";
-            rev = "3df932f7f91ea68c3fee789f133b4aa8f9bea807";
-            sha256 = "m0HDamHAyOFQlh6P4vbbe8UhARZ4NjwbANInnJ4OZ6U=";
-            fetchSubmodules = true;
-          };
-        });
         ocaml-lsp = super.ocaml-lsp.overrideAttrs (_: {
           src = fetchFromGitHub {
             owner = "EduardoRFS";
