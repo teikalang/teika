@@ -9,10 +9,6 @@ val one : offset
 val of_int : int -> offset
 val repr : offset -> int
 
-(* predef *)
-val initial : offset
-val type_ : offset
-
 (* operations *)
 val ( + ) : offset -> offset -> offset
 val ( - ) : offset -> offset -> offset

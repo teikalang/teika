@@ -28,7 +28,6 @@ and annot = private
 and bind = private TBind of { loc : Location.t; var : Name.t; value : term }
 
 (* term & type_*)
-val tt_type : type_
 val tt_var : Location.t -> type_ -> offset:Offset.t -> term
 val tt_forall : Location.t -> param:annot -> return:type_ -> type_
 val tt_lambda : Location.t -> type_ -> param:annot -> return:term -> term
@@ -53,9 +52,3 @@ val tannot : Location.t -> var:Name.t -> annot:type_ -> annot
 
 (* bind *)
 val tbind : Location.t -> var:Name.t -> value:term -> bind
-
-(* utils *)
-exception Not_a_type of { term : term }
-
-val term_of_type : type_ -> term
-val type_of_term : term -> type_
