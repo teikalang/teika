@@ -59,7 +59,8 @@ let rec infer_term term =
   let (LTerm { loc; desc }) = term in
   with_loc ~loc @@ fun () -> infer_desc desc
 
-and infer_annot annot f =
+and infer_annot : type a. _ -> (_ -> a typer_context) -> a typer_context =
+ fun annot f ->
   let (LAnnot { loc; var; annot }) = annot in
   with_loc ~loc @@ fun () ->
   let* annot = infer_term annot in
@@ -68,7 +69,8 @@ and infer_annot annot f =
   let* annot = tannot ~var ~annot in
   f annot
 
-and infer_bind bind f =
+and infer_bind : type a. _ -> (_ -> a typer_context) -> a typer_context =
+ fun bind f ->
   let (LBind { loc; var; value }) = bind in
   with_loc ~loc @@ fun () ->
   let* value = infer_term value in
@@ -83,10 +85,12 @@ and infer_desc desc =
       let* offset, type_ = instance ~var in
       tt_var type_ ~offset
   | LT_forall { param; return } ->
-      infer_annot param @@ fun param ->
-      let* return = infer_term return in
-      let* return = type_of_term return in
-      let* forall = tt_forall ~param ~return in
+      let* forall =
+        infer_annot param @@ fun param ->
+        let* return = infer_term return in
+        let* return = type_of_term return in
+        tt_forall ~param ~return
+      in
       term_of_type forall
   | LT_lambda { param; return } ->
       infer_annot param @@ fun param ->
@@ -101,9 +105,10 @@ and infer_desc desc =
       let* arg = infer_term arg in
       apply ~lambda ~arg
   | LT_exists { left; right } ->
-      infer_annot left @@ fun left ->
-      infer_annot right @@ fun right ->
-      let* exists = tt_exists ~left ~right in
+      let* exists =
+        infer_annot left @@ fun left ->
+        infer_annot right @@ fun right -> tt_exists ~left ~right
+      in
       term_of_type exists
   | LT_pair { left; right } ->
       infer_bind left @@ fun left ->
