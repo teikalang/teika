@@ -1,6 +1,5 @@
-open Teika
-
 module Stree_utils = struct
+  open Teika
   open Stree
 
   module Location = struct
@@ -46,6 +45,7 @@ module Stree_utils = struct
 end
 
 module Sparser = struct
+  open Teika
   open Stree_utils
 
   type test = Works of { expected : term; input : string }
@@ -107,6 +107,7 @@ module Sparser = struct
 end
 
 module Ltree_utils = struct
+  open Teika
   open Ltree
 
   module Location = struct
@@ -167,6 +168,7 @@ module Ltree_utils = struct
 end
 
 module Lparser = struct
+  open Teika
   open Ltree_utils
 
   type test = Works of { expected : term; input : string }
@@ -210,7 +212,174 @@ module Lparser = struct
   let tests = ("lparser", List.map test tests)
 end
 
-let () = Alcotest.run "Teika" [ Sparser.tests; Lparser.tests ]
+module Ttree_utils = struct
+  open Teika
+
+  module Typer_context =
+    Context.Typer_context (Instance) (Subst) (Normalize) (Unify)
+
+  type term = Ttree.term =
+    | TTerm of { loc : Location.t; [@opaque] desc : term_desc; type_ : type_ }
+
+  and type_ = Ttree.type_ =
+    | TType of { loc : Location.t; [@opaque] desc : term_desc }
+
+  and term_desc = Ttree.term_desc =
+    (* x *)
+    | TT_var of { offset : Offset.t }
+    (* (x : A) -> B *)
+    | TT_forall of { param : annot; return : type_ }
+    (* (x : A) => e *)
+    | TT_lambda of { param : annot; return : term }
+    (* l a *)
+    | TT_apply of { lambda : term; arg : term }
+    (* (x : A, y : B) *)
+    | TT_exists of { left : annot; right : annot }
+    (* (x = 0, y = 0) *)
+    | TT_pair of { left : bind; right : bind }
+    (* (x, y) = v; r *)
+    | TT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
+    (* x = v; r *)
+    | TT_let of { bound : bind; return : term }
+    (* v : T *)
+    | TT_annot of { value : term; annot : type_ }
+
+  and annot = Ttree.annot = private
+    | TAnnot of { loc : Location.t; [@opaque] var : Name.t; annot : type_ }
+
+  and bind = Ttree.bind = private
+    | TBind of { loc : Location.t; [@opaque] var : Name.t; value : term }
+  [@@deriving show]
+
+  type error = Context.error = private
+    | CError of { loc : Location.t; [@opaque] desc : error_desc }
+
+  and error_desc = Context.error_desc = private
+    (* unify *)
+    | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
+    | CError_unify_type_clash of { expected : term_desc; received : term_desc }
+    (* typer *)
+    | CError_typer_unknown_var of { var : Name.t }
+    | CError_typer_term_not_a_type of { term : term }
+    | Cerror_typer_not_a_forall of { type_ : type_ }
+    | Cerror_typer_not_an_exists of { type_ : type_ }
+  [@@deriving show]
+
+  let infer_term term =
+    let open Typer_context in
+    let loc = Location.none in
+    run ~loc @@ fun () -> Typer.infer_term term
+end
+
+module Typer = struct
+  open Teika
+  open Ttree_utils
+
+  type test =
+    | Check of { name : string; annotated_term : string; wrapper : bool }
+
+  let check ?(wrapper = true) name annotated_term =
+    Check { name; annotated_term; wrapper }
+
+  (* TODO: write tests for locations and names / offset *)
+  let id =
+    check "id" ~wrapper:false
+      {|(((A : Type) => (x : A) => x)
+        : (A : Type) -> (x : A) -> A)|}
+
+  let id_type =
+    check "id_type" ~wrapper:false
+      {|(((A : Type) => (x : A) => x) Type
+        : (x : Type) -> Type)|}
+
+  let id_type_never =
+    check "id_type_never" ~wrapper:false
+      {|(((A : Type) => (x : A) => x) Type ((A : Type) -> A)
+        : Type)|}
+
+  let sequence =
+    check "sequence" ~wrapper:false
+      {|(((A : Type) => (x : A) => (B : Type) => (y : B) => y)
+        : (A : Type) -> (x : A) -> (B : Type) -> (y : B) -> B)|}
+
+  let bool =
+    check "bool" ~wrapper:false
+      {|(((A : Type) => (x : A) => (y : A) => x)
+        : (A : Type) -> (x : A) -> (y : A) -> A)|}
+
+  let true_ =
+    check "true" ~wrapper:false
+      {|(((A : Type) => (x : A) => (y : A) => x)
+        : (A : Type) -> (x : A) -> (y : A) -> A)|}
+
+  let false_ =
+    check "false" ~wrapper:false
+      {|(((A : Type) => (x : A) => (y : A) => y)
+        : (A : Type) -> (x : A) -> (y : A) -> A)|}
+
+  let pair =
+    check "pair" ~wrapper:false
+      {|(((A : Type) => (B : Type) => (x : A) => (y : B) => (x = x, y = y))
+        : (A : Type) -> (B : Type) -> (x : A) -> (y : B) -> (x  : A, y : B))|}
+
+  (* let left_unpair =
+       check "left_unpair" ~wrapper:false
+         {|(((A : Type) => (B : Type) => (x : A) => (y : B) => (
+             p = (x = x, y = y);
+             (y, x) = p;
+             y
+           )) : (A : Type) -> (B : Type) -> (x : A) -> (y : B) -> A)|}
+
+     let right_unpair =
+       check "right_unpair" ~wrapper:false
+         {|(A : Type) => (B : Type) => (x : A) => (y : B) => (
+             p = (x = x, y = y);
+             (y, x) = p;
+             x
+           )) : (A : Type) -> (B : Type) -> (x : A) -> (y : B) -> B)|} *)
+
+  (* TODO: something like pack *)
+  (* let pack =
+     type_expr "pack" ~wrapper:false
+       ~type_:"(R: Type) -> (A: Type, r: R) -> (A: Type, r: R)"
+       ~expr:"(R: Type) => (p: (A: Type, x: R)) => p" *)
+
+  let tests =
+    [
+      (* unwrapped *)
+      id;
+      sequence;
+      bool;
+      true_;
+      false_;
+      pair;
+      (* left_unpair;
+         right_unpair; *)
+      (* apply *)
+      id_type;
+      id_type_never;
+    ]
+
+  (* alcotest *)
+  let test test =
+    let (Check { name; annotated_term; wrapper = _ }) = test in
+    let check () =
+      let actual = Slexer.from_string Sparser.term_opt annotated_term in
+      match actual with
+      | Some stree -> (
+          let ltree = Lparser.from_stree stree in
+          match infer_term ltree with
+          | Ok _ttree -> ()
+          | Error error ->
+              failwith @@ Format.asprintf "error: %a\n%!" pp_error error)
+      | None -> failwith "failed to parse"
+    in
+    Alcotest.test_case name `Quick check
+
+  let tests = ("typer", List.map test tests)
+end
+
+let () = Alcotest.run "Teika" [ Sparser.tests; Lparser.tests; Typer.tests ]
 
 (* TODO: (n : Nat & n >= 1, x : Nat) should be valid
    *)

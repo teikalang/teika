@@ -304,6 +304,26 @@ struct
 
   type 'a t = 'a typer_context
 
+  let[@inline always] run ~loc f =
+    let { context } = f () in
+    let type_of_types = Level.zero in
+    let level = Level.next type_of_types in
+    (* TODO: meaningful size?
+        - parser counts binders
+        - estimate based on the file size *)
+    let names = Name.Tbl.create 1024 in
+    (let type_name = Name.make "Type" in
+     let type_ =
+       (* TODO: breaking abstraction *)
+       let desc = TT_var { offset = Offset.zero } in
+       TType { loc; desc }
+     in
+     (* TODO: better place for constants *)
+     Name.Tbl.add names type_name (type_of_types, type_));
+    let ok value = Ok value in
+    let error desc = Error (CError { loc; desc }) in
+    context ~loc ~type_of_types ~level ~names ~ok ~error
+
   let[@inline always] test ~loc ~type_of_types ~level ~names f =
     let { context } = f () in
     let ok value = Ok value in
@@ -362,9 +382,8 @@ struct
 
   let[@inline always] with_subst_context ~from ~to_ f =
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
-      let Subst_context.{ context } = f () in
-      (* TODO: is this always right? *)
       let offset = Offset.zero in
+      let Subst_context.{ context } = f () in
       context ~offset ~from ~to_ ~ok ~error
     in
     { context }
