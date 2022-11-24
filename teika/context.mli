@@ -16,7 +16,7 @@ module Subst_context : sig
     loc:Warnings.loc ->
     from:Offset.offset ->
     to_:term_desc ->
-    (unit -> 'a t) ->
+    (unit -> 'a subst_context) ->
     ('a, error) result
 
   val return : 'a -> 'a subst_context
@@ -46,14 +46,18 @@ end) : sig
   type 'a t = 'a normalize_context
 
   (* monad *)
-  val test : loc:Warnings.loc -> (unit -> 'a t) -> ('a, error) result
+  val test :
+    loc:Warnings.loc -> (unit -> 'a normalize_context) -> ('a, error) result
+
   val return : 'a -> 'a normalize_context
 
   val bind :
     'a normalize_context -> ('a -> 'b normalize_context) -> 'b normalize_context
 
-  val ( let* ) : 'a t -> ('a -> 'b t) -> 'b t
-  val ( let+ ) : 'a t -> ('a -> 'b) -> 'b t
+  val ( let* ) :
+    'a normalize_context -> ('a -> 'b normalize_context) -> 'b normalize_context
+
+  val ( let+ ) : 'a normalize_context -> ('a -> 'b) -> 'b normalize_context
 
   (* subst *)
   val subst_term :
@@ -87,7 +91,9 @@ end) : sig
   type 'a t = 'a unify_context
 
   (* monad *)
-  val test : loc:Warnings.loc -> (unit -> 'a t) -> ('a, error) result
+  val test :
+    loc:Warnings.loc -> (unit -> 'a unify_context) -> ('a, error) result
+
   val return : 'a -> 'a unify_context
   val bind : 'a unify_context -> ('a -> 'b unify_context) -> 'b unify_context
 
@@ -106,4 +112,29 @@ end) : sig
   (* normalize *)
   val normalize_term : term -> term unify_context
   val normalize_type : type_ -> type_ unify_context
+end
+
+module Instance_context : sig
+  type 'a instance_context
+  type 'a t = 'a instance_context
+
+  (* monad *)
+  val test :
+    loc:Warnings.loc ->
+    offset:Offset.t ->
+    (unit -> 'a instance_context) ->
+    ('a, error) result
+
+  val return : 'a -> 'a instance_context
+
+  val bind :
+    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
+
+  val ( let* ) :
+    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
+
+  val ( let+ ) : 'a instance_context -> ('a -> 'b) -> 'b instance_context
+
+  (* monad *)
+  val offset : unit -> Offset.t instance_context
 end
