@@ -347,8 +347,8 @@ struct
 
   let[@inline always] with_binder ~var ~type_ f =
     let context ~loc ~type_of_types ~level ~names ~ok ~error =
-      let level = Level.next level in
       Name.Tbl.add names var (level, type_);
+      let level = Level.next level in
       let { context } = f () in
       let ok value =
         Name.Tbl.remove names var;
