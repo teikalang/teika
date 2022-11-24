@@ -1,4 +1,4 @@
-{ pkgs, doCheck ? true }:
+{ pkgs, doCheck ? true, nix-filter }:
 
 let inherit (pkgs) lib stdenv ocamlPackages; in
 
@@ -6,11 +6,16 @@ with ocamlPackages; buildDunePackage rec {
   pname = "teika";
   version = "0.0.0-dev";
 
-  src = lib.filterSource {
-    src = ./..;
-    dirs = [ "src" ];
-    files = [ "dune-project" ];
-  };
+  src = with nix-filter.lib;
+    filter {
+      root = ./..;
+      include = [
+        "dune-project"
+        "smol"
+        "teika"
+      ];
+      exclude = [];
+    };
 
   propagatedBuildInputs = [ menhir menhirLib sedlex ppx_deriving eio eio_main ]
     # checkInputs are here because when cross compiling dune needs test dependencies
