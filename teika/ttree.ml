@@ -21,14 +21,8 @@ and annot = TAnnot of { loc : Location.t; var : Name.t; annot : type_ }
 and bind = TBind of { loc : Location.t; var : Name.t; value : term }
 
 (* term *)
-
 let tterm loc type_ desc = TTerm { loc; desc; type_ }
 let ttype loc desc = TType { loc; desc }
-
-let tt_type =
-  (* TODO: Locations *)
-  ttype Location.none (TT_var { offset = Offset.type_ })
-
 let tt_var loc type_ ~offset = tterm loc type_ (TT_var { offset })
 let tt_forall loc ~param ~return = ttype loc (TT_forall { param; return })
 
@@ -50,17 +44,3 @@ let tannot loc ~var ~annot = TAnnot { loc; var; annot }
 
 (* bind *)
 let tbind loc ~var ~value = TBind { loc; var; value }
-
-(* utils *)
-exception Not_a_type of { term : term }
-
-let term_of_type type_ =
-  let (TType { loc; desc }) = type_ in
-  tterm loc tt_type desc
-
-let type_of_term term =
-  let (TTerm { loc; desc; type_ }) = term in
-  (* TODO: is this safe? *)
-  match type_ == tt_type with
-  | true -> ttype loc desc
-  | false -> raise (Not_a_type { term })
