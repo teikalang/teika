@@ -6,6 +6,11 @@ and error_desc = private
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
   | CError_unify_type_clash of { expected : term_desc; received : term_desc }
+  (* typer *)
+  | CError_typer_unknown_var of { var : Name.t }
+  | CError_typer_term_not_a_type of { term : term }
+  | Cerror_typer_not_a_forall of { type_ : type_ }
+  | Cerror_typer_not_an_exists of { type_ : type_ }
 
 module Subst_context : sig
   type 'a subst_context
@@ -137,4 +142,85 @@ module Instance_context : sig
 
   (* monad *)
   val offset : unit -> Offset.t instance_context
+end
+
+module Typer_context (Subst : sig
+  val subst_term : term -> term Subst_context.t
+  val subst_type : type_ -> type_ Subst_context.t
+  val subst_desc : term_desc -> term_desc Subst_context.t
+  val subst_annot : annot -> annot Subst_context.t
+  val subst_bind : bind -> bind Subst_context.t
+end) (Normalize : sig
+  val normalize_term : term -> term Normalize_context(Subst).t
+  val normalize_type : type_ -> type_ Normalize_context(Subst).t
+end) (Instance : sig
+  val instance_type : type_ -> type_ Instance_context.t
+end) (Unify : sig
+  val unify_type :
+    expected:type_ -> received:type_ -> unit Unify_context(Subst)(Normalize).t
+end) : sig
+  type 'a typer_context
+  type 'a t = 'a typer_context
+
+  (* monad *)
+  val test :
+    loc:Warnings.loc ->
+    type_of_types:Level.t ->
+    level:Level.t ->
+    names:(Level.t * type_) Name.Tbl.t ->
+    (unit -> 'a typer_context) ->
+    ('a, error) result
+
+  val return : 'a -> 'a typer_context
+  val bind : 'a typer_context -> ('a -> 'b typer_context) -> 'b typer_context
+
+  val ( let* ) :
+    'a typer_context -> ('a -> 'b typer_context) -> 'b typer_context
+
+  val ( let+ ) : 'a typer_context -> ('a -> 'b) -> 'b typer_context
+
+  (* vars *)
+  val instance : var:Name.t -> (Offset.t * type_) typer_context
+
+  val with_binder :
+    var:Name.t -> type_:type_ -> (unit -> 'a typer_context) -> 'a typer_context
+
+  (* subst *)
+  val subst_type :
+    from:Offset.t -> to_:term_desc -> type_ -> type_ typer_context
+
+  (* unify *)
+  val unify_type : expected:type_ -> received:type_ -> unit typer_context
+
+  (* locs *)
+  val with_loc :
+    loc:Location.t -> (unit -> 'a typer_context) -> 'a typer_context
+
+  (* ttree *)
+  val tt_type : unit -> type_ typer_context
+  val tt_var : type_ -> offset:Offset.t -> term typer_context
+  val tt_forall : param:annot -> return:type_ -> type_ typer_context
+  val tt_lambda : type_ -> param:annot -> return:term -> term typer_context
+  val tt_apply : type_ -> lambda:term -> arg:term -> term typer_context
+  val tt_exists : left:annot -> right:annot -> type_ typer_context
+  val tt_pair : type_ -> left:bind -> right:bind -> term typer_context
+
+  val tt_unpair :
+    type_ ->
+    left:Name.t ->
+    right:Name.t ->
+    pair:term ->
+    return:term ->
+    term typer_context
+
+  val tt_let : type_ -> bound:bind -> return:term -> term typer_context
+  val tt_annot : value:term -> annot:type_ -> term typer_context
+  val tannot : var:Name.t -> annot:type_ -> annot typer_context
+  val tbind : var:Name.t -> value:term -> bind typer_context
+
+  (* utils *)
+  val term_of_type : type_ -> term typer_context
+  val type_of_term : term -> type_ typer_context
+  val split_forall : type_ -> (annot * type_) typer_context
+  val split_exists : type_ -> (annot * annot) typer_context
 end
