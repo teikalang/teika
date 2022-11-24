@@ -61,9 +61,7 @@ let rec from_stree term =
       | ST_var _ | ST_literal _ | ST_arrow _ | ST_lambda _ | ST_apply _
       | ST_pair _ | ST_semi _ ->
           invalid_notation loc)
-  | ST_bind _ ->
-      Format.eprintf "%a" Stree.pp_term term;
-      invalid_notation loc
+  | ST_bind _ -> invalid_notation loc
   | ST_semi { left; right } -> (
       let bound, value =
         let (ST { loc; desc }) = left in

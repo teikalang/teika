@@ -152,6 +152,7 @@ end) : sig
 end
 
 module Typer_context (Instance : sig
+  val instance_term : term -> term Instance_context.t
   val instance_type : type_ -> type_ Instance_context.t
   val instance_desc : term_desc -> term_desc Instance_context.t
 end) (Subst : sig
@@ -198,6 +199,10 @@ end) : sig
   (* subst *)
   val subst_type :
     from:Offset.t -> to_:term_desc -> type_ -> type_ typer_context
+
+  (* lower *)
+  val lower_term : offset:Offset.t -> term -> term typer_context
+  val lower_type : offset:Offset.t -> type_ -> type_ typer_context
 
   (* unify *)
   val unify_type : expected:type_ -> received:type_ -> unit typer_context

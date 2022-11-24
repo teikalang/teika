@@ -269,6 +269,7 @@ struct
 end
 
 module Typer_context (Instance : sig
+  val instance_term : term -> term Instance_context.t
   val instance_type : type_ -> type_ Instance_context.t
   val instance_desc : term_desc -> term_desc Instance_context.t
 end) (Subst : sig
@@ -361,14 +362,31 @@ struct
 
   let[@inline always] with_subst_context ~from ~to_ f =
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
-      let offset = Offset.zero in
       let Subst_context.{ context } = f () in
+      (* TODO: is this always right? *)
+      let offset = Offset.zero in
       context ~offset ~from ~to_ ~ok ~error
     in
     { context }
 
   let[@inline always] subst_type ~from ~to_ type_ =
     with_subst_context ~from ~to_ @@ fun () -> Subst.subst_type type_
+
+  let[@inline always] lower_term ~offset term =
+    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
+      let offset = Offset.(zero - offset) in
+      let Instance_context.{ context } = Instance.instance_term term in
+      context ~offset ~ok ~error
+    in
+    { context }
+
+  let[@inline always] lower_type ~offset type_ =
+    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
+      let offset = Offset.(zero - offset) in
+      let Instance_context.{ context } = Instance.instance_type type_ in
+      context ~offset ~ok ~error
+    in
+    { context }
 
   module Unify_context = Unify_context (Instance) (Subst) (Normalize)
 

@@ -24,6 +24,7 @@ let apply ~lambda ~arg =
   let* () = unify_type ~expected:param ~received:arg_type in
   let* type_ =
     let (TType { loc = _; desc = arg_type }) = arg_type in
+    let* return = lower_type ~offset:Offset.one return in
     subst_type ~from:Offset.zero ~to_:arg_type return
   in
   tt_apply type_ ~lambda ~arg
