@@ -174,6 +174,8 @@ end) : sig
   type 'a t = 'a typer_context
 
   (* monad *)
+  val run : loc:Location.t -> (unit -> 'a typer_context) -> ('a, error) result
+
   val test :
     loc:Warnings.loc ->
     type_of_types:Level.t ->
