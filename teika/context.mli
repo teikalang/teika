@@ -12,14 +12,42 @@ and error_desc = private
   | Cerror_typer_not_a_forall of { type_ : type_ }
   | Cerror_typer_not_an_exists of { type_ : type_ }
 
-module Subst_context : sig
+module Instance_context : sig
+  type 'a instance_context
+  type 'a t = 'a instance_context
+
+  (* monad *)
+  val test :
+    loc:Warnings.loc ->
+    offset:Offset.t ->
+    (unit -> 'a instance_context) ->
+    ('a, error) result
+
+  val return : 'a -> 'a instance_context
+
+  val bind :
+    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
+
+  val ( let* ) :
+    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
+
+  val ( let+ ) : 'a instance_context -> ('a -> 'b) -> 'b instance_context
+
+  (* monad *)
+  val offset : unit -> Offset.t instance_context
+end
+
+module Subst_context (Instance : sig
+  val instance_desc : term_desc -> term_desc Instance_context.t
+end) : sig
   type 'a subst_context
   type 'a t = 'a subst_context
 
   (* monad *)
   val test :
     loc:Warnings.loc ->
-    from:Offset.offset ->
+    offset:Offset.t ->
+    from:Offset.t ->
     to_:term_desc ->
     (unit -> 'a subst_context) ->
     ('a, error) result
@@ -40,12 +68,14 @@ module Subst_context : sig
   val to_ : unit -> term_desc subst_context
 end
 
-module Normalize_context (Subst : sig
-  val subst_term : term -> term Subst_context.t
-  val subst_type : type_ -> type_ Subst_context.t
-  val subst_desc : term_desc -> term_desc Subst_context.t
-  val subst_annot : annot -> annot Subst_context.t
-  val subst_bind : bind -> bind Subst_context.t
+module Normalize_context (Instance : sig
+  val instance_desc : term_desc -> term_desc Instance_context.t
+end) (Subst : sig
+  val subst_term : term -> term Subst_context(Instance).t
+  val subst_type : type_ -> type_ Subst_context(Instance).t
+  val subst_desc : term_desc -> term_desc Subst_context(Instance).t
+  val subst_annot : annot -> annot Subst_context(Instance).t
+  val subst_bind : bind -> bind Subst_context(Instance).t
 end) : sig
   type 'a normalize_context
   type 'a t = 'a normalize_context
@@ -82,15 +112,17 @@ end) : sig
 end
 
 (* TODO: this is bad *)
-module Unify_context (Subst : sig
-  val subst_term : term -> term Subst_context.t
-  val subst_type : type_ -> type_ Subst_context.t
-  val subst_desc : term_desc -> term_desc Subst_context.t
-  val subst_annot : annot -> annot Subst_context.t
-  val subst_bind : bind -> bind Subst_context.t
+module Unify_context (Instance : sig
+  val instance_desc : term_desc -> term_desc Instance_context.t
+end) (Subst : sig
+  val subst_term : term -> term Subst_context(Instance).t
+  val subst_type : type_ -> type_ Subst_context(Instance).t
+  val subst_desc : term_desc -> term_desc Subst_context(Instance).t
+  val subst_annot : annot -> annot Subst_context(Instance).t
+  val subst_bind : bind -> bind Subst_context(Instance).t
 end) (Normalize : sig
-  val normalize_term : term -> term Normalize_context(Subst).t
-  val normalize_type : type_ -> type_ Normalize_context(Subst).t
+  val normalize_term : term -> term Normalize_context(Instance)(Subst).t
+  val normalize_type : type_ -> type_ Normalize_context(Instance)(Subst).t
 end) : sig
   type 'a unify_context
   type 'a t = 'a unify_context
@@ -119,45 +151,24 @@ end) : sig
   val normalize_type : type_ -> type_ unify_context
 end
 
-module Instance_context : sig
-  type 'a instance_context
-  type 'a t = 'a instance_context
-
-  (* monad *)
-  val test :
-    loc:Warnings.loc ->
-    offset:Offset.t ->
-    (unit -> 'a instance_context) ->
-    ('a, error) result
-
-  val return : 'a -> 'a instance_context
-
-  val bind :
-    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
-
-  val ( let* ) :
-    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
-
-  val ( let+ ) : 'a instance_context -> ('a -> 'b) -> 'b instance_context
-
-  (* monad *)
-  val offset : unit -> Offset.t instance_context
-end
-
-module Typer_context (Subst : sig
-  val subst_term : term -> term Subst_context.t
-  val subst_type : type_ -> type_ Subst_context.t
-  val subst_desc : term_desc -> term_desc Subst_context.t
-  val subst_annot : annot -> annot Subst_context.t
-  val subst_bind : bind -> bind Subst_context.t
-end) (Normalize : sig
-  val normalize_term : term -> term Normalize_context(Subst).t
-  val normalize_type : type_ -> type_ Normalize_context(Subst).t
-end) (Instance : sig
+module Typer_context (Instance : sig
+  val instance_term : term -> term Instance_context.t
   val instance_type : type_ -> type_ Instance_context.t
+  val instance_desc : term_desc -> term_desc Instance_context.t
+end) (Subst : sig
+  val subst_term : term -> term Subst_context(Instance).t
+  val subst_type : type_ -> type_ Subst_context(Instance).t
+  val subst_desc : term_desc -> term_desc Subst_context(Instance).t
+  val subst_annot : annot -> annot Subst_context(Instance).t
+  val subst_bind : bind -> bind Subst_context(Instance).t
+end) (Normalize : sig
+  val normalize_term : term -> term Normalize_context(Instance)(Subst).t
+  val normalize_type : type_ -> type_ Normalize_context(Instance)(Subst).t
 end) (Unify : sig
   val unify_type :
-    expected:type_ -> received:type_ -> unit Unify_context(Subst)(Normalize).t
+    expected:type_ ->
+    received:type_ ->
+    unit Unify_context(Instance)(Subst)(Normalize).t
 end) : sig
   type 'a typer_context
   type 'a t = 'a typer_context
@@ -188,6 +199,10 @@ end) : sig
   (* subst *)
   val subst_type :
     from:Offset.t -> to_:term_desc -> type_ -> type_ typer_context
+
+  (* lower *)
+  val lower_term : offset:Offset.t -> term -> term typer_context
+  val lower_type : offset:Offset.t -> type_ -> type_ typer_context
 
   (* unify *)
   val unify_type : expected:type_ -> received:type_ -> unit typer_context

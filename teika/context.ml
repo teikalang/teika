@@ -12,11 +12,57 @@ and error_desc =
   | Cerror_typer_not_a_forall of { type_ : type_ }
   | Cerror_typer_not_an_exists of { type_ : type_ }
 
-module Subst_context = struct
+module Instance_context = struct
+  type 'a instance_context = {
+    (* TODO: accumulate locations during instantiation *)
+    context :
+      'k. offset:Offset.t -> ok:('a -> 'k) -> error:(error_desc -> 'k) -> 'k;
+  }
+  [@@ocaml.unboxed]
+
+  type 'a t = 'a instance_context
+
+  let[@inline always] test ~loc ~offset f =
+    let { context } = f () in
+    let ok value = Ok value in
+    let error desc = Error (CError { loc; desc }) in
+    context ~offset ~ok ~error
+
+  let[@inline always] return value =
+    let context ~offset:_ ~ok ~error:_ = ok value in
+    { context }
+
+  let[@inline always] bind context f =
+    let { context } = context in
+    let context ~offset ~ok ~error =
+      let ok data =
+        let { context } = f data in
+        context ~offset ~ok ~error
+      in
+      context ~offset ~ok ~error
+    in
+    { context }
+
+  let ( let* ) = bind
+
+  let[@inline always] ( let+ ) context f =
+    let* value = context in
+    return @@ f value
+
+  let[@inline always] offset () =
+    let context ~offset ~ok ~error:_ = ok offset in
+    { context }
+end
+
+module Subst_context (Instance : sig
+  val instance_desc : term_desc -> term_desc Instance_context.t
+end) =
+struct
   type 'a subst_context = {
     (* TODO: accumulate locations during substitutions *)
     context :
       'k.
+      offset:Offset.t ->
       from:Offset.t ->
       to_:term_desc ->
       ok:('a -> 'k) ->
@@ -27,24 +73,24 @@ module Subst_context = struct
 
   type 'a t = 'a subst_context
 
-  let[@inline always] test ~loc ~from ~to_ f =
+  let[@inline always] test ~loc ~offset ~from ~to_ f =
     let { context } = f () in
     let ok value = Ok value in
     let error desc = Error (CError { loc; desc }) in
-    context ~from ~to_ ~ok ~error
+    context ~offset ~from ~to_ ~ok ~error
 
   let[@inline always] return value =
-    let context ~from:_ ~to_:_ ~ok ~error:_ = ok value in
+    let context ~offset:_ ~from:_ ~to_:_ ~ok ~error:_ = ok value in
     { context }
 
   let[@inline always] bind context f =
     let { context } = context in
-    let context ~from ~to_ ~ok ~error =
+    let context ~offset ~from ~to_ ~ok ~error =
       let ok data =
         let { context } = f data in
-        context ~from ~to_ ~ok ~error
+        context ~offset ~from ~to_ ~ok ~error
       in
-      context ~from ~to_ ~ok ~error
+      context ~offset ~from ~to_ ~ok ~error
     in
     { context }
 
@@ -55,28 +101,33 @@ module Subst_context = struct
     return @@ f value
 
   let[@inline always] from () =
-    let context ~from ~to_:_ ~ok ~error:_ = ok from in
+    let context ~offset ~from ~to_:_ ~ok ~error:_ = ok Offset.(from + offset) in
     { context }
 
   let[@inline always] to_ () =
-    let context ~from:_ ~to_ ~ok ~error:_ = ok to_ in
+    let context ~offset ~from:_ ~to_ ~ok ~error =
+      let Instance_context.{ context } = Instance.instance_desc to_ in
+      context ~offset ~ok ~error
+    in
     { context }
 
   let[@inline always] with_binder f =
-    let context ~from ~to_ ~ok ~error =
-      let from = Offset.(from + one) in
+    let context ~offset ~from ~to_ ~ok ~error =
+      let offset = Offset.(offset + one) in
       let { context } = f () in
-      context ~from ~to_ ~ok ~error
+      context ~offset ~from ~to_ ~ok ~error
     in
     { context }
 end
 
-module Normalize_context (Subst : sig
-  val subst_term : term -> term Subst_context.t
-  val subst_type : type_ -> type_ Subst_context.t
-  val subst_desc : term_desc -> term_desc Subst_context.t
-  val subst_annot : annot -> annot Subst_context.t
-  val subst_bind : bind -> bind Subst_context.t
+module Normalize_context (Instance : sig
+  val instance_desc : term_desc -> term_desc Instance_context.t
+end) (Subst : sig
+  val subst_term : term -> term Subst_context(Instance).t
+  val subst_type : type_ -> type_ Subst_context(Instance).t
+  val subst_desc : term_desc -> term_desc Subst_context(Instance).t
+  val subst_annot : annot -> annot Subst_context(Instance).t
+  val subst_bind : bind -> bind Subst_context(Instance).t
 end) =
 struct
   type 'a normalize_context = {
@@ -114,10 +165,14 @@ struct
     let* value = context in
     return @@ f value
 
+  module Subst_context = Subst_context (Instance)
+
   let[@inline always] with_subst_context ~from ~to_ f =
     let context ~ok ~error =
       let Subst_context.{ context } = f () in
-      context ~from ~to_ ~ok ~error
+      (* TODO: is this always right? *)
+      let offset = Offset.zero in
+      context ~offset ~from ~to_ ~ok ~error
     in
     { context }
 
@@ -137,18 +192,20 @@ struct
     with_subst_context ~from ~to_ @@ fun () -> Subst.subst_bind bind
 end
 
-module Unify_context (Subst : sig
-  val subst_term : term -> term Subst_context.t
-  val subst_type : type_ -> type_ Subst_context.t
-  val subst_desc : term_desc -> term_desc Subst_context.t
-  val subst_annot : annot -> annot Subst_context.t
-  val subst_bind : bind -> bind Subst_context.t
+module Unify_context (Instance : sig
+  val instance_desc : term_desc -> term_desc Instance_context.t
+end) (Subst : sig
+  val subst_term : term -> term Subst_context(Instance).t
+  val subst_type : type_ -> type_ Subst_context(Instance).t
+  val subst_desc : term_desc -> term_desc Subst_context(Instance).t
+  val subst_annot : annot -> annot Subst_context(Instance).t
+  val subst_bind : bind -> bind Subst_context(Instance).t
 end) (Normalize : sig
-  val normalize_term : term -> term Normalize_context(Subst).t
-  val normalize_type : type_ -> type_ Normalize_context(Subst).t
+  val normalize_term : term -> term Normalize_context(Instance)(Subst).t
+  val normalize_type : type_ -> type_ Normalize_context(Instance)(Subst).t
 end) =
 struct
-  module Normalize_context = Normalize_context (Subst)
+  module Normalize_context = Normalize_context (Instance) (Subst)
 
   type 'a unify_context = {
     (* TODO: accumulate locations during unification *)
@@ -211,62 +268,24 @@ struct
     with_normalize_context @@ fun () -> Normalize.normalize_type type_
 end
 
-module Instance_context = struct
-  type 'a instance_context = {
-    (* TODO: accumulate locations during instantiation *)
-    context :
-      'k. offset:Offset.t -> ok:('a -> 'k) -> error:(error_desc -> 'k) -> 'k;
-  }
-  [@@ocaml.unboxed]
-
-  type 'a t = 'a instance_context
-
-  let[@inline always] test ~loc ~offset f =
-    let { context } = f () in
-    let ok value = Ok value in
-    let error desc = Error (CError { loc; desc }) in
-    context ~offset ~ok ~error
-
-  let[@inline always] return value =
-    let context ~offset:_ ~ok ~error:_ = ok value in
-    { context }
-
-  let[@inline always] bind context f =
-    let { context } = context in
-    let context ~offset ~ok ~error =
-      let ok data =
-        let { context } = f data in
-        context ~offset ~ok ~error
-      in
-      context ~offset ~ok ~error
-    in
-    { context }
-
-  let ( let* ) = bind
-
-  let[@inline always] ( let+ ) context f =
-    let* value = context in
-    return @@ f value
-
-  let[@inline always] offset () =
-    let context ~offset ~ok ~error:_ = ok offset in
-    { context }
-end
-
-module Typer_context (Subst : sig
-  val subst_term : term -> term Subst_context.t
-  val subst_type : type_ -> type_ Subst_context.t
-  val subst_desc : term_desc -> term_desc Subst_context.t
-  val subst_annot : annot -> annot Subst_context.t
-  val subst_bind : bind -> bind Subst_context.t
-end) (Normalize : sig
-  val normalize_term : term -> term Normalize_context(Subst).t
-  val normalize_type : type_ -> type_ Normalize_context(Subst).t
-end) (Instance : sig
+module Typer_context (Instance : sig
+  val instance_term : term -> term Instance_context.t
   val instance_type : type_ -> type_ Instance_context.t
+  val instance_desc : term_desc -> term_desc Instance_context.t
+end) (Subst : sig
+  val subst_term : term -> term Subst_context(Instance).t
+  val subst_type : type_ -> type_ Subst_context(Instance).t
+  val subst_desc : term_desc -> term_desc Subst_context(Instance).t
+  val subst_annot : annot -> annot Subst_context(Instance).t
+  val subst_bind : bind -> bind Subst_context(Instance).t
+end) (Normalize : sig
+  val normalize_term : term -> term Normalize_context(Instance)(Subst).t
+  val normalize_type : type_ -> type_ Normalize_context(Instance)(Subst).t
 end) (Unify : sig
   val unify_type :
-    expected:type_ -> received:type_ -> unit Unify_context(Subst)(Normalize).t
+    expected:type_ ->
+    received:type_ ->
+    unit Unify_context(Instance)(Subst)(Normalize).t
 end) =
 struct
   type 'a typer_context = {
@@ -328,8 +347,8 @@ struct
 
   let[@inline always] with_binder ~var ~type_ f =
     let context ~loc ~type_of_types ~level ~names ~ok ~error =
-      let level = Level.next level in
       Name.Tbl.add names var (level, type_);
+      let level = Level.next level in
       let { context } = f () in
       let ok value =
         Name.Tbl.remove names var;
@@ -339,17 +358,37 @@ struct
     in
     { context }
 
+  module Subst_context = Subst_context (Instance)
+
   let[@inline always] with_subst_context ~from ~to_ f =
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       let Subst_context.{ context } = f () in
-      context ~from ~to_ ~ok ~error
+      (* TODO: is this always right? *)
+      let offset = Offset.zero in
+      context ~offset ~from ~to_ ~ok ~error
     in
     { context }
 
   let[@inline always] subst_type ~from ~to_ type_ =
     with_subst_context ~from ~to_ @@ fun () -> Subst.subst_type type_
 
-  module Unify_context = Unify_context (Subst) (Normalize)
+  let[@inline always] lower_term ~offset term =
+    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
+      let offset = Offset.(zero - offset) in
+      let Instance_context.{ context } = Instance.instance_term term in
+      context ~offset ~ok ~error
+    in
+    { context }
+
+  let[@inline always] lower_type ~offset type_ =
+    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
+      let offset = Offset.(zero - offset) in
+      let Instance_context.{ context } = Instance.instance_type type_ in
+      context ~offset ~ok ~error
+    in
+    { context }
+
+  module Unify_context = Unify_context (Instance) (Subst) (Normalize)
 
   let unify_type ~expected ~received =
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
