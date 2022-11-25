@@ -180,10 +180,6 @@ end) : sig
   val subst_type :
     from:Offset.t -> to_:term_desc -> type_ -> type_ typer_context
 
-  (* lower *)
-  val lower_term : offset:Offset.t -> term -> term typer_context
-  val lower_type : offset:Offset.t -> type_ -> type_ typer_context
-
   (* unify *)
   val unify_type : expected:type_ -> received:type_ -> unit typer_context
 

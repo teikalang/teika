@@ -20,13 +20,22 @@ let apply ~lambda ~arg =
   let lambda_type = extract_type lambda in
   let arg_type = extract_type arg in
   let* param, return = split_forall lambda_type in
-  let (TAnnot { loc = _; var = _; annot = param }) = param in
-  let* () = unify_type ~expected:param ~received:arg_type in
+  let (TAnnot { loc = _; var; annot = param_type }) = param in
+  let* () = unify_type ~expected:param_type ~received:arg_type in
   let* type_ =
-    let (TType { loc = _; desc = arg_type }) = arg_type in
-    let* return = lower_type ~offset:Offset.one return in
-    subst_type ~from:Offset.zero ~to_:arg_type return
+    let* type_ = tt_type () in
+    let* lambda =
+      with_binder ~var ~type_:param_type @@ fun () ->
+      let* type_ =
+        let* return = tt_type () in
+        tt_forall ~param ~return
+      in
+      let* return = term_of_type return in
+      tt_lambda type_ ~param ~return
+    in
+    tt_apply type_ ~lambda ~arg
   in
+  let* type_ = type_of_term type_ in
   tt_apply type_ ~lambda ~arg
 
 let unpair ~left ~right ~pair return =
