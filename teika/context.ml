@@ -16,30 +16,35 @@ module Instance_context = struct
   type 'a instance_context = {
     (* TODO: accumulate locations during instantiation *)
     context :
-      'k. offset:Offset.t -> ok:('a -> 'k) -> error:(error_desc -> 'k) -> 'k;
+      'k.
+      offset:Offset.t ->
+      depth:Offset.t ->
+      ok:('a -> 'k) ->
+      error:(error_desc -> 'k) ->
+      'k;
   }
   [@@ocaml.unboxed]
 
   type 'a t = 'a instance_context
 
-  let[@inline always] test ~loc ~offset f =
+  let[@inline always] test ~loc ~offset ~depth f =
     let { context } = f () in
     let ok value = Ok value in
     let error desc = Error (CError { loc; desc }) in
-    context ~offset ~ok ~error
+    context ~offset ~depth ~ok ~error
 
   let[@inline always] return value =
-    let context ~offset:_ ~ok ~error:_ = ok value in
+    let context ~offset:_ ~depth:_ ~ok ~error:_ = ok value in
     { context }
 
   let[@inline always] bind context f =
     let { context } = context in
-    let context ~offset ~ok ~error =
+    let context ~offset ~depth ~ok ~error =
       let ok data =
         let { context } = f data in
-        context ~offset ~ok ~error
+        context ~offset ~depth ~ok ~error
       in
-      context ~offset ~ok ~error
+      context ~offset ~depth ~ok ~error
     in
     { context }
 
@@ -49,8 +54,25 @@ module Instance_context = struct
     let* value = context in
     return @@ f value
 
-  let[@inline always] offset () =
-    let context ~offset ~ok ~error:_ = ok offset in
+  let[@inline always] repr_var ~var =
+    let context ~offset ~depth ~ok ~error:_ =
+      let is_free_var = Offset.(var > depth) in
+      let offset =
+        (* TODO: this is a weird exception, Type : Type\0 *)
+        match Offset.(equal var zero) || is_free_var with
+        | true -> Offset.(var + offset)
+        | false -> var
+      in
+      ok (TT_var { offset })
+    in
+    { context }
+
+  let[@inline always] with_var f =
+    let context ~offset ~depth ~ok ~error =
+      let depth = Offset.(depth + one) in
+      let { context } = f () in
+      context ~offset ~depth ~ok ~error
+    in
     { context }
 end
 
@@ -97,14 +119,16 @@ struct
   let repr_var ~var =
     let context ~vars ~ok ~error =
       match
-        let index = Offset.repr var - 1 in
+        let index = Offset.(repr (var - one)) in
         List.nth_opt vars index
       with
       | Some desc ->
+          let depth = Offset.zero in
           let Instance_context.{ context } = Instance.instance_desc desc in
-          context ~offset:var ~ok ~error
-      | None -> ok (TT_var { offset = var })
+          context ~offset:var ~depth ~ok ~error
+      | None | (exception Invalid_argument _) -> ok (TT_var { offset = var })
     in
+
     { context }
 
   let with_var f =
@@ -273,14 +297,15 @@ struct
     let* value = context in
     return @@ f value
 
-  let instance ~var =
+  let[@inline always] instance ~var =
     let context ~loc:_ ~type_of_types:_ ~level ~names ~ok ~error =
       match Name.Tbl.find_opt names var with
       | Some (var_level, type_) ->
           let offset = Level.offset ~from:var_level ~to_:level in
+          let depth = Offset.zero in
           let Instance_context.{ context } = Instance.instance_type type_ in
           let ok type_ = ok (offset, type_) in
-          context ~offset ~ok ~error
+          context ~offset ~depth ~ok ~error
       | None -> error (CError_typer_unknown_var { var })
     in
     { context }

@@ -13,3 +13,4 @@ val repr : offset -> int
 val ( + ) : offset -> offset -> offset
 val ( - ) : offset -> offset -> offset
 val ( < ) : offset -> offset -> bool
+val ( > ) : offset -> offset -> bool

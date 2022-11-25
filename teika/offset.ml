@@ -8,3 +8,4 @@ let repr x = x
 let ( + ) a b = a + b
 let ( - ) a b = a - b
 let ( < ) (a : offset) (b : offset) = a < b
+let ( > ) (a : offset) (b : offset) = a > b

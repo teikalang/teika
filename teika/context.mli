@@ -20,6 +20,7 @@ module Instance_context : sig
   val test :
     loc:Warnings.loc ->
     offset:Offset.t ->
+    depth:Offset.t ->
     (unit -> 'a instance_context) ->
     ('a, error) result
 
@@ -33,8 +34,9 @@ module Instance_context : sig
 
   val ( let+ ) : 'a instance_context -> ('a -> 'b) -> 'b instance_context
 
-  (* monad *)
-  val offset : unit -> Offset.t instance_context
+  (* vars *)
+  val repr_var : var:Offset.t -> term_desc instance_context
+  val with_var : (unit -> 'a instance_context) -> 'a instance_context
 end
 
 module Normalize_context (Instance : sig
