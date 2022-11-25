@@ -1,3 +1,6 @@
+(* TODO: to avoid normalizing many times,
+    makes normalization cached, with unification this
+    means that this cache will probably be dependent on holes *)
 (* TODO: make this private again *)
 type term = TTerm of { loc : Location.t; desc : term_desc; type_ : type_ }
 and type_ = TType of { loc : Location.t; desc : term_desc }
