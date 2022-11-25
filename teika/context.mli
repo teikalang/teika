@@ -37,37 +37,6 @@ module Instance_context : sig
   val offset : unit -> Offset.t instance_context
 end
 
-module Subst_context (Instance : sig
-  val instance_desc : term_desc -> term_desc Instance_context.t
-end) : sig
-  type 'a subst_context
-  type 'a t = 'a subst_context
-
-  (* monad *)
-  val test :
-    loc:Warnings.loc ->
-    offset:Offset.t ->
-    from:Offset.t ->
-    to_:term_desc ->
-    (unit -> 'a subst_context) ->
-    ('a, error) result
-
-  val return : 'a -> 'a subst_context
-  val bind : 'a subst_context -> ('a -> 'b subst_context) -> 'b subst_context
-
-  val ( let* ) :
-    'a subst_context -> ('a -> 'b subst_context) -> 'b subst_context
-
-  val ( let+ ) : 'a subst_context -> ('a -> 'b) -> 'b subst_context
-
-  (* from *)
-  val from : unit -> Offset.t subst_context
-  val with_binder : (unit -> 'a subst_context) -> 'a subst_context
-
-  (* to_ *)
-  val to_ : unit -> term_desc subst_context
-end
-
 module Normalize_context (Instance : sig
   val instance_desc : term_desc -> term_desc Instance_context.t
 end) : sig
@@ -137,8 +106,6 @@ module Typer_context (Instance : sig
   val instance_term : term -> term Instance_context.t
   val instance_type : type_ -> type_ Instance_context.t
   val instance_desc : term_desc -> term_desc Instance_context.t
-end) (Subst : sig
-  val subst_type : type_ -> type_ Subst_context(Instance).t
 end) (Normalize : sig
   val normalize_term : term -> term Normalize_context(Instance).t
   val normalize_type : type_ -> type_ Normalize_context(Instance).t
@@ -175,10 +142,6 @@ end) : sig
 
   val with_binder :
     var:Name.t -> type_:type_ -> (unit -> 'a typer_context) -> 'a typer_context
-
-  (* subst *)
-  val subst_type :
-    from:Offset.t -> to_:term_desc -> type_ -> type_ typer_context
 
   (* unify *)
   val unify_type : expected:type_ -> received:type_ -> unit typer_context

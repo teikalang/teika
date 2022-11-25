@@ -1,9 +1,6 @@
 open Ltree
 open Ttree
-
-module Typer_context =
-  Context.Typer_context (Instance) (Subst) (Normalize) (Unify)
-
+module Typer_context = Context.Typer_context (Instance) (Normalize) (Unify)
 open Typer_context
 
 let extract_type term =
