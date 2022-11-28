@@ -214,7 +214,7 @@ end
 
 module Ttree_utils = struct
   open Teika
-  module Typer_context = Context.Typer_context (Instance) (Normalize) (Unify)
+  module Typer_context = Context.Typer_context (Normalize) (Unify)
 
   type term = Ttree.term =
     | TTerm of { loc : Location.t; [@opaque] desc : term_desc; type_ : type_ }
@@ -241,13 +241,15 @@ module Ttree_utils = struct
     | TT_let of { bound : bind; return : term }
     (* v : T *)
     | TT_annot of { value : term; annot : type_ }
+    (* e+-n *)
+    | TT_offset of { desc : term_desc; offset : Offset.t }
 
   and annot = Ttree.annot = private
     | TAnnot of { loc : Location.t; [@opaque] var : Name.t; annot : type_ }
 
   and bind = Ttree.bind = private
     | TBind of { loc : Location.t; [@opaque] var : Name.t; value : term }
-  [@@deriving show]
+  [@@deriving show { with_path = false }]
 
   type error = Context.error = private
     | CError of { loc : Location.t; [@opaque] desc : error_desc }
@@ -258,10 +260,9 @@ module Ttree_utils = struct
     | CError_unify_type_clash of { expected : term_desc; received : term_desc }
     (* typer *)
     | CError_typer_unknown_var of { var : Name.t }
-    | CError_typer_term_not_a_type of { term : term }
     | Cerror_typer_not_a_forall of { type_ : type_ }
     | Cerror_typer_not_an_exists of { type_ : type_ }
-  [@@deriving show]
+  [@@deriving show { with_path = false }]
 
   let infer_term term =
     let open Typer_context in

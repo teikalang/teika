@@ -1,5 +1,5 @@
 open Ttree
-module Unify_context = Context.Unify_context (Instance) (Normalize)
+module Unify_context = Context.Unify_context (Normalize)
 open Unify_context
 
 (* TODO: ensure this is eliminated *)
@@ -49,6 +49,8 @@ and unify_bind ~expected ~received =
 and unify_desc ~expected ~received =
   match (expected, received) with
   | TT_var { offset = expected }, TT_var { offset = received } -> (
+      let* expected = repr_expected_var ~var:expected in
+      let* received = repr_received_var ~var:received in
       match Offset.equal expected received with
       | true -> return ()
       | false -> error_var_clash ~expected ~received)
@@ -92,6 +94,10 @@ and unify_desc ~expected ~received =
       TT_annot { value = received_value; annot = received_annot } ) ->
       let* () = unify_type ~expected:expected_annot ~received:received_annot in
       unify_term ~expected:expected_value ~received:received_value
+  | TT_offset { desc = expected; offset }, received ->
+      with_expected_offset ~offset @@ fun () -> unify_desc ~expected ~received
+  | expected, TT_offset { desc = received; offset } ->
+      with_received_offset ~offset @@ fun () -> unify_desc ~expected ~received
   | ( ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_exists _
       | TT_pair _ | TT_unpair _ | TT_let _ | TT_annot _ ),
       ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_exists _
