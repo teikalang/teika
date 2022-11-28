@@ -8,105 +8,44 @@ and error_desc =
   | CError_unify_type_clash of { expected : term_desc; received : term_desc }
   (* typer *)
   | CError_typer_unknown_var of { var : Name.t }
-  | CError_typer_term_not_a_type of { term : term }
   | Cerror_typer_not_a_forall of { type_ : type_ }
   | Cerror_typer_not_an_exists of { type_ : type_ }
 
-module Instance_context = struct
-  type 'a instance_context = {
-    (* TODO: accumulate locations during instantiation *)
+module Normalize_context = struct
+  type var_info = Subst of { to_ : term_desc } | Bound of { base : Offset.t }
+
+  type 'a normalize_context = {
+    (* TODO: accumulate locations during normalization *)
     context :
       'k.
+      vars:var_info list ->
       offset:Offset.t ->
-      depth:Offset.t ->
       ok:('a -> 'k) ->
       error:(error_desc -> 'k) ->
       'k;
   }
   [@@ocaml.unboxed]
 
-  type 'a t = 'a instance_context
-
-  let[@inline always] test ~loc ~offset ~depth f =
-    let { context } = f () in
-    let ok value = Ok value in
-    let error desc = Error (CError { loc; desc }) in
-    context ~offset ~depth ~ok ~error
-
-  let[@inline always] return value =
-    let context ~offset:_ ~depth:_ ~ok ~error:_ = ok value in
-    { context }
-
-  let[@inline always] bind context f =
-    let { context } = context in
-    let context ~offset ~depth ~ok ~error =
-      let ok data =
-        let { context } = f data in
-        context ~offset ~depth ~ok ~error
-      in
-      context ~offset ~depth ~ok ~error
-    in
-    { context }
-
-  let ( let* ) = bind
-
-  let[@inline always] ( let+ ) context f =
-    let* value = context in
-    return @@ f value
-
-  let[@inline always] repr_var ~var =
-    let context ~offset ~depth ~ok ~error:_ =
-      let is_free_var = Offset.(var > depth) in
-      let offset =
-        (* TODO: this is a weird exception, Type : Type\0 *)
-        match Offset.(equal var zero) || is_free_var with
-        | true -> Offset.(var + offset)
-        | false -> var
-      in
-      ok (TT_var { offset })
-    in
-    { context }
-
-  let[@inline always] with_var f =
-    let context ~offset ~depth ~ok ~error =
-      let depth = Offset.(depth + one) in
-      let { context } = f () in
-      context ~offset ~depth ~ok ~error
-    in
-    { context }
-end
-
-module Normalize_context (Instance : sig
-  val instance_desc : term_desc -> term_desc Instance_context.t
-end) =
-struct
-  type 'a normalize_context = {
-    (* TODO: accumulate locations during normalization *)
-    context :
-      'k. vars:term_desc list -> ok:('a -> 'k) -> error:(error_desc -> 'k) -> 'k;
-  }
-  [@@ocaml.unboxed]
-
   type 'a t = 'a normalize_context
 
-  let[@inline always] test ~loc ~vars f =
+  let[@inline always] test ~loc ~vars ~offset f =
     let { context } = f () in
     let ok value = Ok value in
     let error desc = Error (CError { loc; desc }) in
-    context ~vars ~ok ~error
+    context ~vars ~offset ~ok ~error
 
   let[@inline always] return value =
-    let context ~vars:_ ~ok ~error:_ = ok value in
+    let context ~vars:_ ~offset:_ ~ok ~error:_ = ok value in
     { context }
 
   let[@inline always] bind context f =
     let { context } = context in
-    let context ~vars ~ok ~error =
+    let context ~vars ~offset ~ok ~error =
       let ok data =
         let { context } = f data in
-        context ~vars ~ok ~error
+        context ~vars ~offset ~ok ~error
       in
-      context ~vars ~ok ~error
+      context ~vars ~offset ~ok ~error
     in
     { context }
 
@@ -117,84 +56,87 @@ struct
     return @@ f value
 
   let[@inline always] repr_var ~var =
-    let context ~vars ~ok ~error =
+    let context ~vars ~offset ~ok ~error:_ =
       match
+        (* TODO: should this be var + offset? *)
         let index = Offset.(repr (var - one)) in
         List.nth_opt vars index
       with
-      | Some desc ->
-          let depth = Offset.zero in
-          let Instance_context.{ context } = Instance.instance_desc desc in
-          context ~offset:var ~depth ~ok ~error
-      | None | (exception Invalid_argument _) -> ok (TT_var { offset = var })
+      | Some (Subst { to_ }) ->
+          let offset = Offset.(var + offset) in
+          ok (TT_offset { desc = to_; offset })
+      | Some (Bound { base }) ->
+          let offset = Offset.(var + offset - base) in
+          ok (TT_var { offset })
+      | None | (exception Invalid_argument _) ->
+          (* free var *)
+          let offset = Offset.(var + offset) in
+          ok (TT_var { offset })
     in
-
     { context }
 
   let[@inline always] with_var f =
-    let context ~vars ~ok ~error =
-      let vars =
-        let offset = Offset.zero in
-        TT_var { offset } :: vars
-      in
+    let context ~vars ~offset ~ok ~error =
+      let vars = Bound { base = offset } :: vars in
       let { context } = f () in
-      context ~vars ~ok ~error
+      context ~vars ~offset ~ok ~error
     in
     { context }
 
   let[@inline always] elim_var ~to_ f =
-    let context ~vars ~ok ~error =
-      let vars = to_ :: vars in
+    let context ~vars ~offset ~ok ~error =
+      let vars = Subst { to_ } :: vars in
       let { context } = f () in
-      context ~vars ~ok ~error
+      context ~vars ~offset ~ok ~error
     in
     { context }
 
-  let[@inline always] lower_desc ~offset desc =
-    let offset = Offset.(zero - offset) in
-    let context ~vars:_ ~ok ~error =
-      let Instance_context.{ context } = Instance.instance_desc desc in
-      let depth = Offset.zero in
-      context ~offset ~depth ~ok ~error
+  let[@inline always] with_offset ~offset f =
+    let context ~vars ~offset:current_offset ~ok ~error =
+      let offset = Offset.(current_offset + offset) in
+      let { context } = f () in
+      context ~vars ~offset ~ok ~error
     in
     { context }
 end
 
-module Unify_context (Instance : sig
-  val instance_desc : term_desc -> term_desc Instance_context.t
-end) (Normalize : sig
-  val normalize_term : term -> term Normalize_context(Instance).t
-  val normalize_type : type_ -> type_ Normalize_context(Instance).t
+module Unify_context (Normalize : sig
+  val normalize_term : term -> term Normalize_context.t
+  val normalize_type : type_ -> type_ Normalize_context.t
 end) =
 struct
-  module Normalize_context = Normalize_context (Instance)
-
   type 'a unify_context = {
     (* TODO: accumulate locations during unification *)
-    context : 'k. ok:('a -> 'k) -> error:(error_desc -> 'k) -> 'k;
+    context :
+      'k.
+      expected_offset:Offset.t ->
+      received_offset:Offset.t ->
+      ok:('a -> 'k) ->
+      error:(error_desc -> 'k) ->
+      'k;
   }
   [@@ocaml.unboxed]
 
   type 'a t = 'a unify_context
 
-  let[@inline always] test ~loc f =
+  let[@inline always] test ~loc ~expected_offset ~received_offset f =
     let { context } = f () in
     let ok value = Ok value in
     let error desc = Error (CError { loc; desc }) in
-    context ~ok ~error
+    context ~expected_offset ~received_offset ~ok ~error
 
   let[@inline always] return value =
-    let context ~ok ~error:_ = ok value in
+    let context ~expected_offset:_ ~received_offset:_ ~ok ~error:_ = ok value in
     { context }
 
   let[@inline always] bind context f =
     let { context } = context in
-    let context ~ok ~error =
+    let context ~expected_offset ~received_offset ~ok ~error =
       let ok data =
         let { context } = f data in
-        context ~ok ~error
+        context ~expected_offset ~received_offset ~ok ~error
       in
-      context ~ok ~error
+      context ~expected_offset ~received_offset ~ok ~error
     in
     { context }
 
@@ -205,21 +147,22 @@ struct
     return @@ f value
 
   let[@inline always] error_var_clash ~expected ~received =
-    let context ~ok:_ ~error =
+    let context ~expected_offset:_ ~received_offset:_ ~ok:_ ~error =
       error (CError_unify_var_clash { expected; received })
     in
     { context }
 
   let[@inline always] error_type_clash ~expected ~received =
-    let context ~ok:_ ~error =
+    let context ~expected_offset:_ ~received_offset:_ ~ok:_ ~error =
       error (CError_unify_type_clash { expected; received })
     in
     { context }
 
   let[@inline always] with_normalize_context f =
-    let context ~ok ~error =
+    let context ~expected_offset:_ ~received_offset:_ ~ok ~error =
       let Normalize_context.{ context } = f () in
-      context ~vars:[] ~ok ~error
+      let offset = Offset.zero in
+      context ~vars:[] ~offset ~ok ~error
     in
     { context }
 
@@ -228,19 +171,42 @@ struct
 
   let[@inline always] normalize_type type_ =
     with_normalize_context @@ fun () -> Normalize.normalize_type type_
+
+  let[@inline always] repr_expected_var ~var =
+    let context ~expected_offset ~received_offset:_ ~ok ~error:_ =
+      ok Offset.(expected_offset + var)
+    in
+    { context }
+
+  let[@inline always] repr_received_var ~var =
+    let context ~expected_offset:_ ~received_offset ~ok ~error:_ =
+      ok Offset.(received_offset + var)
+    in
+    { context }
+
+  let[@inline always] with_expected_offset ~offset f =
+    let context ~expected_offset ~received_offset ~ok ~error =
+      let expected_offset = Offset.(expected_offset + offset) in
+      let { context } = f () in
+      context ~expected_offset ~received_offset ~ok ~error
+    in
+    { context }
+
+  let[@inline always] with_received_offset ~offset f =
+    let context ~expected_offset ~received_offset ~ok ~error =
+      let received_offset = Offset.(received_offset + offset) in
+      let { context } = f () in
+      context ~expected_offset ~received_offset ~ok ~error
+    in
+    { context }
 end
 
-module Typer_context (Instance : sig
-  val instance_type : type_ -> type_ Instance_context.t
-  val instance_desc : term_desc -> term_desc Instance_context.t
-end) (Normalize : sig
-  val normalize_term : term -> term Normalize_context(Instance).t
-  val normalize_type : type_ -> type_ Normalize_context(Instance).t
+module Typer_context (Normalize : sig
+  val normalize_term : term -> term Normalize_context.t
+  val normalize_type : type_ -> type_ Normalize_context.t
 end) (Unify : sig
   val unify_type :
-    expected:type_ ->
-    received:type_ ->
-    unit Unify_context(Instance)(Normalize).t
+    expected:type_ -> received:type_ -> unit Unify_context(Normalize).t
 end) =
 struct
   type 'a typer_context = {
@@ -313,10 +279,11 @@ struct
       match Name.Tbl.find_opt names var with
       | Some (var_level, type_) ->
           let offset = Level.offset ~from:var_level ~to_:level in
-          let depth = Offset.zero in
-          let Instance_context.{ context } = Instance.instance_type type_ in
-          let ok type_ = ok (offset, type_) in
-          context ~offset ~depth ~ok ~error
+          (* TODO: breaking abstraction *)
+          let (TType { loc; desc }) = type_ in
+          let desc = TT_offset { desc; offset } in
+          let type_ = TType { loc; desc } in
+          ok (offset, type_)
       | None -> error (CError_typer_unknown_var { var })
     in
     { context }
@@ -334,12 +301,13 @@ struct
     in
     { context }
 
-  module Unify_context = Unify_context (Instance) (Normalize)
+  module Unify_context = Unify_context (Normalize)
 
   let unify_type ~expected ~received =
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       let Unify_context.{ context } = Unify.unify_type ~expected ~received in
-      context ~ok ~error
+      context ~expected_offset:Offset.zero ~received_offset:Offset.zero ~ok
+        ~error
     in
     { context }
 
@@ -371,32 +339,25 @@ struct
     { context }
 
   let[@inline always] type_of_term term =
-    let context ~loc:_ ~type_of_types ~level ~names:_ ~ok ~error =
+    let context ~loc ~type_of_types ~level ~names:_ ~ok ~error =
+      let tt_type = tt_type ~loc ~type_of_types ~level in
       let (TTerm { loc; desc; type_ }) = term in
-      (* TODO: this should probably use unify *)
-      let type_offset = tt_type_offset ~type_of_types ~level in
-      match
-        let (TType { loc = _; desc }) = type_ in
-        desc
-      with
-      | TT_var { offset } -> (
-          match Offset.equal offset type_offset with
-          | true ->
-              (* TODO: breaking abstraction *)
-              ok (TType { loc; desc })
-          | false -> error (CError_typer_term_not_a_type { term }))
-      | TT_forall _ | TT_lambda _ | TT_apply _ | TT_exists _ | TT_pair _
-      | TT_unpair _ | TT_let _ | TT_annot _ ->
-          error (CError_typer_term_not_a_type { term })
+      let Unify_context.{ context } =
+        Unify.unify_type ~expected:tt_type ~received:type_
+      in
+      let ok () =
+        (* TODO: breaking abstraction *)
+        ok (TType { loc; desc })
+      in
+      context ~expected_offset:Offset.zero ~received_offset:Offset.zero ~ok
+        ~error
     in
     { context }
-
-  module Normalize_context = Normalize_context (Instance)
 
   let[@inline always] with_normalize_context f =
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       let Normalize_context.{ context } = f () in
-      context ~vars:[] ~ok ~error
+      context ~vars:[] ~offset:Offset.zero ~ok ~error
     in
     { context }
 
@@ -405,18 +366,22 @@ struct
 
   let[@inline always] split_forall type_ =
     let* type_ = normalize_type type_ in
+    (* TODO: two normalize guarantees no TT_offset? *)
+    let* type_ = normalize_type type_ in
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       (* TODO: what about this location? *)
       let (TType { loc = _; desc }) = type_ in
       match desc with
       | TT_forall { param; return } -> ok (param, return)
       | TT_var _ | TT_lambda _ | TT_apply _ | TT_exists _ | TT_pair _
-      | TT_unpair _ | TT_let _ | TT_annot _ ->
+      | TT_unpair _ | TT_let _ | TT_annot _ | TT_offset _ ->
           error (Cerror_typer_not_a_forall { type_ })
     in
     { context }
 
   let[@inline always] split_exists type_ =
+    let* type_ = normalize_type type_ in
+    (* TODO: two normalize guarantees no TT_offset? *)
     let* type_ = normalize_type type_ in
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       (* TODO: what about this location? *)
@@ -424,7 +389,7 @@ struct
       match desc with
       | TT_exists { left; right } -> ok (left, right)
       | TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_pair _
-      | TT_unpair _ | TT_let _ | TT_annot _ ->
+      | TT_unpair _ | TT_let _ | TT_annot _ | TT_offset _ ->
           error (Cerror_typer_not_an_exists { type_ })
     in
     { context }

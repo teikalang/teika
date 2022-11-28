@@ -8,47 +8,19 @@ and error_desc = private
   | CError_unify_type_clash of { expected : term_desc; received : term_desc }
   (* typer *)
   | CError_typer_unknown_var of { var : Name.t }
-  | CError_typer_term_not_a_type of { term : term }
   | Cerror_typer_not_a_forall of { type_ : type_ }
   | Cerror_typer_not_an_exists of { type_ : type_ }
 
-module Instance_context : sig
-  type 'a instance_context
-  type 'a t = 'a instance_context
-
-  (* monad *)
-  val test :
-    loc:Warnings.loc ->
-    offset:Offset.t ->
-    depth:Offset.t ->
-    (unit -> 'a instance_context) ->
-    ('a, error) result
-
-  val return : 'a -> 'a instance_context
-
-  val bind :
-    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
-
-  val ( let* ) :
-    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
-
-  val ( let+ ) : 'a instance_context -> ('a -> 'b) -> 'b instance_context
-
-  (* vars *)
-  val repr_var : var:Offset.t -> term_desc instance_context
-  val with_var : (unit -> 'a instance_context) -> 'a instance_context
-end
-
-module Normalize_context (Instance : sig
-  val instance_desc : term_desc -> term_desc Instance_context.t
-end) : sig
+module Normalize_context : sig
+  type var_info = Subst of { to_ : term_desc } | Bound of { base : Offset.t }
   type 'a normalize_context
   type 'a t = 'a normalize_context
 
   (* monad *)
   val test :
     loc:Warnings.loc ->
-    vars:term_desc list ->
+    vars:var_info list ->
+    offset:Offset.t ->
     (unit -> 'a normalize_context) ->
     ('a, error) result
 
@@ -69,23 +41,26 @@ end) : sig
   val elim_var :
     to_:term_desc -> (unit -> 'a normalize_context) -> 'a normalize_context
 
-  (* lower *)
-  val lower_desc : offset:Offset.t -> term_desc -> term_desc normalize_context
+  (* offset *)
+  val with_offset :
+    offset:Offset.t -> (unit -> 'a normalize_context) -> 'a normalize_context
 end
 
 (* TODO: this is bad *)
-module Unify_context (Instance : sig
-  val instance_desc : term_desc -> term_desc Instance_context.t
-end) (Normalize : sig
-  val normalize_term : term -> term Normalize_context(Instance).t
-  val normalize_type : type_ -> type_ Normalize_context(Instance).t
+module Unify_context (Normalize : sig
+  val normalize_term : term -> term Normalize_context.t
+  val normalize_type : type_ -> type_ Normalize_context.t
 end) : sig
   type 'a unify_context
   type 'a t = 'a unify_context
 
   (* monad *)
   val test :
-    loc:Warnings.loc -> (unit -> 'a unify_context) -> ('a, error) result
+    loc:Warnings.loc ->
+    expected_offset:Offset.t ->
+    received_offset:Offset.t ->
+    (unit -> 'a unify_context) ->
+    ('a, error) result
 
   val return : 'a -> 'a unify_context
   val bind : 'a unify_context -> ('a -> 'b unify_context) -> 'b unify_context
@@ -105,20 +80,24 @@ end) : sig
   (* normalize *)
   val normalize_term : term -> term unify_context
   val normalize_type : type_ -> type_ unify_context
+
+  (* offset *)
+  val repr_expected_var : var:Offset.t -> Offset.t unify_context
+  val repr_received_var : var:Offset.t -> Offset.t unify_context
+
+  val with_expected_offset :
+    offset:Offset.t -> (unit -> 'a unify_context) -> 'a unify_context
+
+  val with_received_offset :
+    offset:Offset.t -> (unit -> 'a unify_context) -> 'a unify_context
 end
 
-module Typer_context (Instance : sig
-  val instance_term : term -> term Instance_context.t
-  val instance_type : type_ -> type_ Instance_context.t
-  val instance_desc : term_desc -> term_desc Instance_context.t
-end) (Normalize : sig
-  val normalize_term : term -> term Normalize_context(Instance).t
-  val normalize_type : type_ -> type_ Normalize_context(Instance).t
+module Typer_context (Normalize : sig
+  val normalize_term : term -> term Normalize_context.t
+  val normalize_type : type_ -> type_ Normalize_context.t
 end) (Unify : sig
   val unify_type :
-    expected:type_ ->
-    received:type_ ->
-    unit Unify_context(Instance)(Normalize).t
+    expected:type_ -> received:type_ -> unit Unify_context(Normalize).t
 end) : sig
   type 'a typer_context
   type 'a t = 'a typer_context

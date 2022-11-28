@@ -1,6 +1,5 @@
 open Ttree
-module Normalize_context = Context.Normalize_context (Instance)
-open Normalize_context
+open Context.Normalize_context
 
 let rec normalize_term term =
   let (TTerm { loc; desc; type_ }) = term in
@@ -48,9 +47,8 @@ and normalize_desc desc =
           let (TTerm { loc = _; desc = return; type_ = _ }) = return in
           let (TTerm { loc = _; desc = arg; type_ = _ }) = arg in
           (* TODO: return normalized twice? *)
-          elim_var ~to_:arg @@ fun () ->
-          let* return = normalize_desc return in
-          lower_desc ~offset:Offset.(one) return
+          with_offset ~offset:Offset.(zero - one) @@ fun () ->
+          elim_var ~to_:arg @@ fun () -> normalize_desc return
       | _ -> return @@ TT_apply { lambda; arg })
   | TT_exists { left; right } ->
       normalize_annot left @@ fun left ->
@@ -83,3 +81,5 @@ and normalize_desc desc =
   | TT_annot { value; annot = _ } ->
       let (TTerm { loc = _; desc = value; type_ = _ }) = value in
       normalize_desc value
+  | TT_offset { desc; offset } ->
+      with_offset ~offset @@ fun () -> normalize_desc desc
