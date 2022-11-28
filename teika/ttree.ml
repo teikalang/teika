@@ -3,8 +3,10 @@
 
    Maybe (x : ?X) => x *)
 
-type term = TTerm of { loc : Location.t; desc : term_desc; type_ : type_ }
-and type_ = TType of { loc : Location.t; desc : term_desc }
+type term =
+  | TTerm of { loc : Location.t; [@opaque] desc : term_desc; type_ : type_ }
+
+and type_ = TType of { loc : Location.t; [@opaque] desc : term_desc }
 
 and term_desc =
   | TT_var of { offset : Offset.t }
@@ -16,9 +18,12 @@ and term_desc =
   | TT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
   | TT_let of { bound : bind; return : term }
   | TT_annot of { value : term; annot : type_ }
+  | TT_offset of { desc : term_desc; offset : Offset.t }
 
-and annot = TAnnot of { loc : Location.t; var : Name.t; annot : type_ }
-and bind = TBind of { loc : Location.t; var : Name.t; value : term }
+and annot =
+  | TAnnot of { loc : Location.t; [@opaque] var : Name.t; annot : type_ }
+
+and bind = TBind of { loc : Location.t; [@opaque] var : Name.t; value : term }
 
 (* term *)
 let tterm loc type_ desc = TTerm { loc; desc; type_ }

@@ -24,6 +24,8 @@ and term_desc =
   | TT_let of { bound : bind; return : term }
   (* v : T *)
   | TT_annot of { value : term; annot : type_ }
+  (* e+-n *)
+  | TT_offset of { desc : term_desc; offset : Offset.t }
 
 and annot = private
   | TAnnot of { loc : Location.t; var : Name.t; annot : type_ }
