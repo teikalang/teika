@@ -116,7 +116,7 @@ struct
     let* value = context in
     return @@ f value
 
-  let repr_var ~var =
+  let[@inline always] repr_var ~var =
     let context ~vars ~ok ~error =
       match
         let index = Offset.(repr (var - one)) in
@@ -131,20 +131,31 @@ struct
 
     { context }
 
-  let with_var f =
+  let[@inline always] with_var f =
     let context ~vars ~ok ~error =
-      let offset = Offset.zero in
-      let vars = TT_var { offset } :: vars in
+      let vars =
+        let offset = Offset.zero in
+        TT_var { offset } :: vars
+      in
       let { context } = f () in
       context ~vars ~ok ~error
     in
     { context }
 
-  let elim_var ~to_ f =
+  let[@inline always] elim_var ~to_ f =
     let context ~vars ~ok ~error =
       let vars = to_ :: vars in
       let { context } = f () in
       context ~vars ~ok ~error
+    in
+    { context }
+
+  let[@inline always] lower_desc ~offset desc =
+    let offset = Offset.(zero - offset) in
+    let context ~vars:_ ~ok ~error =
+      let Instance_context.{ context } = Instance.instance_desc desc in
+      let depth = Offset.zero in
+      context ~offset ~depth ~ok ~error
     in
     { context }
 end
@@ -380,7 +391,20 @@ struct
     in
     { context }
 
+  module Normalize_context = Normalize_context (Instance)
+
+  let[@inline always] with_normalize_context f =
+    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
+      let Normalize_context.{ context } = f () in
+      context ~vars:[] ~ok ~error
+    in
+    { context }
+
+  let[@inline always] normalize_type type_ =
+    with_normalize_context @@ fun () -> Normalize.normalize_type type_
+
   let[@inline always] split_forall type_ =
+    let* type_ = normalize_type type_ in
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       (* TODO: what about this location? *)
       let (TType { loc = _; desc }) = type_ in
@@ -393,6 +417,7 @@ struct
     { context }
 
   let[@inline always] split_exists type_ =
+    let* type_ = normalize_type type_ in
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       (* TODO: what about this location? *)
       let (TType { loc = _; desc }) = type_ in

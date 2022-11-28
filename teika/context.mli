@@ -68,6 +68,9 @@ end) : sig
 
   val elim_var :
     to_:term_desc -> (unit -> 'a normalize_context) -> 'a normalize_context
+
+  (* lower *)
+  val lower_desc : offset:Offset.t -> term_desc -> term_desc normalize_context
 end
 
 (* TODO: this is bad *)

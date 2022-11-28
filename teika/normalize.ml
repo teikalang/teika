@@ -48,7 +48,9 @@ and normalize_desc desc =
           let (TTerm { loc = _; desc = return; type_ = _ }) = return in
           let (TTerm { loc = _; desc = arg; type_ = _ }) = arg in
           (* TODO: return normalized twice? *)
-          elim_var ~to_:arg @@ fun () -> normalize_desc return
+          elim_var ~to_:arg @@ fun () ->
+          let* return = normalize_desc return in
+          lower_desc ~offset:Offset.(one) return
       | _ -> return @@ TT_apply { lambda; arg })
   | TT_exists { left; right } ->
       normalize_annot left @@ fun left ->
