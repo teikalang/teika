@@ -11,33 +11,6 @@ and error_desc = private
   | Cerror_typer_not_a_forall of { type_ : type_ }
   | Cerror_typer_not_an_exists of { type_ : type_ }
 
-module Instance_context : sig
-  type 'a instance_context
-  type 'a t = 'a instance_context
-
-  (* monad *)
-  val test :
-    loc:Warnings.loc ->
-    offset:Offset.t ->
-    depth:Offset.t ->
-    (unit -> 'a instance_context) ->
-    ('a, error) result
-
-  val return : 'a -> 'a instance_context
-
-  val bind :
-    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
-
-  val ( let* ) :
-    'a instance_context -> ('a -> 'b instance_context) -> 'b instance_context
-
-  val ( let+ ) : 'a instance_context -> ('a -> 'b) -> 'b instance_context
-
-  (* vars *)
-  val repr_var : var:Offset.t -> term_desc instance_context
-  val with_var : (unit -> 'a instance_context) -> 'a instance_context
-end
-
 module Normalize_context : sig
   type var_info = Subst of { to_ : term_desc } | Bound of { base : Offset.t }
   type 'a normalize_context
