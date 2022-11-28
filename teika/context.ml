@@ -16,81 +16,35 @@ module Instance_context = struct
   type 'a instance_context = {
     (* TODO: accumulate locations during instantiation *)
     context :
-      'k. offset:Offset.t -> ok:('a -> 'k) -> error:(error_desc -> 'k) -> 'k;
-  }
-  [@@ocaml.unboxed]
-
-  type 'a t = 'a instance_context
-
-  let[@inline always] test ~loc ~offset f =
-    let { context } = f () in
-    let ok value = Ok value in
-    let error desc = Error (CError { loc; desc }) in
-    context ~offset ~ok ~error
-
-  let[@inline always] return value =
-    let context ~offset:_ ~ok ~error:_ = ok value in
-    { context }
-
-  let[@inline always] bind context f =
-    let { context } = context in
-    let context ~offset ~ok ~error =
-      let ok data =
-        let { context } = f data in
-        context ~offset ~ok ~error
-      in
-      context ~offset ~ok ~error
-    in
-    { context }
-
-  let ( let* ) = bind
-
-  let[@inline always] ( let+ ) context f =
-    let* value = context in
-    return @@ f value
-
-  let[@inline always] offset () =
-    let context ~offset ~ok ~error:_ = ok offset in
-    { context }
-end
-
-module Subst_context (Instance : sig
-  val instance_desc : term_desc -> term_desc Instance_context.t
-end) =
-struct
-  type 'a subst_context = {
-    (* TODO: accumulate locations during substitutions *)
-    context :
       'k.
       offset:Offset.t ->
-      from:Offset.t ->
-      to_:term_desc ->
+      depth:Offset.t ->
       ok:('a -> 'k) ->
       error:(error_desc -> 'k) ->
       'k;
   }
   [@@ocaml.unboxed]
 
-  type 'a t = 'a subst_context
+  type 'a t = 'a instance_context
 
-  let[@inline always] test ~loc ~offset ~from ~to_ f =
+  let[@inline always] test ~loc ~offset ~depth f =
     let { context } = f () in
     let ok value = Ok value in
     let error desc = Error (CError { loc; desc }) in
-    context ~offset ~from ~to_ ~ok ~error
+    context ~offset ~depth ~ok ~error
 
   let[@inline always] return value =
-    let context ~offset:_ ~from:_ ~to_:_ ~ok ~error:_ = ok value in
+    let context ~offset:_ ~depth:_ ~ok ~error:_ = ok value in
     { context }
 
   let[@inline always] bind context f =
     let { context } = context in
-    let context ~offset ~from ~to_ ~ok ~error =
+    let context ~offset ~depth ~ok ~error =
       let ok data =
         let { context } = f data in
-        context ~offset ~from ~to_ ~ok ~error
+        context ~offset ~depth ~ok ~error
       in
-      context ~offset ~from ~to_ ~ok ~error
+      context ~offset ~depth ~ok ~error
     in
     { context }
 
@@ -100,22 +54,24 @@ struct
     let* value = context in
     return @@ f value
 
-  let[@inline always] from () =
-    let context ~offset ~from ~to_:_ ~ok ~error:_ = ok Offset.(from + offset) in
-    { context }
-
-  let[@inline always] to_ () =
-    let context ~offset ~from:_ ~to_ ~ok ~error =
-      let Instance_context.{ context } = Instance.instance_desc to_ in
-      context ~offset ~ok ~error
+  let[@inline always] repr_var ~var =
+    let context ~offset ~depth ~ok ~error:_ =
+      let is_free_var = Offset.(var > depth) in
+      let offset =
+        (* TODO: this is a weird exception, Type : Type\0 *)
+        match Offset.(equal var zero) || is_free_var with
+        | true -> Offset.(var + offset)
+        | false -> var
+      in
+      ok (TT_var { offset })
     in
     { context }
 
-  let[@inline always] with_binder f =
-    let context ~offset ~from ~to_ ~ok ~error =
-      let offset = Offset.(offset + one) in
+  let[@inline always] with_var f =
+    let context ~offset ~depth ~ok ~error =
+      let depth = Offset.(depth + one) in
       let { context } = f () in
-      context ~offset ~from ~to_ ~ok ~error
+      context ~offset ~depth ~ok ~error
     in
     { context }
 end
@@ -160,33 +116,46 @@ struct
     let* value = context in
     return @@ f value
 
-  let repr_var ~var =
+  let[@inline always] repr_var ~var =
     let context ~vars ~ok ~error =
       match
-        let index = Offset.repr var - 1 in
+        let index = Offset.(repr (var - one)) in
         List.nth_opt vars index
       with
       | Some desc ->
+          let depth = Offset.zero in
           let Instance_context.{ context } = Instance.instance_desc desc in
-          context ~offset:var ~ok ~error
-      | None -> ok (TT_var { offset = var })
+          context ~offset:var ~depth ~ok ~error
+      | None | (exception Invalid_argument _) -> ok (TT_var { offset = var })
     in
+
     { context }
 
-  let with_var f =
+  let[@inline always] with_var f =
     let context ~vars ~ok ~error =
-      let offset = Offset.zero in
-      let vars = TT_var { offset } :: vars in
+      let vars =
+        let offset = Offset.zero in
+        TT_var { offset } :: vars
+      in
       let { context } = f () in
       context ~vars ~ok ~error
     in
     { context }
 
-  let elim_var ~to_ f =
+  let[@inline always] elim_var ~to_ f =
     let context ~vars ~ok ~error =
       let vars = to_ :: vars in
       let { context } = f () in
       context ~vars ~ok ~error
+    in
+    { context }
+
+  let[@inline always] lower_desc ~offset desc =
+    let offset = Offset.(zero - offset) in
+    let context ~vars:_ ~ok ~error =
+      let Instance_context.{ context } = Instance.instance_desc desc in
+      let depth = Offset.zero in
+      context ~offset ~depth ~ok ~error
     in
     { context }
 end
@@ -262,11 +231,8 @@ struct
 end
 
 module Typer_context (Instance : sig
-  val instance_term : term -> term Instance_context.t
   val instance_type : type_ -> type_ Instance_context.t
   val instance_desc : term_desc -> term_desc Instance_context.t
-end) (Subst : sig
-  val subst_type : type_ -> type_ Subst_context(Instance).t
 end) (Normalize : sig
   val normalize_term : term -> term Normalize_context(Instance).t
   val normalize_type : type_ -> type_ Normalize_context(Instance).t
@@ -342,14 +308,15 @@ struct
     let* value = context in
     return @@ f value
 
-  let instance ~var =
+  let[@inline always] instance ~var =
     let context ~loc:_ ~type_of_types:_ ~level ~names ~ok ~error =
       match Name.Tbl.find_opt names var with
       | Some (var_level, type_) ->
           let offset = Level.offset ~from:var_level ~to_:level in
+          let depth = Offset.zero in
           let Instance_context.{ context } = Instance.instance_type type_ in
           let ok type_ = ok (offset, type_) in
-          context ~offset ~ok ~error
+          context ~offset ~depth ~ok ~error
       | None -> error (CError_typer_unknown_var { var })
     in
     { context }
@@ -364,35 +331,6 @@ struct
         ok value
       in
       context ~loc ~type_of_types ~level ~names ~ok ~error
-    in
-    { context }
-
-  module Subst_context = Subst_context (Instance)
-
-  let[@inline always] with_subst_context ~from ~to_ f =
-    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
-      let offset = Offset.zero in
-      let Subst_context.{ context } = f () in
-      context ~offset ~from ~to_ ~ok ~error
-    in
-    { context }
-
-  let[@inline always] subst_type ~from ~to_ type_ =
-    with_subst_context ~from ~to_ @@ fun () -> Subst.subst_type type_
-
-  let[@inline always] lower_term ~offset term =
-    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
-      let offset = Offset.(zero - offset) in
-      let Instance_context.{ context } = Instance.instance_term term in
-      context ~offset ~ok ~error
-    in
-    { context }
-
-  let[@inline always] lower_type ~offset type_ =
-    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
-      let offset = Offset.(zero - offset) in
-      let Instance_context.{ context } = Instance.instance_type type_ in
-      context ~offset ~ok ~error
     in
     { context }
 
@@ -453,7 +391,20 @@ struct
     in
     { context }
 
+  module Normalize_context = Normalize_context (Instance)
+
+  let[@inline always] with_normalize_context f =
+    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
+      let Normalize_context.{ context } = f () in
+      context ~vars:[] ~ok ~error
+    in
+    { context }
+
+  let[@inline always] normalize_type type_ =
+    with_normalize_context @@ fun () -> Normalize.normalize_type type_
+
   let[@inline always] split_forall type_ =
+    let* type_ = normalize_type type_ in
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       (* TODO: what about this location? *)
       let (TType { loc = _; desc }) = type_ in
@@ -466,6 +417,7 @@ struct
     { context }
 
   let[@inline always] split_exists type_ =
+    let* type_ = normalize_type type_ in
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       (* TODO: what about this location? *)
       let (TType { loc = _; desc }) = type_ in

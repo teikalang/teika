@@ -214,9 +214,7 @@ end
 
 module Ttree_utils = struct
   open Teika
-
-  module Typer_context =
-    Context.Typer_context (Instance) (Subst) (Normalize) (Unify)
+  module Typer_context = Context.Typer_context (Instance) (Normalize) (Unify)
 
   type term = Ttree.term =
     | TTerm of { loc : Location.t; [@opaque] desc : term_desc; type_ : type_ }
