@@ -3,9 +3,12 @@ open Ttree
 type error = CError of { loc : Location.t; desc : error_desc }
 
 and error_desc =
+  (* typer *)
+  | CError_typer_pat_not_pair of { pat : Ltree.pat_desc; expected : type_ }
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
   | CError_unify_type_clash of { expected : term_desc; received : term_desc }
+  | CError_unify_pat_clash of { expected : pat_desc; received : pat_desc }
   (* typer *)
   | CError_typer_unknown_var of { var : Name.t }
   | Cerror_typer_not_a_forall of { type_ : type_ }
@@ -158,6 +161,12 @@ struct
     in
     { context }
 
+  let[@inline always] error_pat_clash ~expected ~received =
+    let context ~expected_offset:_ ~received_offset:_ ~ok:_ ~error =
+      error (CError_unify_pat_clash { expected; received })
+    in
+    { context }
+
   let[@inline always] with_normalize_context f =
     let context ~expected_offset:_ ~received_offset:_ ~ok ~error =
       let Normalize_context.{ context } = f () in
@@ -274,6 +283,12 @@ struct
     let* value = context in
     return @@ f value
 
+  let[@inline always] error_typer_pat_not_pair ~pat ~expected =
+    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok:_ ~error =
+      error (CError_typer_pat_not_pair { pat; expected })
+    in
+    { context }
+
   let[@inline always] instance ~var =
     let context ~loc:_ ~type_of_types:_ ~level ~names ~ok ~error =
       match Name.Tbl.find_opt names var with
@@ -373,8 +388,8 @@ struct
       let (TType { loc = _; desc }) = type_ in
       match desc with
       | TT_forall { param; return } -> ok (param, return)
-      | TT_var _ | TT_lambda _ | TT_apply _ | TT_exists _ | TT_pair _
-      | TT_unpair _ | TT_let _ | TT_annot _ | TT_offset _ ->
+      | TT_var _ | TT_lambda _ | TT_apply _ | TT_exists _ | TT_pair _ | TT_let _
+      | TT_annot _ | TT_offset _ ->
           error (Cerror_typer_not_a_forall { type_ })
     in
     { context }
@@ -388,8 +403,8 @@ struct
       let (TType { loc = _; desc }) = type_ in
       match desc with
       | TT_exists { left; right } -> ok (left, right)
-      | TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_pair _
-      | TT_unpair _ | TT_let _ | TT_annot _ | TT_offset _ ->
+      | TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_pair _ | TT_let _
+      | TT_annot _ | TT_offset _ ->
           error (Cerror_typer_not_an_exists { type_ })
     in
     { context }
@@ -436,12 +451,6 @@ struct
     in
     { context }
 
-  let[@inline always] tt_unpair type_ ~left ~right ~pair ~return =
-    let context ~loc ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
-      ok @@ tt_unpair loc type_ ~left ~right ~pair ~return
-    in
-    { context }
-
   let[@inline always] tt_let type_ ~bound ~return =
     let context ~loc ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
       ok @@ tt_let loc type_ ~bound ~return
@@ -454,15 +463,33 @@ struct
     in
     { context }
 
-  let[@inline always] tannot ~var ~annot =
+  let[@inline always] tp_var type_ ~var =
     let context ~loc ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
-      ok @@ tannot loc ~var ~annot
+      ok @@ tp_var loc type_ ~var
     in
     { context }
 
-  let[@inline always] tbind ~var ~value =
+  let[@inline always] tp_pair type_ ~left ~right =
     let context ~loc ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
-      ok @@ tbind loc ~var ~value
+      ok @@ tp_pair loc type_ ~left ~right
+    in
+    { context }
+
+  let[@inline always] tp_annot ~pat ~annot =
+    let context ~loc ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
+      ok @@ tp_annot loc ~pat ~annot
+    in
+    { context }
+
+  let[@inline always] tannot ~pat ~annot =
+    let context ~loc ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
+      ok @@ tannot loc ~pat ~annot
+    in
+    { context }
+
+  let[@inline always] tbind ~pat ~value =
+    let context ~loc ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
+      ok @@ tbind loc ~pat ~value
     in
     { context }
 end

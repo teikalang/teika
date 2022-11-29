@@ -12,17 +12,36 @@ and normalize_type type_ =
   let+ desc = normalize_desc desc in
   TType { loc; desc }
 
+and normalize_pat pat =
+  let (TPat { loc; desc; type_ }) = pat in
+  let* type_ = normalize_type type_ in
+  let+ desc = normalize_pat_desc desc in
+  TPat { loc; desc; type_ }
+
+and normalize_pat_desc pat_desc =
+  match pat_desc with
+  | TP_var { var } -> return @@ TP_var { var }
+  | TP_pair { left; right } ->
+      let* left = normalize_pat left in
+      let+ right = normalize_pat right in
+      TP_pair { left; right }
+  | TP_annot { pat; annot = _ } ->
+      let (TPat { loc = _; desc; type_ = _ }) = pat in
+      normalize_pat_desc desc
+
 and normalize_annot annot f =
-  let (TAnnot { loc; var; annot }) = annot in
+  let (TAnnot { loc; pat; annot }) = annot in
   let* annot = normalize_type annot in
-  with_var @@ fun () -> f (tannot loc ~var ~annot)
+  let* pat = normalize_pat pat in
+  with_var @@ fun () -> f (tannot loc ~pat ~annot)
 
 and normalize_bind bind f =
-  let (TBind { loc; var; value }) = bind in
+  let (TBind { loc; pat; value }) = bind in
   let* value = normalize_term value in
   let (TTerm { loc = _; desc = value_desc; type_ = _ }) = value in
+  let* pat = normalize_pat pat in
   elim_var ~to_:value_desc @@ fun () ->
-  let bind = tbind loc ~var ~value in
+  let bind = tbind loc ~pat ~value in
   f bind
 
 and normalize_desc desc =
@@ -56,28 +75,18 @@ and normalize_desc desc =
   | TT_pair { left; right } ->
       normalize_bind left @@ fun left ->
       normalize_bind right @@ fun right -> return @@ TT_pair { left; right }
-  | TT_unpair { left; right; pair; return } -> (
-      let* pair = normalize_term pair in
-      match
-        let (TTerm { loc = _; desc; type_ = _ }) = pair in
-        desc
-      with
-      | TT_pair { left = left_bind; right = right_bind } ->
-          let (TBind { loc = _; var = _; value = left_value }) = left_bind in
-          let (TTerm { loc = _; desc = left_desc; type_ = _ }) = left_value in
-          let (TBind { loc = _; var = _; value = right_value }) = right_bind in
-          let (TTerm { loc = _; desc = right_desc; type_ = _ }) = right_value in
-          let (TTerm { loc = _; desc = return; type_ = _ }) = return in
-          elim_var ~to_:left_desc @@ fun () ->
-          elim_var ~to_:right_desc @@ fun () -> normalize_desc return
-      | _ ->
-          let+ return = normalize_term return in
-          TT_unpair { left; right; pair; return })
   | TT_let { bound; return } ->
-      normalize_bind bound @@ fun _bound ->
-      let (TTerm { loc = _; desc = return; type_ = _ }) = return in
-      (* TODO: let may be let dependent *)
-      normalize_desc return
+      normalize_bind bound @@ fun bound ->
+      let (TBind { loc = lambda_loc; pat = param; value = arg }) = bound in
+      let (TPat { loc = param_loc; desc = _; type_ = annot }) = param in
+      let param = tannot param_loc ~pat:param ~annot in
+      let forall =
+        let (TTerm { loc = _; desc = _; type_ = return }) = return in
+        tt_forall lambda_loc ~param ~return
+      in
+      let lambda = tt_lambda lambda_loc forall ~param ~return in
+      let apply = TT_apply { lambda; arg } in
+      normalize_desc apply
   | TT_annot { value; annot = _ } ->
       let (TTerm { loc = _; desc = value; type_ = _ }) = value in
       normalize_desc value

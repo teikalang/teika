@@ -126,15 +126,22 @@ module Ltree_utils = struct
     | LT_apply of { lambda : term; arg : term }
     | LT_exists of { left : annot; right : annot }
     | LT_pair of { left : bind; right : bind }
-    | LT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
     | LT_let of { bound : bind; return : term }
     | LT_annot of { value : term; annot : term }
 
+  and pat = Ltree.pat = private
+    | LPat of { loc : Location.t; [@opaque] desc : pat_desc }
+
+  and pat_desc = Ltree.pat_desc = private
+    | LP_var of { var : Name.t }
+    | LP_pair of { left : pat; right : pat }
+    | LP_annot of { pat : pat; annot : term }
+
   and annot = Ltree.annot = private
-    | LAnnot of { loc : Location.t; [@opaque] var : Name.t; annot : term }
+    | LAnnot of { loc : Location.t; [@opaque] pat : pat; annot : term }
 
   and bind = Ltree.bind = private
-    | LBind of { loc : Location.t; [@opaque] var : Name.t; value : term }
+    | LBind of { loc : Location.t; [@opaque] pat : pat; value : term }
   [@@deriving eq]
 
   let loc = Location.none
@@ -143,28 +150,23 @@ module Ltree_utils = struct
     let var = Name.make var in
     lt_var loc ~var
 
+  let pvar ?(loc = loc) var =
+    let var = Name.make var in
+    lp_var loc ~var
+
+  let ppair ?(loc = loc) left right = lp_pair loc ~left ~right
+
+  (* let pannot ?(loc = loc) pat annot = lp_annot loc ~pat ~annot *)
   let ( @-> ) ?(loc = loc) param return = lt_forall loc ~param ~return
   let ( @=> ) ?(loc = loc) param return = lt_lambda loc ~param ~return
   let ( @@ ) ?(loc = loc) lambda arg = lt_apply loc ~lambda ~arg
   let exists ?(loc = loc) left right = lt_exists loc ~left ~right
   let pair ?(loc = loc) left right = lt_pair loc ~left ~right
-
-  let unpair ?(loc = loc) left right pair return =
-    let left = Name.make left in
-    let right = Name.make right in
-    lt_unpair loc ~left ~right ~pair ~return
-
   let let_ ?(loc = loc) bound return = lt_let loc ~bound ~return
   let ( $ ) left right = left right
   let annot ?(loc = loc) value annot = lt_annot loc ~value ~annot
-
-  let ( @: ) ?(loc = loc) var annot =
-    let var = Name.make var in
-    lannot loc ~var ~annot
-
-  let ( @= ) ?(loc = loc) var value =
-    let var = Name.make var in
-    lbind loc ~var ~value
+  let ( @: ) ?(loc = loc) pat annot = lannot loc ~pat ~annot
+  let ( @= ) ?(loc = loc) pat value = lbind loc ~pat ~value
 end
 
 module Lparser = struct
@@ -178,16 +180,22 @@ module Lparser = struct
   let tests =
     [
       ("variable", works "x" (var "x"));
-      ("arrow", works "(x : A) -> x" (("x" @: var "A") @-> var "x"));
-      ("lambda", works "(x : A) => x" (("x" @: var "A") @=> var "x"));
+      ("arrow", works "(x : A) -> x" ((pvar "x" @: var "A") @-> var "x"));
+      ("lambda", works "(x : A) => x" ((pvar "x" @: var "A") @=> var "x"));
       ("apply", works "x y z" ((var "x" @@ var "y") @@ var "z"));
       ( "exists",
-        works "(x : A, y : B)" (exists ("x" @: var "A") ("y" @: var "B")) );
-      ("pair", works "(x = l, y = r)" (pair ("x" @= var "l") ("y" @= var "r")));
-      ("unpair", works "(x, y) = p; z" (unpair "x" "y" (var "p") $ var "z"));
+        works "(x : A, y : B)"
+          (exists (pvar "x" @: var "A") (pvar "y" @: var "B")) );
+      ( "pair",
+        works "(x = l, y = r)"
+          (pair (pvar "x" @= var "l") (pvar "y" @= var "r")) );
+      ( "unpair",
+        works "(x, y) = p; z"
+          (let_ (ppair (pvar "x") (pvar "y") @= var "p") $ var "z") );
       ( "let",
         works "x = y; z = x; z"
-          (let_ ("x" @= var "y") $ (let_ ("z" @= var "x") $ var "z")) );
+          (let_ (pvar "x" @= var "y") $ (let_ (pvar "z" @= var "x") $ var "z"))
+      );
       ("annot", works "(x : y)" (annot (var "x") (var "y")));
     ]
 
@@ -223,41 +231,41 @@ module Ttree_utils = struct
     | TType of { loc : Location.t; [@opaque] desc : term_desc }
 
   and term_desc = Ttree.term_desc =
-    (* x *)
     | TT_var of { offset : Offset.t }
-    (* (x : A) -> B *)
     | TT_forall of { param : annot; return : type_ }
-    (* (x : A) => e *)
     | TT_lambda of { param : annot; return : term }
-    (* l a *)
     | TT_apply of { lambda : term; arg : term }
-    (* (x : A, y : B) *)
     | TT_exists of { left : annot; right : annot }
-    (* (x = 0, y = 0) *)
     | TT_pair of { left : bind; right : bind }
-    (* (x, y) = v; r *)
-    | TT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
-    (* x = v; r *)
     | TT_let of { bound : bind; return : term }
-    (* v : T *)
     | TT_annot of { value : term; annot : type_ }
-    (* e+-n *)
     | TT_offset of { desc : term_desc; offset : Offset.t }
 
+  and pat = Ttree.pat =
+    | TPat of { loc : Location.t; [@opaque] desc : pat_desc; type_ : type_ }
+
+  and pat_desc = Ttree.pat_desc =
+    | TP_var of { var : Name.t }
+    | TP_pair of { left : pat; right : pat }
+    | TP_annot of { pat : pat; annot : type_ }
+
   and annot = Ttree.annot = private
-    | TAnnot of { loc : Location.t; [@opaque] var : Name.t; annot : type_ }
+    | TAnnot of { loc : Location.t; [@opaque] pat : pat; annot : type_ }
 
   and bind = Ttree.bind = private
-    | TBind of { loc : Location.t; [@opaque] var : Name.t; value : term }
+    | TBind of { loc : Location.t; [@opaque] pat : pat; value : term }
   [@@deriving show { with_path = false }]
 
   type error = Context.error = private
     | CError of { loc : Location.t; [@opaque] desc : error_desc }
 
   and error_desc = Context.error_desc = private
+    (* typer *)
+    | CError_typer_pat_not_pair of { pat : Ltree.pat_desc; expected : type_ }
     (* unify *)
     | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
     | CError_unify_type_clash of { expected : term_desc; received : term_desc }
+    | CError_unify_pat_clash of { expected : pat_desc; received : pat_desc }
     (* typer *)
     | CError_typer_unknown_var of { var : Name.t }
     | Cerror_typer_not_a_forall of { type_ : type_ }

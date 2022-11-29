@@ -36,15 +36,48 @@ and unify_type ~expected ~received =
   let (TType { loc = _; desc = received }) = received in
   unify_desc ~expected ~received
 
+and unify_pat ~expected ~received =
+  let (TPat { loc = _; desc = expected; type_ = expected_type }) = expected in
+  let (TPat { loc = _; desc = received; type_ = received_type }) = received in
+  (* TODO: why unify this? *)
+  let* () = unify_type ~expected:expected_type ~received:received_type in
+  unify_pat_desc ~expected ~received
+
+and unify_pat_desc ~expected ~received =
+  match (expected, received) with
+  | TP_var { var = _ }, TP_var { var = _ } -> return ()
+  | ( TP_pair { left = expected_left; right = expected_right },
+      TP_pair { left = received_left; right = received_right } ) ->
+      let* () = unify_pat ~expected:expected_left ~received:received_left in
+      unify_pat ~expected:expected_right ~received:received_right
+  | TP_annot { pat = expected; annot = _ }, received ->
+      let (TPat { loc = _; desc = expected; type_ = _ }) = expected in
+      unify_pat_desc ~expected ~received
+  | expected, TP_annot { pat = received; annot = _ } ->
+      let (TPat { loc = _; desc = received; type_ = _ }) = received in
+      unify_pat_desc ~expected ~received
+  | (TP_var _ | TP_pair _), (TP_var _ | TP_pair _) ->
+      error_pat_clash ~expected ~received
+
 and unify_annot ~expected ~received =
-  let (TAnnot { loc = _; var = _; annot = expected }) = expected in
-  let (TAnnot { loc = _; var = _; annot = received }) = received in
-  unify_type ~expected ~received
+  let (TAnnot { loc = _; pat = expected_pat; annot = expected_annot }) =
+    expected
+  in
+  let (TAnnot { loc = _; pat = received_pat; annot = received_annot }) =
+    received
+  in
+  let* () = unify_type ~expected:expected_annot ~received:received_annot in
+  unify_pat ~expected:expected_pat ~received:received_pat
 
 and unify_bind ~expected ~received =
-  let (TBind { loc = _; var = _; value = expected }) = expected in
-  let (TBind { loc = _; var = _; value = received }) = received in
-  unify_term ~expected ~received
+  let (TBind { loc = _; pat = expected_pat; value = expected_value }) =
+    expected
+  in
+  let (TBind { loc = _; pat = received_pat; value = received_value }) =
+    received
+  in
+  let* () = unify_term ~expected:expected_value ~received:received_value in
+  unify_pat ~expected:expected_pat ~received:received_pat
 
 and unify_desc ~expected ~received =
   match (expected, received) with
@@ -79,17 +112,11 @@ and unify_desc ~expected ~received =
       TT_pair { left = received_left; right = received_right } ) ->
       let* () = unify_bind ~expected:expected_left ~received:received_left in
       unify_bind ~expected:expected_right ~received:received_right
-  | ( TT_unpair
-        { left = _; right = _; pair = expected_pair; return = expected_return },
-      TT_unpair
-        { left = _; right = _; pair = received_pair; return = received_return }
-    ) ->
-      let* () = unify_term ~expected:expected_pair ~received:received_pair in
-      unify_term ~expected:expected_return ~received:received_return
   | ( TT_let { bound = expected_bound; return = expected_return },
       TT_let { bound = received_bound; return = received_return } ) ->
       let* () = unify_bind ~expected:expected_bound ~received:received_bound in
       unify_term ~expected:expected_return ~received:received_return
+  (* TODO: why matching patterns? *)
   | ( TT_annot { value = expected_value; annot = expected_annot },
       TT_annot { value = received_value; annot = received_annot } ) ->
       let* () = unify_type ~expected:expected_annot ~received:received_annot in
@@ -99,9 +126,9 @@ and unify_desc ~expected ~received =
   | expected, TT_offset { desc = received; offset } ->
       with_received_offset ~offset @@ fun () -> unify_desc ~expected ~received
   | ( ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_exists _
-      | TT_pair _ | TT_unpair _ | TT_let _ | TT_annot _ ),
+      | TT_pair _ | TT_let _ | TT_annot _ ),
       ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_exists _
-      | TT_pair _ | TT_unpair _ | TT_let _ | TT_annot _ ) ) ->
+      | TT_pair _ | TT_let _ | TT_annot _ ) ) ->
       error_type_clash ~expected ~received
 
 let unify_term ~expected ~received =
