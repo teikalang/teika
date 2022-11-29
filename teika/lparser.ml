@@ -10,11 +10,11 @@ let rec from_stree term =
   match desc with
   | ST_var { var } -> lt_var loc ~var
   | ST_forall { param; return } ->
-      let param = extract_annot param in
+      let param = extract_pat param in
       let return = from_stree return in
       lt_forall loc ~param ~return
   | ST_lambda { param; return } ->
-      let param = extract_annot param in
+      let param = extract_pat param in
       let return = from_stree return in
       lt_lambda loc ~param ~return
   | ST_apply { lambda; arg } ->

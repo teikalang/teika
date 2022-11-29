@@ -9,9 +9,9 @@ and term_desc =
   (* x *)
   | TT_var of { offset : Offset.t }
   (* (x : A) -> B *)
-  | TT_forall of { param : annot; return : type_ }
+  | TT_forall of { param : pat; return : type_ }
   (* (x : A) => e *)
-  | TT_lambda of { param : annot; return : term }
+  | TT_lambda of { param : pat; return : term }
   (* l a *)
   | TT_apply of { lambda : term; arg : term }
   (* (x : A, y : B) *)
@@ -36,12 +36,14 @@ and pat_desc =
   | TP_annot of { pat : pat; annot : type_ }
 
 and annot = private TAnnot of { loc : Location.t; pat : pat; annot : type_ }
+
 and bind = private TBind of { loc : Location.t; pat : pat; value : term }
+[@@deriving show]
 
 (* term & type_*)
 val tt_var : Location.t -> type_ -> offset:Offset.t -> term
-val tt_forall : Location.t -> param:annot -> return:type_ -> type_
-val tt_lambda : Location.t -> type_ -> param:annot -> return:term -> term
+val tt_forall : Location.t -> param:pat -> return:type_ -> type_
+val tt_lambda : Location.t -> type_ -> param:pat -> return:term -> term
 val tt_apply : Location.t -> type_ -> lambda:term -> arg:term -> term
 val tt_exists : Location.t -> left:annot -> right:annot -> type_
 val tt_pair : Location.t -> type_ -> left:bind -> right:bind -> term

@@ -4,9 +4,9 @@ and term_desc = private
   (* x *)
   | LT_var of { var : Name.t }
   (* (x : A) -> (z : B) *)
-  | LT_forall of { param : annot; return : term }
+  | LT_forall of { param : pat; return : term }
   (* (x : A) => e *)
-  | LT_lambda of { param : annot; return : term }
+  | LT_lambda of { param : pat; return : term }
   (* l a *)
   | LT_apply of { lambda : term; arg : term }
   (* (x : A, y : B) *)
@@ -36,8 +36,8 @@ and bind = private LBind of { loc : Location.t; pat : pat; value : term }
 
 (* term *)
 val lt_var : Location.t -> var:Name.t -> term
-val lt_forall : Location.t -> param:annot -> return:term -> term
-val lt_lambda : Location.t -> param:annot -> return:term -> term
+val lt_forall : Location.t -> param:pat -> return:term -> term
+val lt_lambda : Location.t -> param:pat -> return:term -> term
 val lt_apply : Location.t -> lambda:term -> arg:term -> term
 val lt_exists : Location.t -> left:annot -> right:annot -> term
 val lt_pair : Location.t -> left:bind -> right:bind -> term

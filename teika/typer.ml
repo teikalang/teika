@@ -21,16 +21,17 @@ let rec with_pat pat f =
   | TP_pair { left; right } -> with_pat left @@ fun () -> with_pat right f
   | TP_annot { pat; annot = _ } -> with_pat pat f
 
+(* TODO: this function is clearly not ideal *)
 let apply ~lambda ~arg =
   let lambda_type = extract_type lambda in
   let arg_type = extract_type arg in
   let* param, return = split_forall lambda_type in
-  let (TAnnot { loc = _; pat; annot = param_type }) = param in
+  let (TPat { loc = _; desc = _; type_ = param_type }) = param in
   let* () = unify_type ~expected:param_type ~received:arg_type in
   let* type_ =
     let* type_ = tt_type () in
     let* lambda =
-      with_pat pat @@ fun () ->
+      with_pat param @@ fun () ->
       let* type_ =
         let* return = tt_type () in
         tt_forall ~param ~return
@@ -84,14 +85,14 @@ and infer_desc desc =
       tt_var type_ ~offset
   | LT_forall { param; return } ->
       let* forall =
-        infer_annot param @@ fun param ->
+        infer_pat param @@ fun param ->
         let* return = infer_term return in
         let* return = type_of_term return in
         tt_forall ~param ~return
       in
       term_of_type forall
   | LT_lambda { param; return } ->
-      infer_annot param @@ fun param ->
+      infer_pat param @@ fun param ->
       let* return = infer_term return in
       let* type_ =
         let return = extract_type return in
@@ -100,7 +101,14 @@ and infer_desc desc =
       tt_lambda type_ ~param ~return
   | LT_apply { lambda; arg } ->
       let* lambda = infer_term lambda in
-      let* arg = infer_term arg in
+      let* expected_arg_type =
+        let forall = extract_type lambda in
+        let+ TPat { loc = _; desc = _; type_ = param_type }, _return =
+          split_forall forall
+        in
+        param_type
+      in
+      let* arg = check_term arg ~expected:expected_arg_type in
       apply ~lambda ~arg
   | LT_exists { left; right } ->
       let* exists =
@@ -124,16 +132,52 @@ and infer_desc desc =
   | LT_annot { value; annot } ->
       let* annot = infer_term annot in
       let* annot = type_of_term annot in
-      let* value = infer_term value in
-      let* () =
-        let value = extract_type value in
-        unify_type ~expected:annot ~received:value
-      in
+      let* value = check_term value ~expected:annot in
       tt_annot ~value ~annot
+
+and check_term term ~expected =
+  let (LTerm { loc; desc }) = term in
+  with_loc ~loc @@ fun () -> check_desc desc ~expected
+
+and check_desc desc ~expected =
+  let (TType { loc = _; desc = expected_desc }) = expected in
+  match (desc, expected_desc) with
+  | ( LT_lambda { param; return },
+      TT_forall { param = expected_param; return = expected_return } ) ->
+      let (TPat { loc = _; desc = _; type_ = expected_param }) =
+        expected_param
+      in
+      check_pat param ~expected:expected_param @@ fun param ->
+      let* return = check_term return ~expected:expected_return in
+      let* type_ =
+        let return = extract_type return in
+        tt_forall ~param ~return
+      in
+      tt_lambda type_ ~param ~return
+  | desc, _expected_desc ->
+      let* term = infer_desc desc in
+      let received = extract_type term in
+      let+ () = unify_type ~expected ~received in
+      term
+
+and infer_pat : type a. _ -> (_ -> a typer_context) -> a typer_context =
+ fun pat f ->
+  let (LPat { loc; desc }) = pat in
+  with_loc ~loc @@ fun () -> infer_pat_desc desc f
+
+and infer_pat_desc : type a. _ -> (_ -> a typer_context) -> a typer_context =
+ fun pat_desc f ->
+  match pat_desc with
+  | LP_annot { pat; annot } ->
+      let* annot = infer_term annot in
+      let* annot = type_of_term annot in
+      check_pat pat ~expected:annot f
+  | LP_var _ | LP_pair _ -> error_pat_not_annotated ~pat:pat_desc
 
 and check_pat :
     type a. _ -> expected:_ -> (_ -> a typer_context) -> a typer_context =
  fun pat ~expected f ->
+  (* TODO: expected should be a pattern, to achieve strictness *)
   let (LPat { loc; desc }) = pat in
   with_loc ~loc @@ fun () -> check_pat_desc desc ~expected f
 

@@ -4,6 +4,7 @@ type error = CError of { loc : Location.t; desc : error_desc }
 
 and error_desc =
   (* typer *)
+  | CError_typer_pat_not_annotated of { pat : Ltree.pat_desc }
   | CError_typer_pat_not_pair of { pat : Ltree.pat_desc; expected : type_ }
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
@@ -282,6 +283,12 @@ struct
   let[@inline always] ( let+ ) context f =
     let* value = context in
     return @@ f value
+
+  let[@inline always] error_pat_not_annotated ~pat =
+    let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok:_ ~error =
+      error (CError_typer_pat_not_annotated { pat })
+    in
+    { context }
 
   let[@inline always] error_typer_pat_not_pair ~pat ~expected =
     let context ~loc:_ ~type_of_types:_ ~level:_ ~names:_ ~ok:_ ~error =
