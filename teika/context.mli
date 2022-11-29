@@ -3,9 +3,12 @@ open Ttree
 type error = private CError of { loc : Location.t; desc : error_desc }
 
 and error_desc = private
+  (* typer *)
+  | CError_typer_pat_not_pair of { pat : Ltree.pat_desc; expected : type_ }
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
   | CError_unify_type_clash of { expected : term_desc; received : term_desc }
+  | CError_unify_pat_clash of { expected : pat_desc; received : pat_desc }
   (* typer *)
   | CError_typer_unknown_var of { var : Name.t }
   | Cerror_typer_not_a_forall of { type_ : type_ }
@@ -77,6 +80,9 @@ end) : sig
   val error_type_clash :
     expected:term_desc -> received:term_desc -> 'a unify_context
 
+  val error_pat_clash :
+    expected:pat_desc -> received:pat_desc -> 'a unify_context
+
   (* normalize *)
   val normalize_term : term -> term unify_context
   val normalize_type : type_ -> type_ unify_context
@@ -121,6 +127,11 @@ end) : sig
 
   val ( let+ ) : 'a typer_context -> ('a -> 'b) -> 'b typer_context
 
+  (* errors *)
+
+  val error_typer_pat_not_pair :
+    pat:Ltree.pat_desc -> expected:type_ -> 'a typer_context
+
   (* vars *)
   val instance : var:Name.t -> (Offset.t * type_) typer_context
 
@@ -142,19 +153,13 @@ end) : sig
   val tt_apply : type_ -> lambda:term -> arg:term -> term typer_context
   val tt_exists : left:annot -> right:annot -> type_ typer_context
   val tt_pair : type_ -> left:bind -> right:bind -> term typer_context
-
-  val tt_unpair :
-    type_ ->
-    left:Name.t ->
-    right:Name.t ->
-    pair:term ->
-    return:term ->
-    term typer_context
-
   val tt_let : type_ -> bound:bind -> return:term -> term typer_context
   val tt_annot : value:term -> annot:type_ -> term typer_context
-  val tannot : var:Name.t -> annot:type_ -> annot typer_context
-  val tbind : var:Name.t -> value:term -> bind typer_context
+  val tp_var : type_ -> var:Name.t -> pat typer_context
+  val tp_pair : type_ -> left:pat -> right:pat -> pat typer_context
+  val tp_annot : pat:pat -> annot:type_ -> pat typer_context
+  val tannot : pat:pat -> annot:type_ -> annot typer_context
+  val tbind : pat:pat -> value:term -> bind typer_context
 
   (* utils *)
   val term_of_type : type_ -> term typer_context

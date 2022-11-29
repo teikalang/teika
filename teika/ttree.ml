@@ -15,15 +15,20 @@ and term_desc =
   | TT_apply of { lambda : term; arg : term }
   | TT_exists of { left : annot; right : annot }
   | TT_pair of { left : bind; right : bind }
-  | TT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
   | TT_let of { bound : bind; return : term }
   | TT_annot of { value : term; annot : type_ }
   | TT_offset of { desc : term_desc; offset : Offset.t }
 
-and annot =
-  | TAnnot of { loc : Location.t; [@opaque] var : Name.t; annot : type_ }
+and pat =
+  | TPat of { loc : Location.t; [@opaque] desc : pat_desc; type_ : type_ }
 
-and bind = TBind of { loc : Location.t; [@opaque] var : Name.t; value : term }
+and pat_desc =
+  | TP_var of { var : Name.t }
+  | TP_pair of { left : pat; right : pat }
+  | TP_annot of { pat : pat; annot : type_ }
+
+and annot = TAnnot of { loc : Location.t; [@opaque] pat : pat; annot : type_ }
+and bind = TBind of { loc : Location.t; [@opaque] pat : pat; value : term }
 
 (* term *)
 let tterm loc type_ desc = TTerm { loc; desc; type_ }
@@ -37,15 +42,17 @@ let tt_lambda loc type_ ~param ~return =
 let tt_apply loc type_ ~lambda ~arg = tterm loc type_ (TT_apply { lambda; arg })
 let tt_exists loc ~left ~right = ttype loc (TT_exists { left; right })
 let tt_pair loc type_ ~left ~right = tterm loc type_ (TT_pair { left; right })
-
-let tt_unpair loc type_ ~left ~right ~pair ~return =
-  tterm loc type_ (TT_unpair { left; right; pair; return })
-
 let tt_let loc type_ ~bound ~return = tterm loc type_ (TT_let { bound; return })
 let tt_annot loc ~value ~annot = tterm loc annot (TT_annot { value; annot })
 
+(* pattern *)
+let tpat loc type_ desc = TPat { loc; desc; type_ }
+let tp_var loc type_ ~var = tpat loc type_ (TP_var { var })
+let tp_pair loc type_ ~left ~right = tpat loc type_ (TP_pair { left; right })
+let tp_annot loc ~pat ~annot = tpat loc annot (TP_annot { pat; annot })
+
 (* annot *)
-let tannot loc ~var ~annot = TAnnot { loc; var; annot }
+let tannot loc ~pat ~annot = TAnnot { loc; pat; annot }
 
 (* bind *)
-let tbind loc ~var ~value = TBind { loc; var; value }
+let tbind loc ~pat ~value = TBind { loc; pat; value }
