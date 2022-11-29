@@ -25,12 +25,12 @@ let apply ~lambda ~arg =
   let lambda_type = extract_type lambda in
   let arg_type = extract_type arg in
   let* param, return = split_forall lambda_type in
-  let (TAnnot { loc = _; pat; annot = param_type }) = param in
+  let (TPat { loc = _; desc = _; type_ = param_type }) = param in
   let* () = unify_type ~expected:param_type ~received:arg_type in
   let* type_ =
     let* type_ = tt_type () in
     let* lambda =
-      with_pat pat @@ fun () ->
+      with_pat param @@ fun () ->
       let* type_ =
         let* return = tt_type () in
         tt_forall ~param ~return
@@ -84,14 +84,14 @@ and infer_desc desc =
       tt_var type_ ~offset
   | LT_forall { param; return } ->
       let* forall =
-        infer_annot param @@ fun param ->
+        infer_pat param @@ fun param ->
         let* return = infer_term return in
         let* return = type_of_term return in
         tt_forall ~param ~return
       in
       term_of_type forall
   | LT_lambda { param; return } ->
-      infer_annot param @@ fun param ->
+      infer_pat param @@ fun param ->
       let* return = infer_term return in
       let* type_ =
         let return = extract_type return in
@@ -130,6 +130,20 @@ and infer_desc desc =
         unify_type ~expected:annot ~received:value
       in
       tt_annot ~value ~annot
+
+and infer_pat : type a. _ -> (_ -> a typer_context) -> a typer_context =
+ fun pat f ->
+  let (LPat { loc; desc }) = pat in
+  with_loc ~loc @@ fun () -> infer_pat_desc desc f
+
+and infer_pat_desc : type a. _ -> (_ -> a typer_context) -> a typer_context =
+ fun pat_desc f ->
+  match pat_desc with
+  | LP_annot { pat; annot } ->
+      let* annot = infer_term annot in
+      let* annot = type_of_term annot in
+      check_pat pat ~expected:annot f
+  | LP_var _ | LP_pair _ -> error_pat_not_annotated ~pat:pat_desc
 
 and check_pat :
     type a. _ -> expected:_ -> (_ -> a typer_context) -> a typer_context =

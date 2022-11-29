@@ -10,8 +10,8 @@ and type_ = TType of { loc : Location.t; [@opaque] desc : term_desc }
 
 and term_desc =
   | TT_var of { offset : Offset.t }
-  | TT_forall of { param : annot; return : type_ }
-  | TT_lambda of { param : annot; return : term }
+  | TT_forall of { param : pat; return : type_ }
+  | TT_lambda of { param : pat; return : term }
   | TT_apply of { lambda : term; arg : term }
   | TT_exists of { left : annot; right : annot }
   | TT_pair of { left : bind; right : bind }
@@ -28,7 +28,9 @@ and pat_desc =
   | TP_annot of { pat : pat; annot : type_ }
 
 and annot = TAnnot of { loc : Location.t; [@opaque] pat : pat; annot : type_ }
+
 and bind = TBind of { loc : Location.t; [@opaque] pat : pat; value : term }
+[@@deriving show { with_path = false }]
 
 (* term *)
 let tterm loc type_ desc = TTerm { loc; desc; type_ }

@@ -121,8 +121,8 @@ module Ltree_utils = struct
 
   and term_desc = Ltree.term_desc = private
     | LT_var of { var : Name.t }
-    | LT_forall of { param : annot; return : term }
-    | LT_lambda of { param : annot; return : term }
+    | LT_forall of { param : pat; return : term }
+    | LT_lambda of { param : pat; return : term }
     | LT_apply of { lambda : term; arg : term }
     | LT_exists of { left : annot; right : annot }
     | LT_pair of { left : bind; right : bind }
@@ -155,8 +155,7 @@ module Ltree_utils = struct
     lp_var loc ~var
 
   let ppair ?(loc = loc) left right = lp_pair loc ~left ~right
-
-  (* let pannot ?(loc = loc) pat annot = lp_annot loc ~pat ~annot *)
+  let ( $: ) ?(loc = loc) pat annot = lp_annot loc ~pat ~annot
   let ( @-> ) ?(loc = loc) param return = lt_forall loc ~param ~return
   let ( @=> ) ?(loc = loc) param return = lt_lambda loc ~param ~return
   let ( @@ ) ?(loc = loc) lambda arg = lt_apply loc ~lambda ~arg
@@ -180,8 +179,8 @@ module Lparser = struct
   let tests =
     [
       ("variable", works "x" (var "x"));
-      ("arrow", works "(x : A) -> x" ((pvar "x" @: var "A") @-> var "x"));
-      ("lambda", works "(x : A) => x" ((pvar "x" @: var "A") @=> var "x"));
+      ("arrow", works "(x : A) -> x" ((pvar "x" $: var "A") @-> var "x"));
+      ("lambda", works "(x : A) => x" ((pvar "x" $: var "A") @=> var "x"));
       ("apply", works "x y z" ((var "x" @@ var "y") @@ var "z"));
       ( "exists",
         works "(x : A, y : B)"
@@ -232,8 +231,8 @@ module Ttree_utils = struct
 
   and term_desc = Ttree.term_desc =
     | TT_var of { offset : Offset.t }
-    | TT_forall of { param : annot; return : type_ }
-    | TT_lambda of { param : annot; return : term }
+    | TT_forall of { param : pat; return : type_ }
+    | TT_lambda of { param : pat; return : term }
     | TT_apply of { lambda : term; arg : term }
     | TT_exists of { left : annot; right : annot }
     | TT_pair of { left : bind; right : bind }
@@ -261,6 +260,7 @@ module Ttree_utils = struct
 
   and error_desc = Context.error_desc = private
     (* typer *)
+    | CError_typer_pat_not_annotated of { pat : Ltree.pat_desc }
     | CError_typer_pat_not_pair of { pat : Ltree.pat_desc; expected : type_ }
     (* unify *)
     | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
@@ -276,6 +276,21 @@ module Ttree_utils = struct
     let open Typer_context in
     let loc = Location.none in
     run ~loc @@ fun () -> Typer.infer_term term
+
+  (* let normalize_term term =
+       Context.Normalize_context.test ~loc:Location.none ~vars:[]
+         ~offset:Offset.zero
+       @@ fun () -> Normalize.normalize_term term
+
+     let dump code =
+       let stree = Slexer.from_string Sparser.term_opt code |> Option.get in
+       let ltree = Lparser.from_stree stree in
+       let ttree = infer_term ltree |> Result.get_ok in
+       let ttree = normalize_term ttree |> Result.get_ok in
+       let ttree = normalize_term ttree |> Result.get_ok in
+       Format.eprintf "%a\n%!" pp_term ttree
+
+     let () = dump "((A : Type) => (x : A) => x) Type" *)
 end
 
 module Typer = struct
@@ -353,8 +368,9 @@ module Typer = struct
 
   let tests =
     [
-      (* unwrapped *)
       id;
+      id_type;
+      id_type_never;
       sequence;
       bool;
       true_;
@@ -362,9 +378,6 @@ module Typer = struct
       pair;
       (* left_unpair;
          right_unpair; *)
-      (* apply *)
-      id_type;
-      id_type_never;
     ]
 
   (* alcotest *)

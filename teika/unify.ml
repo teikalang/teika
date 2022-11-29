@@ -91,12 +91,12 @@ and unify_desc ~expected ~received =
   | ( TT_forall { param = expected_param; return = expected_return },
       TT_forall { param = received_param; return = received_return } ) ->
       (* TODO: contravariance *)
-      let* () = unify_annot ~expected:expected_param ~received:received_param in
+      let* () = unify_pat ~expected:expected_param ~received:received_param in
       unify_type ~expected:expected_return ~received:received_return
   | ( TT_lambda { param = expected_param; return = expected_return },
       TT_lambda { param = received_param; return = received_return } ) ->
       (* TODO: contravariance *)
-      let* () = unify_annot ~expected:expected_param ~received:received_param in
+      let* () = unify_pat ~expected:expected_param ~received:received_param in
       unify_term ~expected:expected_return ~received:received_return
   | ( TT_apply { lambda = expected_lambda; arg = expected_arg },
       TT_apply { lambda = received_lambda; arg = received_arg } ) ->

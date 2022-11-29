@@ -4,6 +4,7 @@ type error = private CError of { loc : Location.t; desc : error_desc }
 
 and error_desc = private
   (* typer *)
+  | CError_typer_pat_not_annotated of { pat : Ltree.pat_desc }
   | CError_typer_pat_not_pair of { pat : Ltree.pat_desc; expected : type_ }
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
@@ -128,6 +129,7 @@ end) : sig
   val ( let+ ) : 'a typer_context -> ('a -> 'b) -> 'b typer_context
 
   (* errors *)
+  val error_pat_not_annotated : pat:Ltree.pat_desc -> 'a typer_context
 
   val error_typer_pat_not_pair :
     pat:Ltree.pat_desc -> expected:type_ -> 'a typer_context
@@ -148,8 +150,8 @@ end) : sig
   (* ttree *)
   val tt_type : unit -> type_ typer_context
   val tt_var : type_ -> offset:Offset.t -> term typer_context
-  val tt_forall : param:annot -> return:type_ -> type_ typer_context
-  val tt_lambda : type_ -> param:annot -> return:term -> term typer_context
+  val tt_forall : param:pat -> return:type_ -> type_ typer_context
+  val tt_lambda : type_ -> param:pat -> return:term -> term typer_context
   val tt_apply : type_ -> lambda:term -> arg:term -> term typer_context
   val tt_exists : left:annot -> right:annot -> type_ typer_context
   val tt_pair : type_ -> left:bind -> right:bind -> term typer_context
@@ -164,6 +166,6 @@ end) : sig
   (* utils *)
   val term_of_type : type_ -> term typer_context
   val type_of_term : term -> type_ typer_context
-  val split_forall : type_ -> (annot * type_) typer_context
+  val split_forall : type_ -> (pat * type_) typer_context
   val split_exists : type_ -> (annot * annot) typer_context
 end

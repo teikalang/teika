@@ -2,8 +2,8 @@ type term = LTerm of { loc : Location.t; [@opaque] desc : term_desc }
 
 and term_desc =
   | LT_var of { var : Name.t }
-  | LT_forall of { param : annot; return : term }
-  | LT_lambda of { param : annot; return : term }
+  | LT_forall of { param : pat; return : term }
+  | LT_lambda of { param : pat; return : term }
   | LT_apply of { lambda : term; arg : term }
   | LT_exists of { left : annot; right : annot }
   | LT_pair of { left : bind; right : bind }
