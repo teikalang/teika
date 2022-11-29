@@ -28,20 +28,20 @@ module Stree_utils = struct
   (* TODO: ppx? *)
   let loc = Location.none
 
-  let var ?(loc = loc) var =
+  let var var =
     let var = Name.make var in
     st_var loc ~var
 
-  let ( @-> ) ?(loc = loc) param return = st_forall loc ~param ~return
-  let ( @=> ) ?(loc = loc) param return = st_lambda loc ~param ~return
-  let ( @@ ) ?(loc = loc) lambda arg = st_apply loc ~lambda ~arg
-  let ( + ) ?(loc = loc) left right = st_pair loc ~left ~right
-  let ( & ) ?(loc = loc) left right = st_both loc ~left ~right
-  let ( = ) ?(loc = loc) bound value = st_bind loc ~bound ~value
-  let ( * ) ?(loc = loc) left right = st_semi loc ~left ~right
-  let ( @: ) ?(loc = loc) value annot = st_annot loc ~value ~annot
-  let parens ?(loc = loc) content = st_parens loc ~content
-  let braces ?(loc = loc) content = st_braces loc ~content
+  let ( @-> ) param return = st_forall loc ~param ~return
+  let ( @=> ) param return = st_lambda loc ~param ~return
+  let ( @@ ) lambda arg = st_apply loc ~lambda ~arg
+  let ( + ) left right = st_pair loc ~left ~right
+  let ( & ) left right = st_both loc ~left ~right
+  let ( = ) bound value = st_bind loc ~bound ~value
+  let ( * ) left right = st_semi loc ~left ~right
+  let ( @: ) value annot = st_annot loc ~value ~annot
+  let parens content = st_parens loc ~content
+  let braces content = st_braces loc ~content
 end
 
 module Sparser = struct
@@ -110,66 +110,90 @@ module Ltree_utils = struct
   open Teika
   open Ltree
 
-  module Location = struct
-    include Location
+  let rec equal_term a b =
+    match (a, b) with
+    | LT_var { var = a }, LT_var { var = b } -> Name.equal a b
+    | ( LT_forall { param = a_param; return = a_return },
+        LT_forall { param = b_param; return = b_return } ) ->
+        equal_pat a_param b_param && equal_term a_return b_return
+    | ( LT_lambda { param = a_param; return = a_return },
+        LT_lambda { param = b_param; return = b_return } ) ->
+        equal_pat a_param b_param && equal_term a_return b_return
+    | ( LT_apply { lambda = a_lambda; arg = a_arg },
+        LT_apply { lambda = b_lambda; arg = b_arg } ) ->
+        equal_term a_lambda b_lambda && equal_term a_arg b_arg
+    | ( LT_exists { left = a_left; right = a_right },
+        LT_exists { left = b_left; right = b_right } ) ->
+        equal_annot a_left b_left && equal_annot a_right b_right
+    | ( LT_pair { left = a_left; right = a_right },
+        LT_pair { left = b_left; right = b_right } ) ->
+        equal_bind a_left b_left && equal_bind a_right b_right
+    | ( LT_let { bound = a_bound; return = a_return },
+        LT_let { bound = b_bound; return = b_return } ) ->
+        equal_bind a_bound b_bound && equal_term a_return b_return
+    | ( LT_annot { term = a_term; annot = a_annot },
+        LT_annot { term = b_term; annot = b_annot } ) ->
+        equal_term a_term b_term && equal_term a_annot b_annot
+    (* TODO: loc equality *)
+    | LT_loc { term = a; loc = _ }, b | a, LT_loc { term = b; loc = _ } ->
+        equal_term a b
+    | ( ( LT_var _ | LT_forall _ | LT_lambda _ | LT_apply _ | LT_exists _
+        | LT_pair _ | LT_let _ | LT_annot _ ),
+        ( LT_var _ | LT_forall _ | LT_lambda _ | LT_apply _ | LT_exists _
+        | LT_pair _ | LT_let _ | LT_annot _ ) ) ->
+        false
 
-    let equal _ _ = true
-  end
+  and equal_pat a b =
+    match (a, b) with
+    | LP_var { var = a }, LP_var { var = b } -> Name.equal a b
+    | ( LP_pair { left = a_left; right = a_right },
+        LP_pair { left = b_left; right = b_right } ) ->
+        equal_pat a_left b_left && equal_pat a_right b_right
+    | ( LP_annot { pat = a_pat; annot = a_annot },
+        LP_annot { pat = b_pat; annot = b_annot } ) ->
+        equal_pat a_pat b_pat && equal_term a_annot b_annot
+    | LP_loc { pat = a; loc = _ }, b | a, LP_loc { pat = b; loc = _ } ->
+        (* TODO: loc equality *)
+        equal_pat a b
+    | (LP_var _ | LP_pair _ | LP_annot _), (LP_var _ | LP_pair _ | LP_annot _)
+      ->
+        false
 
-  type term = Ltree.term = private
-    | LTerm of { loc : Location.t; [@opaque] desc : term_desc }
+  and equal_annot a b =
+    let (LAnnot { loc = _; pat = a_pat; annot = a_annot }) = a in
+    let (LAnnot { loc = _; pat = b_pat; annot = b_annot }) = b in
+    equal_pat a_pat b_pat && equal_term a_annot b_annot
 
-  and term_desc = Ltree.term_desc = private
-    | LT_var of { var : Name.t }
-    | LT_forall of { param : pat; return : term }
-    | LT_lambda of { param : pat; return : term }
-    | LT_apply of { lambda : term; arg : term }
-    | LT_exists of { left : annot; right : annot }
-    | LT_pair of { left : bind; right : bind }
-    | LT_let of { bound : bind; return : term }
-    | LT_annot of { value : term; annot : term }
+  and equal_bind a b =
+    let (LBind { loc = _; pat = a_pat; value = a_value }) = a in
+    let (LBind { loc = _; pat = b_pat; value = b_value }) = b in
+    equal_pat a_pat b_pat && equal_term a_value b_value
 
-  and pat = Ltree.pat = private
-    | LPat of { loc : Location.t; [@opaque] desc : pat_desc }
-
-  and pat_desc = Ltree.pat_desc = private
-    | LP_var of { var : Name.t }
-    | LP_pair of { left : pat; right : pat }
-    | LP_annot of { pat : pat; annot : term }
-
-  and annot = Ltree.annot = private
-    | LAnnot of { loc : Location.t; [@opaque] pat : pat; annot : term }
-
-  and bind = Ltree.bind = private
-    | LBind of { loc : Location.t; [@opaque] pat : pat; value : term }
-  [@@deriving eq]
-
-  let loc = Location.none
-
-  let var ?(loc = loc) var =
+  let var var =
     let var = Name.make var in
-    lt_var loc ~var
+    LT_var { var }
 
-  let pvar ?(loc = loc) var =
+  let pvar var =
     let var = Name.make var in
-    lp_var loc ~var
+    LP_var { var }
 
-  let ppair ?(loc = loc) left right = lp_pair loc ~left ~right
-  let ( $: ) ?(loc = loc) pat annot = lp_annot loc ~pat ~annot
-  let ( @-> ) ?(loc = loc) param return = lt_forall loc ~param ~return
-  let ( @=> ) ?(loc = loc) param return = lt_lambda loc ~param ~return
-  let ( @@ ) ?(loc = loc) lambda arg = lt_apply loc ~lambda ~arg
-  let exists ?(loc = loc) left right = lt_exists loc ~left ~right
-  let pair ?(loc = loc) left right = lt_pair loc ~left ~right
-  let let_ ?(loc = loc) bound return = lt_let loc ~bound ~return
+  let ppair left right = LP_pair { left; right }
+  let ( $: ) pat annot = LP_annot { pat; annot }
+  let ( @-> ) param return = LT_forall { param; return }
+  let ( @=> ) param return = LT_lambda { param; return }
+  let ( @@ ) lambda arg = LT_apply { lambda; arg }
+  let exists left right = LT_exists { left; right }
+  let pair left right = LT_pair { left; right }
+  let let_ bound return = LT_let { bound; return }
   let ( $ ) left right = left right
-  let annot ?(loc = loc) value annot = lt_annot loc ~value ~annot
-  let ( @: ) ?(loc = loc) pat annot = lannot loc ~pat ~annot
-  let ( @= ) ?(loc = loc) pat value = lbind loc ~pat ~value
+  let annot term annot = LT_annot { term; annot }
+  let ( @: ) pat annot = LAnnot { loc = Location.none; pat; annot }
+  let ( @= ) pat value = LBind { loc = Location.none; pat; value }
 end
 
 module Lparser = struct
   open Teika
+  open Ltree
   open Ltree_utils
 
   type test = Works of { expected : term; input : string }
@@ -260,8 +284,8 @@ module Ttree_utils = struct
 
   and error_desc = Context.error_desc = private
     (* typer *)
-    | CError_typer_pat_not_annotated of { pat : Ltree.pat_desc }
-    | CError_typer_pat_not_pair of { pat : Ltree.pat_desc; expected : type_ }
+    | CError_typer_pat_not_annotated of { pat : Ltree.pat }
+    | CError_typer_pat_not_pair of { pat : Ltree.pat; expected : type_ }
     (* unify *)
     | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
     | CError_unify_type_clash of { expected : term_desc; received : term_desc }

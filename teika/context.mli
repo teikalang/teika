@@ -4,8 +4,8 @@ type error = private CError of { loc : Location.t; desc : error_desc }
 
 and error_desc = private
   (* typer *)
-  | CError_typer_pat_not_annotated of { pat : Ltree.pat_desc }
-  | CError_typer_pat_not_pair of { pat : Ltree.pat_desc; expected : type_ }
+  | CError_typer_pat_not_annotated of { pat : Ltree.pat }
+  | CError_typer_pat_not_pair of { pat : Ltree.pat; expected : type_ }
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
   | CError_unify_type_clash of { expected : term_desc; received : term_desc }
@@ -129,10 +129,10 @@ end) : sig
   val ( let+ ) : 'a typer_context -> ('a -> 'b) -> 'b typer_context
 
   (* errors *)
-  val error_pat_not_annotated : pat:Ltree.pat_desc -> 'a typer_context
+  val error_pat_not_annotated : pat:Ltree.pat -> 'a typer_context
 
   val error_typer_pat_not_pair :
-    pat:Ltree.pat_desc -> expected:type_ -> 'a typer_context
+    pat:Ltree.pat -> expected:type_ -> 'a typer_context
 
   (* vars *)
   val instance : var:Name.t -> (Offset.t * type_) typer_context

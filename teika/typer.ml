@@ -55,31 +55,7 @@ let let_ ~bound ~return =
   tt_let type_ ~bound ~return
 
 let rec infer_term term =
-  let (LTerm { loc; desc }) = term in
-  with_loc ~loc @@ fun () -> infer_desc desc
-
-and infer_annot : type a. _ -> (_ -> a typer_context) -> a typer_context =
- fun annot f ->
-  let (LAnnot { loc; pat; annot }) = annot in
-  with_loc ~loc @@ fun () ->
-  let* annot = infer_term annot in
-  let* annot = type_of_term annot in
-  check_pat pat ~expected:annot @@ fun pat ->
-  let* annot = tannot ~pat ~annot in
-  f annot
-
-and infer_bind : type a. _ -> (_ -> a typer_context) -> a typer_context =
- fun bind f ->
-  let (LBind { loc; pat; value }) = bind in
-  with_loc ~loc @@ fun () ->
-  let* value = infer_term value in
-  let annot = extract_type value in
-  check_pat pat ~expected:annot @@ fun pat ->
-  let* bind = tbind ~pat ~value in
-  f bind
-
-and infer_desc desc =
-  match desc with
+  match term with
   | LT_var { var } ->
       let* offset, type_ = instance ~var in
       tt_var type_ ~offset
@@ -129,19 +105,37 @@ and infer_desc desc =
       infer_bind bound @@ fun bound ->
       let* return = infer_term return in
       let_ ~bound ~return
-  | LT_annot { value; annot } ->
+  | LT_annot { term; annot } ->
       let* annot = infer_term annot in
       let* annot = type_of_term annot in
-      let* value = check_term value ~expected:annot in
-      tt_annot ~value ~annot
+      let* term = check_term term ~expected:annot in
+      tt_annot ~value:term ~annot
+  | LT_loc { term; loc } -> with_loc ~loc @@ fun () -> infer_term term
+
+and infer_annot : type a. _ -> (_ -> a typer_context) -> a typer_context =
+ fun annot f ->
+  let (LAnnot { loc; pat; annot }) = annot in
+  with_loc ~loc @@ fun () ->
+  let* annot = infer_term annot in
+  let* annot = type_of_term annot in
+  check_pat pat ~expected:annot @@ fun pat ->
+  let* annot = tannot ~pat ~annot in
+  f annot
+
+and infer_bind : type a. _ -> (_ -> a typer_context) -> a typer_context =
+ fun bind f ->
+  let (LBind { loc; pat; value }) = bind in
+  with_loc ~loc @@ fun () ->
+  let* value = infer_term value in
+  let annot = extract_type value in
+  check_pat pat ~expected:annot @@ fun pat ->
+  let* bind = tbind ~pat ~value in
+  f bind
 
 and check_term term ~expected =
-  let (LTerm { loc; desc }) = term in
-  with_loc ~loc @@ fun () -> check_desc desc ~expected
-
-and check_desc desc ~expected =
   let (TType { loc = _; desc = expected_desc }) = expected in
-  match (desc, expected_desc) with
+  (* TODO: repr function for term, maybe with_term? *)
+  match (term, expected_desc) with
   | ( LT_lambda { param; return },
       TT_forall { param = expected_param; return = expected_return } ) ->
       let (TPat { loc = _; desc = _; type_ = expected_param }) =
@@ -154,38 +148,33 @@ and check_desc desc ~expected =
         tt_forall ~param ~return
       in
       tt_lambda type_ ~param ~return
-  | desc, _expected_desc ->
-      let* term = infer_desc desc in
+  | LT_loc { term; loc }, _expected_desc ->
+      with_loc ~loc @@ fun () -> check_term term ~expected
+  (* TODO: maybe LT_annot? *)
+  | ( ( LT_var _ | LT_forall _ | LT_lambda _ | LT_apply _ | LT_exists _
+      | LT_pair _ | LT_let _ | LT_annot _ ),
+      _expected_desc ) ->
+      let* term = infer_term term in
       let received = extract_type term in
       let+ () = unify_type ~expected ~received in
       term
 
 and infer_pat : type a. _ -> (_ -> a typer_context) -> a typer_context =
  fun pat f ->
-  let (LPat { loc; desc }) = pat in
-  with_loc ~loc @@ fun () -> infer_pat_desc desc f
-
-and infer_pat_desc : type a. _ -> (_ -> a typer_context) -> a typer_context =
- fun pat_desc f ->
-  match pat_desc with
+  match pat with
   | LP_annot { pat; annot } ->
       let* annot = infer_term annot in
       let* annot = type_of_term annot in
       check_pat pat ~expected:annot f
-  | LP_var _ | LP_pair _ -> error_pat_not_annotated ~pat:pat_desc
+  | LP_loc { pat; loc } -> with_loc ~loc @@ fun () -> infer_pat pat f
+  | LP_var _ | LP_pair _ -> error_pat_not_annotated ~pat
 
 and check_pat :
     type a. _ -> expected:_ -> (_ -> a typer_context) -> a typer_context =
  fun pat ~expected f ->
   (* TODO: expected should be a pattern, to achieve strictness *)
-  let (LPat { loc; desc }) = pat in
-  with_loc ~loc @@ fun () -> check_pat_desc desc ~expected f
-
-and check_pat_desc :
-    type a. _ -> expected:_ -> (_ -> a typer_context) -> a typer_context =
- fun pat_desc ~expected f ->
   let (TType { loc = _; desc = expected_desc }) = expected in
-  match (pat_desc, expected_desc) with
+  match (pat, expected_desc) with
   | LP_var { var }, _expected_desc ->
       with_binder ~var ~type_:expected @@ fun () ->
       let* pat = tp_var expected ~var in
@@ -199,10 +188,11 @@ and check_pat_desc :
       check_pat right ~expected:right_type @@ fun right ->
       let* pat = tp_pair expected ~left ~right in
       f pat
-  | LP_pair _, _expected_desc ->
-      error_typer_pat_not_pair ~pat:pat_desc ~expected
+  | LP_pair _, _expected_desc -> error_typer_pat_not_pair ~pat ~expected
   | LP_annot { pat; annot }, _expected_desc ->
       let* annot = infer_term annot in
       let* annot = type_of_term annot in
       let* () = unify_type ~expected ~received:annot in
       check_pat pat ~expected:annot f
+  | LP_loc { pat; loc }, _expected_desc ->
+      with_loc ~loc @@ fun () -> check_pat pat ~expected f
