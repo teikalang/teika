@@ -290,7 +290,8 @@ module Ttree_utils = struct
        let ttree = normalize_term ttree |> Result.get_ok in
        Format.eprintf "%a\n%!" pp_term ttree
 
-     let () = dump "((A : Type) => (x : A) => x) Type" *)
+     let () =
+       dump "((id : (A : Type) -> (x : A) -> A) => id) (A => x => x) Type Type" *)
 end
 
 module Typer = struct
@@ -309,6 +310,10 @@ module Typer = struct
       {|(((A : Type) => (x : A) => x)
         : (A : Type) -> (x : A) -> A)|}
 
+  let id_propagate =
+    check "id_propagate" ~wrapper:false
+      {|((A => x => x) : (A : Type) -> (x : A) -> A)|}
+
   let id_type =
     check "id_type" ~wrapper:false
       {|(((A : Type) => (x : A) => x) Type
@@ -318,6 +323,11 @@ module Typer = struct
     check "id_type_never" ~wrapper:false
       {|(((A : Type) => (x : A) => x) Type ((A : Type) -> A)
         : Type)|}
+
+  let return_id_propagate =
+    check "return_id_propagate" ~wrapper:false
+      {|((((id : (A : Type) -> (x : A) -> A) => id) (A => x => x))
+        : (A : Type) -> (x : A) -> A)|}
 
   let sequence =
     check "sequence" ~wrapper:false
@@ -369,8 +379,10 @@ module Typer = struct
   let tests =
     [
       id;
+      id_propagate;
       id_type;
       id_type_never;
+      return_id_propagate;
       sequence;
       bool;
       true_;
