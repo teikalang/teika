@@ -247,55 +247,6 @@ module Ttree_utils = struct
   open Teika
   module Typer_context = Context.Typer_context (Normalize) (Unify)
 
-  type term = Ttree.term =
-    | TTerm of { loc : Location.t; [@opaque] desc : term_desc; type_ : type_ }
-
-  and type_ = Ttree.type_ =
-    | TType of { loc : Location.t; [@opaque] desc : term_desc }
-
-  and term_desc = Ttree.term_desc =
-    | TT_var of { offset : Offset.t }
-    | TT_forall of { param : pat; return : type_ }
-    | TT_lambda of { param : pat; return : term }
-    | TT_apply of { lambda : term; arg : term }
-    | TT_exists of { left : annot; right : annot }
-    | TT_pair of { left : bind; right : bind }
-    | TT_let of { bound : bind; return : term }
-    | TT_annot of { value : term; annot : type_ }
-    | TT_offset of { desc : term_desc; offset : Offset.t }
-
-  and pat = Ttree.pat =
-    | TPat of { loc : Location.t; [@opaque] desc : pat_desc; type_ : type_ }
-
-  and pat_desc = Ttree.pat_desc =
-    | TP_var of { var : Name.t }
-    | TP_pair of { left : pat; right : pat }
-    | TP_annot of { pat : pat; annot : type_ }
-
-  and annot = Ttree.annot = private
-    | TAnnot of { loc : Location.t; [@opaque] pat : pat; annot : type_ }
-
-  and bind = Ttree.bind = private
-    | TBind of { loc : Location.t; [@opaque] pat : pat; value : term }
-  [@@deriving show { with_path = false }]
-
-  type error = Context.error = private
-    | CError of { loc : Location.t; [@opaque] desc : error_desc }
-
-  and error_desc = Context.error_desc = private
-    (* typer *)
-    | CError_typer_pat_not_annotated of { pat : Ltree.pat }
-    | CError_typer_pat_not_pair of { pat : Ltree.pat; expected : type_ }
-    (* unify *)
-    | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
-    | CError_unify_type_clash of { expected : term_desc; received : term_desc }
-    | CError_unify_pat_clash of { expected : pat_desc; received : pat_desc }
-    (* typer *)
-    | CError_typer_unknown_var of { var : Name.t }
-    | Cerror_typer_not_a_forall of { type_ : type_ }
-    | Cerror_typer_not_an_exists of { type_ : type_ }
-  [@@deriving show { with_path = false }]
-
   let infer_term term =
     let open Typer_context in
     let loc = Location.none in
@@ -427,7 +378,8 @@ module Typer = struct
           match infer_term ltree with
           | Ok _ttree -> ()
           | Error error ->
-              failwith @@ Format.asprintf "error: %a\n%!" pp_error error)
+              failwith @@ Format.asprintf "error: %a\n%!" Context.pp_error error
+          )
       | None -> failwith "failed to parse"
     in
     Alcotest.test_case name `Quick check
