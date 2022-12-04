@@ -19,14 +19,116 @@ open Unify_context
 
 (* TODO: optimization, just check, when type is closed *)
 
+(* TODO: should probably be on it's own context *)
+let rec occurs_and_escape_check_term ~hole_offset ~to_offset ~to_ =
+  let occurs_and_escape_check_term ~to_offset ~to_ =
+    occurs_and_escape_check_term ~hole_offset ~to_offset ~to_
+  in
+  let occurs_and_escape_check_pat ~to_offset ~to_ =
+    occurs_and_escape_check_pat ~hole_offset ~to_offset ~to_
+  in
+  let occurs_and_escape_check_annot ~to_offset ~to_ =
+    occurs_and_escape_check_annot ~hole_offset ~to_offset ~to_
+  in
+  let occurs_and_escape_check_bind ~to_offset ~to_ =
+    occurs_and_escape_check_bind ~hole_offset ~to_offset ~to_
+  in
+  match to_ with
+  | TT_var { offset } -> (
+      let offset = Offset.(to_offset + offset) in
+      match Offset.(offset < hole_offset) with
+      | true -> error_var_escape_scope ~var:offset
+      | false -> return ())
+  | TT_hole { id } -> (
+      let* in_repr = repr_hole ~id in
+      match in_repr with
+      | H_open -> (
+          let diff = Offset.(hole_offset - to_offset) in
+          match Offset.(zero < diff) with
+          | true -> lower_hole ~id ~diff
+          | false -> return ())
+      | H_link { term = to_ } -> occurs_and_escape_check_term ~to_offset ~to_)
+  | TT_forall { param; return } ->
+      let* () = occurs_and_escape_check_pat ~to_offset ~to_:param in
+      occurs_and_escape_check_term ~to_offset ~to_:return
+  | TT_lambda { param; return } ->
+      let* () = occurs_and_escape_check_pat ~to_offset ~to_:param in
+      occurs_and_escape_check_term ~to_offset ~to_:return
+  | TT_apply { lambda; arg } ->
+      let* () = occurs_and_escape_check_term ~to_offset ~to_:lambda in
+      occurs_and_escape_check_term ~to_offset ~to_:arg
+  | TT_exists { left; right } ->
+      let* () = occurs_and_escape_check_annot ~to_offset ~to_:left in
+      occurs_and_escape_check_annot ~to_offset ~to_:right
+  | TT_pair { left; right } ->
+      let* () = occurs_and_escape_check_bind ~to_offset ~to_:left in
+      occurs_and_escape_check_bind ~to_offset ~to_:right
+  | TT_let { bound; return } ->
+      let* () = occurs_and_escape_check_bind ~to_offset ~to_:bound in
+      occurs_and_escape_check_term ~to_offset ~to_:return
+  | TT_annot { term; annot } ->
+      (* TODO: check annot? *)
+      let* () = occurs_and_escape_check_term ~to_offset ~to_:annot in
+      occurs_and_escape_check_term ~to_offset ~to_:term
+  | TT_offset { term; offset } ->
+      let to_offset = Offset.(to_offset + offset) in
+      occurs_and_escape_check_term ~to_offset ~to_:term
+  | TT_loc { term; loc = _ } ->
+      occurs_and_escape_check_term ~to_offset ~to_:term
+
+and occurs_and_escape_check_pat ~hole_offset ~to_offset ~to_ =
+  let occurs_and_escape_check_term ~to_ =
+    occurs_and_escape_check_term ~hole_offset ~to_offset ~to_
+  in
+  let occurs_and_escape_check_pat ~to_ =
+    occurs_and_escape_check_pat ~hole_offset ~to_offset ~to_
+  in
+  match to_ with
+  | TP_var { var = _ } -> return ()
+  | TP_pair { left; right } ->
+      let* () = occurs_and_escape_check_pat ~to_:left in
+      occurs_and_escape_check_pat ~to_:right
+  | TP_annot { pat; annot } ->
+      let* () = occurs_and_escape_check_term ~to_:annot in
+      occurs_and_escape_check_pat ~to_:pat
+  | TP_loc { pat; loc = _ } -> occurs_and_escape_check_pat ~to_:pat
+
+and occurs_and_escape_check_annot ~hole_offset ~to_offset ~to_ =
+  let (TAnnot { loc = _; pat; annot }) = to_ in
+  let* () = occurs_and_escape_check_term ~hole_offset ~to_offset ~to_:annot in
+  occurs_and_escape_check_pat ~hole_offset ~to_offset ~to_:pat
+
+and occurs_and_escape_check_bind ~hole_offset ~to_offset ~to_ =
+  let (TBind { loc = _; pat; value }) = to_ in
+  let* () = occurs_and_escape_check_term ~hole_offset ~to_offset ~to_:value in
+  occurs_and_escape_check_pat ~hole_offset ~to_offset ~to_:pat
+
 let rec unify_term ~expected ~received =
   match (expected, received) with
   | TT_var { offset = expected }, TT_var { offset = received } -> (
-      let* expected = repr_expected_var ~var:expected in
-      let* received = repr_received_var ~var:received in
+      let* expected_offset = expected_offset () in
+      let* received_offset = received_offset () in
+      let expected = Offset.(expected + expected_offset) in
+      let received = Offset.(received + received_offset) in
       match Offset.equal expected received with
       | true -> return ()
       | false -> error_var_clash ~expected ~received)
+  | TT_hole { id = hole }, received -> (
+      let* expected = repr_hole ~id:hole in
+      match expected with
+      | H_open ->
+          let* hole_offset = expected_offset () in
+          let* to_offset = received_offset () in
+          unify_hole ~hole ~hole_offset ~to_:received ~to_offset
+      | H_link { term = expected } -> unify_term ~expected ~received)
+  | expected, TT_hole { id = hole } -> (
+      let* received = repr_hole ~id:hole in
+      match received with
+      | H_open ->
+          let* hole_offset = received_offset () in
+          let* to_offset = expected_offset () in
+          unify_hole ~hole ~hole_offset ~to_:expected ~to_offset
+      | H_link { term = received } -> unify_term ~expected ~received)
   (* TODO: track whenever it is unified and locations, visualizing inference *)
   | ( TT_forall { param = expected_param; return = expected_return },
       TT_forall { param = received_param; return = received_return } ) ->
@@ -112,6 +214,11 @@ and unify_bind ~expected ~received =
   in
   let* () = unify_term ~expected:expected_value ~received:received_value in
   unify_pat ~expected:expected_pat ~received:received_pat
+
+and unify_hole ~hole ~hole_offset ~to_ ~to_offset =
+  let* () = occurs_and_escape_check_term ~hole_offset ~to_offset ~to_ in
+  let offset = Offset.(to_offset - hole_offset) in
+  link_hole ~id:hole ~to_ ~offset
 
 let unify_term ~expected ~received =
   (* TODO: does it make sense to always normalize? *)

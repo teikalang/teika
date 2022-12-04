@@ -11,6 +11,7 @@ let rec normalize_term term =
   | TT_offset { term; offset } ->
       with_offset ~offset @@ fun () -> normalize_term term
   | TT_var { offset } -> repr_var ~var:offset
+  | TT_hole { id } -> repr_hole ~id
   | TT_forall { param; return } ->
       normalize_pat param @@ fun param ->
       let+ return = normalize_term return in
