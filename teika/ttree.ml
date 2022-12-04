@@ -9,7 +9,6 @@
 
 type term =
   | TT_var of { offset : Offset.t }
-  | TT_hole of { id : Uid.t }
   | TT_forall of { param : pat; return : term }
   | TT_lambda of { param : pat; return : term }
   | TT_apply of { lambda : term; arg : term }
@@ -30,7 +29,6 @@ and pat =
   | TP_loc of { pat : pat; loc : Location.t [@opaque] }
 
 and annot = TAnnot of { loc : Location.t; [@opaque] pat : pat; annot : term }
-and bind = TBind of { loc : Location.t; [@opaque] pat : pat; value : term }
 
-and hole = H_open | H_link of { term : term }
+and bind = TBind of { loc : Location.t; [@opaque] pat : pat; value : term }
 [@@deriving show { with_path = false }]

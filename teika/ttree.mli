@@ -3,8 +3,6 @@
 type term =
   (* x *)
   | TT_var of { offset : Offset.t }
-  (* _A *)
-  | TT_hole of { id : Uid.t }
   (* (x : A) -> B *)
   | TT_forall of { param : pat; return : term }
   (* (x : A) => e *)
@@ -32,5 +30,6 @@ and pat =
   | TP_loc of { pat : pat; loc : Location.t }
 
 and annot = TAnnot of { loc : Location.t; pat : pat; annot : term }
+
 and bind = TBind of { loc : Location.t; pat : pat; value : term }
-and hole = H_open | H_link of { term : term } [@@deriving show]
+[@@deriving show]
