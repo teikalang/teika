@@ -6,7 +6,6 @@ open Typer_context
 let rec typeof_term term =
   match term with
   | TT_var { offset = var } -> error_term_var_not_annotated ~var
-  | TT_hole { id = hole } -> error_term_hole_not_annotated ~hole
   | TT_forall { param = _; return = _ } -> tt_type ()
   | TT_lambda { param; return } ->
       let* return = typeof_term return in

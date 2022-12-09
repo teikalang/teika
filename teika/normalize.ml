@@ -11,7 +11,6 @@ let rec normalize_term term =
   | TT_offset { term; offset } ->
       with_offset ~offset @@ fun () -> normalize_term term
   | TT_var { offset } -> repr_var ~var:offset
-  | TT_hole { id } -> repr_hole ~id
   | TT_forall { param; return } ->
       normalize_pat param @@ fun param ->
       let+ return = normalize_term return in
@@ -43,6 +42,8 @@ let rec normalize_term term =
 (* TODO: weird *)
 and elim_apply ~pat ~return ~arg f =
   match (pat, arg) with
+  | TP_annot { pat; annot = _ }, arg -> elim_apply ~pat ~return ~arg f
+  | TP_loc { pat; loc = _ }, arg -> elim_apply ~pat ~return ~arg f
   | TP_var { var = _ }, arg ->
       with_offset ~offset:Offset.(zero - one) @@ fun () -> elim_var ~to_:arg f
   | ( TP_pair { left = left_pat; right = right_pat },
@@ -53,11 +54,9 @@ and elim_apply ~pat ~return ~arg f =
       elim_apply ~pat:left_pat ~return ~arg:left_arg @@ fun () ->
       elim_apply ~pat:right_pat ~return ~arg:right_arg f
   | (TP_pair _ as param), arg ->
-      (* TODO: proper locations? *)
       let lambda = TT_lambda { param; return } in
-      Context.Normalize_context.return @@ TT_apply { lambda; arg }
-  | TP_annot { pat; annot = _ }, arg -> elim_apply ~pat ~return ~arg f
-  | TP_loc { pat; loc = _ }, arg -> elim_apply ~pat ~return ~arg f
+      let apply = TT_apply { lambda; arg } in
+      Context.Normalize_context.return apply
 
 and normalize_pat pat f =
   match pat with
