@@ -49,18 +49,6 @@ let rec unify_term ~expected ~received =
         unify_term ~expected:expected_lambda ~received:received_lambda
       in
       unify_term ~expected:expected_arg ~received:received_arg
-  | ( TT_exists { left = expected_left; right = expected_right },
-      TT_exists { left = received_left; right = received_right } ) ->
-      let* () = unify_annot ~expected:expected_left ~received:received_left in
-      unify_annot ~expected:expected_right ~received:received_right
-  | ( TT_pair { left = expected_left; right = expected_right },
-      TT_pair { left = received_left; right = received_right } ) ->
-      let* () = unify_bind ~expected:expected_left ~received:received_left in
-      unify_bind ~expected:expected_right ~received:received_right
-  | ( TT_let { bound = expected_bound; return = expected_return },
-      TT_let { bound = received_bound; return = received_return } ) ->
-      let* () = unify_bind ~expected:expected_bound ~received:received_bound in
-      unify_term ~expected:expected_return ~received:received_return
   | TT_annot { term = expected; annot = _ }, received ->
       unify_term ~expected ~received
   | expected, TT_annot { term = received; annot = _ } ->
@@ -74,19 +62,13 @@ let rec unify_term ~expected ~received =
       with_expected_offset ~offset @@ fun () -> unify_term ~expected ~received
   | expected, TT_offset { term = received; offset } ->
       with_received_offset ~offset @@ fun () -> unify_term ~expected ~received
-  | ( ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_exists _
-      | TT_pair _ | TT_let _ ),
-      ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_exists _
-      | TT_pair _ | TT_let _ ) ) ->
+  | ( (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _),
+      (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) ) ->
       error_type_clash ~expected ~received
 
 and unify_pat ~expected ~received =
   match (expected, received) with
   | TP_var { var = _ }, TP_var { var = _ } -> return ()
-  | ( TP_pair { left = expected_left; right = expected_right },
-      TP_pair { left = received_left; right = received_right } ) ->
-      let* () = unify_pat ~expected:expected_left ~received:received_left in
-      unify_pat ~expected:expected_right ~received:received_right
   | ( TP_annot { pat = expected; annot = expected_annot },
       TP_annot { pat = received; annot = received_annot } ) ->
       let* () = unify_term ~expected:expected_annot ~received:received_annot in
@@ -95,28 +77,8 @@ and unify_pat ~expected ~received =
       unify_pat ~expected ~received
   | expected, TP_loc { pat = received; loc = _ } ->
       unify_pat ~expected ~received
-  | (TP_var _ | TP_pair _ | TP_annot _), (TP_var _ | TP_pair _ | TP_annot _) ->
+  | (TP_var _ | TP_annot _), (TP_var _ | TP_annot _) ->
       error_pat_clash ~expected ~received
-
-and unify_annot ~expected ~received =
-  let (TAnnot { loc = _; pat = expected_pat; annot = expected_annot }) =
-    expected
-  in
-  let (TAnnot { loc = _; pat = received_pat; annot = received_annot }) =
-    received
-  in
-  let* () = unify_term ~expected:expected_annot ~received:received_annot in
-  unify_pat ~expected:expected_pat ~received:received_pat
-
-and unify_bind ~expected ~received =
-  let (TBind { loc = _; pat = expected_pat; value = expected_value }) =
-    expected
-  in
-  let (TBind { loc = _; pat = received_pat; value = received_value }) =
-    received
-  in
-  let* () = unify_term ~expected:expected_value ~received:received_value in
-  unify_pat ~expected:expected_pat ~received:received_pat
 
 let unify_term ~expected ~received =
   (* TODO: does it make sense to always normalize? *)

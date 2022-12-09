@@ -11,9 +11,8 @@ and error_desc =
   (* typer *)
   | CError_typer_unknown_var of { var : Name.t }
   | Cerror_typer_not_a_forall of { type_ : term }
-  | Cerror_typer_not_an_exists of { type_ : term }
   | CError_typer_pat_not_annotated of { pat : Ltree.pat }
-  | CError_typer_pat_not_pair of { pat : Ltree.pat; expected : term }
+  | CError_typer_pairs_not_implemented
   (* invariant *)
   | CError_typer_term_var_not_annotated of { var : Offset.t }
   | CError_typer_pat_var_not_annotated of { var : Name.t }
@@ -291,12 +290,6 @@ struct
     in
     { context }
 
-  let[@inline always] error_pat_not_pair ~pat ~expected =
-    let context ~type_of_types:_ ~level:_ ~names:_ ~ok:_ ~error =
-      error (CError_typer_pat_not_pair { pat; expected })
-    in
-    { context }
-
   let[@inline always] error_term_var_not_annotated ~var =
     let context ~type_of_types:_ ~level:_ ~names:_ ~ok:_ ~error =
       error (CError_typer_term_var_not_annotated { var })
@@ -306,6 +299,12 @@ struct
   let[@inline always] error_pat_var_not_annotated ~var =
     let context ~type_of_types:_ ~level:_ ~names:_ ~ok:_ ~error =
       error (CError_typer_pat_var_not_annotated { var })
+    in
+    { context }
+
+  let[@inline always] error_pairs_not_implemented () =
+    let context ~type_of_types:_ ~level:_ ~names:_ ~ok:_ ~error =
+      error CError_typer_pairs_not_implemented
     in
     { context }
 
@@ -388,22 +387,9 @@ struct
     let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
       match type_ with
       | TT_forall { param; return } -> ok (param, return)
-      | TT_var _ | TT_lambda _ | TT_apply _ | TT_exists _ | TT_pair _ | TT_let _
-      | TT_annot _ | TT_loc _ | TT_offset _ ->
+      | TT_var _ | TT_lambda _ | TT_apply _ | TT_annot _ | TT_loc _
+      | TT_offset _ ->
           error (Cerror_typer_not_a_forall { type_ })
-    in
-    { context }
-
-  let[@inline always] split_exists type_ =
-    let* type_ = normalize_term type_ in
-    (* TODO: two normalize guarantees no TT_offset? *)
-    let* type_ = normalize_term type_ in
-    let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error =
-      match type_ with
-      | TT_exists { left; right } -> ok (left, right)
-      | TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_pair _ | TT_let _
-      | TT_annot _ | TT_loc _ | TT_offset _ ->
-          error (Cerror_typer_not_an_exists { type_ })
     in
     { context }
 
@@ -439,24 +425,6 @@ struct
     in
     { context }
 
-  let[@inline always] tt_exists ~left ~right =
-    let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
-      ok @@ TT_exists { left; right }
-    in
-    { context }
-
-  let[@inline always] tt_pair ~left ~right =
-    let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
-      ok @@ TT_pair { left; right }
-    in
-    { context }
-
-  let[@inline always] tt_let ~bound ~return =
-    let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
-      ok @@ TT_let { bound; return }
-    in
-    { context }
-
   let[@inline always] tt_annot ~term ~annot =
     let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
       ok @@ tt_annot ~annot term
@@ -471,27 +439,9 @@ struct
     in
     { context }
 
-  let[@inline always] tp_pair ~left ~right =
-    let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
-      ok @@ TP_pair { left; right }
-    in
-    { context }
-
   let[@inline always] tp_annot ~pat ~annot =
     let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
       ok @@ TP_annot { pat; annot }
-    in
-    { context }
-
-  let[@inline always] tannot ~loc ~pat ~annot =
-    let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
-      ok @@ TAnnot { loc; pat; annot }
-    in
-    { context }
-
-  let[@inline always] tbind ~loc ~pat ~value =
-    let context ~type_of_types:_ ~level:_ ~names:_ ~ok ~error:_ =
-      ok @@ TBind { loc; pat; value }
     in
     { context }
 end
