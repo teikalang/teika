@@ -5,12 +5,18 @@ type error = CError of { loc : Location.t; [@opaque] desc : error_desc }
 and error_desc =
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
-  | CError_unify_type_clash of { expected : term; received : term }
-  | CError_unify_pat_clash of { expected : pat; received : pat }
+  | CError_unify_type_clash of {
+      expected : term; [@printer Tprinter.pp_term]
+      received : term; [@printer Tprinter.pp_term]
+    }
+  | CError_unify_pat_clash of {
+      expected : pat; [@printer Tprinter.pp_pat]
+      received : pat; [@printer Tprinter.pp_pat]
+    }
   | CError_unify_var_escape_scope of { var : Offset.t }
   (* typer *)
   | CError_typer_unknown_var of { var : Name.t }
-  | Cerror_typer_not_a_forall of { type_ : term }
+  | Cerror_typer_not_a_forall of { type_ : term [@printer Tprinter.pp_term] }
   | CError_typer_pat_not_annotated of { pat : Ltree.pat }
   | CError_typer_pairs_not_implemented
   (* invariant *)
