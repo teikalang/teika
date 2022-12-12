@@ -324,10 +324,10 @@ module Typer = struct
       {|(((A : Type) => (x : A) => (y : A) => y)
         : (A : Type) -> (x : A) -> (y : A) -> A)|}
 
-  let pair =
-    check "pair" ~wrapper:false
-      {|(((A : Type) => (B : Type) => (x : A) => (y : B) => (x = x, y = y))
-        : (A : Type) -> (B : Type) -> (x : A) -> (y : B) -> (x  : A, y : B))|}
+  (* let pair =
+     check "pair" ~wrapper:false
+       {|(((A : Type) => (B : Type) => (x : A) => (y : B) => (x = x, y = y))
+         : (A : Type) -> (B : Type) -> (x : A) -> (y : B) -> (x  : A, y : B))|} *)
 
   (* let left_unpair =
        check "left_unpair" ~wrapper:false
@@ -362,9 +362,10 @@ module Typer = struct
       bool;
       true_;
       false_;
-      pair;
-      (* left_unpair;
-         right_unpair; *)
+      (*
+          pair;
+          left_unpair;
+          right_unpair; *)
     ]
 
   (* alcotest *)

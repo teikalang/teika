@@ -11,9 +11,8 @@ and error_desc = private
   (* typer *)
   | CError_typer_unknown_var of { var : Name.t }
   | Cerror_typer_not_a_forall of { type_ : term }
-  | Cerror_typer_not_an_exists of { type_ : term }
   | CError_typer_pat_not_annotated of { pat : Ltree.pat }
-  | CError_typer_pat_not_pair of { pat : Ltree.pat; expected : term }
+  | CError_typer_pairs_not_implemented
   (* invariant *)
   | CError_typer_term_var_not_annotated of { var : Offset.t }
   | CError_typer_pat_var_not_annotated of { var : Name.t }
@@ -129,9 +128,9 @@ end) : sig
 
   (* errors *)
   val error_pat_not_annotated : pat:Ltree.pat -> 'a typer_context
-  val error_pat_not_pair : pat:Ltree.pat -> expected:term -> 'a typer_context
   val error_term_var_not_annotated : var:Offset.t -> 'a typer_context
   val error_pat_var_not_annotated : var:Name.t -> 'a typer_context
+  val error_pairs_not_implemented : unit -> 'a typer_context
 
   (* vars *)
   val instance : var:Name.t -> (Offset.t * term) typer_context
@@ -157,17 +156,10 @@ end) : sig
   val tt_forall : param:pat -> return:term -> term typer_context
   val tt_lambda : param:pat -> return:term -> term typer_context
   val tt_apply : lambda:term -> arg:term -> term typer_context
-  val tt_exists : left:annot -> right:annot -> term typer_context
-  val tt_pair : left:bind -> right:bind -> term typer_context
-  val tt_let : bound:bind -> return:term -> term typer_context
   val tt_annot : term:term -> annot:term -> term typer_context
   val tp_var : annot:term -> var:Name.t -> pat typer_context
-  val tp_pair : left:pat -> right:pat -> pat typer_context
   val tp_annot : pat:pat -> annot:term -> pat typer_context
-  val tannot : loc:Location.t -> pat:pat -> annot:term -> annot typer_context
-  val tbind : loc:Location.t -> pat:pat -> value:term -> bind typer_context
 
   (* utils *)
   val split_forall : term -> (pat * term) typer_context
-  val split_exists : term -> (annot * annot) typer_context
 end

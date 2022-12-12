@@ -15,40 +15,15 @@ let rec typeof_term term =
       let+ param, return = split_forall forall in
       let lambda = TT_lambda { param; return } in
       TT_apply { lambda; arg }
-  | TT_exists { left = _; right = _ } -> tt_type ()
-  | TT_pair { left; right } ->
-      let* left = typeof_bind left in
-      let* right = typeof_bind right in
-      tt_exists ~left ~right
-  | TT_let { bound; return } ->
-      let* return = typeof_term return in
-      tt_let ~bound ~return
   | TT_annot { term = _; annot } -> return annot
   | TT_loc { term; loc = _ } -> typeof_term term
   | TT_offset { term; offset } ->
       let* term = typeof_term term in
       return @@ TT_offset { term; offset }
 
-and typeof_bind bind =
-  let (TBind { loc; pat; value }) = bind in
-  let+ annot = typeof_term value in
-  TAnnot { loc; pat; annot }
-
 and typeof_pat pat =
   match pat with
   | TP_var { var } -> error_pat_var_not_annotated ~var
-  | TP_pair { left; right } ->
-      (* TODO: proper locs *)
-      let loc = Location.none in
-      let* left =
-        let* annot = typeof_pat left in
-        tannot ~loc ~pat:left ~annot
-      in
-      let* right =
-        let* annot = typeof_pat right in
-        tannot ~loc ~pat:right ~annot
-      in
-      tt_exists ~left ~right
   | TP_annot { pat = _; annot } -> return @@ annot
   | TP_loc { pat; loc = _ } -> typeof_pat pat
 
@@ -79,16 +54,19 @@ let rec infer_term term =
         check_term arg ~expected
       in
       tt_apply ~lambda ~arg
-  | LT_exists { left; right } ->
-      infer_annot left @@ fun left ->
-      infer_annot right @@ fun right -> tt_exists ~left ~right
-  | LT_pair { left; right } ->
-      infer_bind left @@ fun left ->
-      infer_bind right @@ fun right -> tt_pair ~left ~right
+  | LT_exists _ -> error_pairs_not_implemented ()
+  | LT_pair _ -> error_pairs_not_implemented ()
   | LT_let { bound; return } ->
-      infer_bind bound @@ fun bound ->
-      let* return = infer_term return in
-      tt_let ~bound ~return
+      (* TODO: use this loc *)
+      let (LBind { loc = _; pat; value }) = bound in
+      let* value = infer_term value in
+      let* param = typeof_term value in
+      let* lambda =
+        check_pat pat ~expected:param @@ fun param ->
+        let* return = infer_term return in
+        tt_lambda ~param ~return
+      in
+      tt_apply ~lambda ~arg:value
   | LT_annot { term; annot } ->
       let* annot =
         let* expected = tt_type () in
@@ -97,26 +75,6 @@ let rec infer_term term =
       let* term = check_term term ~expected:annot in
       tt_annot ~term ~annot
   | LT_loc { term; loc } -> with_tt_loc ~loc @@ fun () -> infer_term term
-
-and infer_annot : type a. _ -> (_ -> a typer_context) -> a typer_context =
- fun annot f ->
-  let (LAnnot { loc; pat; annot }) = annot in
-  let* annot =
-    let* expected = tt_type () in
-    check_term annot ~expected
-  in
-  check_pat pat ~expected:annot @@ fun pat ->
-  let* annot = tannot ~loc ~pat ~annot in
-  f annot
-
-and infer_bind : type a. _ -> (_ -> a typer_context) -> a typer_context =
- fun bind f ->
-  let (LBind { loc; pat; value }) = bind in
-  let* value = infer_term value in
-  let* annot = typeof_term value in
-  check_pat pat ~expected:annot @@ fun pat ->
-  let* bind = tbind ~loc ~pat ~value in
-  f bind
 
 and check_term term ~expected =
   (* TODO: repr function for term, maybe with_term? *)
@@ -165,16 +123,7 @@ and check_pat :
       with_binder ~var ~type_:expected @@ fun () ->
       let* pat = tp_var ~annot:expected ~var in
       f pat
-  | ( LP_pair { left; right },
-      TT_exists { left = left_expected; right = right_expected } ) ->
-      (* TODO: strict mode here *)
-      let (TAnnot { loc = _; pat = _; annot = left_type }) = left_expected in
-      let (TAnnot { loc = _; pat = _; annot = right_type }) = right_expected in
-      check_pat left ~expected:left_type @@ fun left ->
-      check_pat right ~expected:right_type @@ fun right ->
-      let* pat = tp_pair ~left ~right in
-      f pat
-  | LP_pair _, expected -> error_pat_not_pair ~pat ~expected
+  | LP_pair _, _ -> error_pairs_not_implemented ()
   | LP_annot { pat; annot }, _expected_desc ->
       let* annot =
         let* expected = tt_type () in
