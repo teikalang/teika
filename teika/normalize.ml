@@ -38,9 +38,9 @@ and elim_apply ~pat ~return ~arg f =
 
 and normalize_pat pat f =
   match pat with
-  | TP_var { var } ->
+  | TP_var { var = name } ->
       (* TODO: ensure all pat variables are wrapped with annotation *)
-      with_var @@ fun () -> f (TP_var { var })
+      with_var @@ fun () -> f (TP_var { var = name })
   | TP_annot { pat; annot } ->
       let* annot = normalize_term annot in
       normalize_pat pat @@ fun pat -> f (TP_annot { pat; annot })

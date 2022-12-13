@@ -1,7 +1,22 @@
 open Ltree
 open Ttree
-module Typer_context = Context.Typer_context (Normalize) (Unify)
+open Context
 open Typer_context
+
+let normalize_received_term term =
+  with_received_normalize_context @@ fun () -> Normalize.normalize_term term
+
+let unify_term ~expected ~received =
+  with_unify_context @@ fun () -> Unify.unify_term ~expected ~received
+
+let split_forall type_ =
+  (* TODO: two normalize guarantees no TT_offset? *)
+  (* TODO: it doesn't *)
+  let* type_ = normalize_received_term type_ in
+  match type_ with
+  | TT_forall { param; return } -> Typer_context.return (param, return)
+  | TT_var _ | TT_lambda _ | TT_apply _ | TT_annot _ | TT_loc _ | TT_offset _ ->
+      error_not_a_forall ~type_
 
 let rec typeof_term term =
   match term with
@@ -23,14 +38,14 @@ let rec typeof_term term =
 
 and typeof_pat pat =
   match pat with
-  | TP_var { var } -> error_pat_var_not_annotated ~var
+  | TP_var { var = name } -> error_pat_var_not_annotated ~name
   | TP_annot { pat = _; annot } -> return @@ annot
   | TP_loc { pat; loc = _ } -> typeof_pat pat
 
 let rec infer_term term =
   match term with
-  | LT_var { var } ->
-      let* offset, annot = instance ~var in
+  | LT_var { var = name } ->
+      let* offset, annot = instance ~name in
       tt_var ~annot ~offset
   | LT_forall { param; return } ->
       infer_pat param @@ fun param ->
@@ -119,9 +134,9 @@ and check_pat :
  fun pat ~expected f ->
   (* TODO: expected should be a pattern, to achieve strictness *)
   match (pat, expected) with
-  | LP_var { var }, expected ->
-      with_binder ~var ~type_:expected @@ fun () ->
-      let* pat = tp_var ~annot:expected ~var in
+  | LP_var { var = name }, expected ->
+      with_binder ~name ~type_:expected @@ fun () ->
+      let* pat = tp_var ~annot:expected ~var:name in
       f pat
   | LP_pair _, _ -> error_pairs_not_implemented ()
   | LP_annot { pat; annot }, _expected_desc ->

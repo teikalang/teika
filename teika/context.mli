@@ -9,17 +9,18 @@ type error = private
   | CError_unify_pat_clash of { expected : pat; received : pat }
   | CError_unify_var_escape_scope of { var : Offset.t }
   (* typer *)
-  | CError_typer_unknown_var of { var : Name.t }
+  | CError_typer_unknown_var of { name : Name.t }
   | Cerror_typer_not_a_forall of { type_ : term }
   | CError_typer_pat_not_annotated of { pat : Ltree.pat }
   | CError_typer_pairs_not_implemented
   (* invariant *)
   | CError_typer_term_var_not_annotated of { var : Offset.t }
-  | CError_typer_pat_var_not_annotated of { var : Name.t }
+  | CError_typer_pat_var_not_annotated of { name : Name.t }
 [@@deriving show]
 
+type var_info = Subst of { to_ : term } | Bound of { base : Offset.t }
+
 module Normalize_context : sig
-  type var_info = Subst of { to_ : term } | Bound of { base : Offset.t }
   type 'a normalize_context
   type 'a t = 'a normalize_context
 
@@ -53,15 +54,15 @@ module Normalize_context : sig
 end
 
 (* TODO: this is bad *)
-module Unify_context (Normalize : sig
-  val normalize_term : term -> term Normalize_context.t
-end) : sig
+module Unify_context : sig
   type 'a unify_context
   type 'a t = 'a unify_context
 
   (* monad *)
   val test :
+    expected_vars:var_info list ->
     expected_offset:Offset.t ->
+    received_vars:var_info list ->
     received_offset:Offset.t ->
     (unit -> 'a unify_context) ->
     ('a, error) result
@@ -83,7 +84,11 @@ end) : sig
   val error_var_escape_scope : var:Offset.t -> 'a unify_context
 
   (* normalize *)
-  val normalize_term : term -> term unify_context
+  val with_expected_normalize_context :
+    (unit -> 'a Normalize_context.t) -> 'a unify_context
+
+  val with_received_normalize_context :
+    (unit -> 'a Normalize_context.t) -> 'a unify_context
 
   (* offset *)
   val expected_offset : unit -> Offset.t unify_context
@@ -96,12 +101,7 @@ end) : sig
     offset:Offset.t -> (unit -> 'a unify_context) -> 'a unify_context
 end
 
-module Typer_context (Normalize : sig
-  val normalize_term : term -> term Normalize_context.t
-end) (Unify : sig
-  val unify_term :
-    expected:term -> received:term -> unit Unify_context(Normalize).t
-end) : sig
+module Typer_context : sig
   type 'a typer_context
   type 'a t = 'a typer_context
 
@@ -111,7 +111,8 @@ end) : sig
   val test :
     type_of_types:Level.t ->
     level:Level.t ->
-    names:(Level.t * term) Name.Tbl.t ->
+    names:(Level.t * term) Name.Map.t ->
+    received_vars:var_info list ->
     (unit -> 'a typer_context) ->
     ('a, error) result
 
@@ -126,17 +127,22 @@ end) : sig
   (* errors *)
   val error_pat_not_annotated : pat:Ltree.pat -> 'a typer_context
   val error_term_var_not_annotated : var:Offset.t -> 'a typer_context
-  val error_pat_var_not_annotated : var:Name.t -> 'a typer_context
+  val error_pat_var_not_annotated : name:Name.t -> 'a typer_context
   val error_pairs_not_implemented : unit -> 'a typer_context
+  val error_not_a_forall : type_:term -> 'a typer_context
 
   (* vars *)
-  val instance : var:Name.t -> (Offset.t * term) typer_context
+  val instance : name:Name.t -> (Offset.t * term) typer_context
 
   val with_binder :
-    var:Name.t -> type_:term -> (unit -> 'a typer_context) -> 'a typer_context
+    name:Name.t -> type_:term -> (unit -> 'a typer_context) -> 'a typer_context
+
+  (* normalize *)
+  val with_received_normalize_context :
+    (unit -> 'a Normalize_context.t) -> 'a typer_context
 
   (* unify *)
-  val unify_term : expected:term -> received:term -> unit typer_context
+  val with_unify_context : (unit -> 'a Unify_context.t) -> 'a typer_context
 
   (* locs *)
   val with_tt_loc :
@@ -156,7 +162,4 @@ end) : sig
   val tt_annot : term:term -> annot:term -> term typer_context
   val tp_var : annot:term -> var:Name.t -> pat typer_context
   val tp_annot : pat:pat -> annot:term -> pat typer_context
-
-  (* utils *)
-  val split_forall : term -> (pat * term) typer_context
 end
