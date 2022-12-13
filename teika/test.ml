@@ -245,16 +245,15 @@ end
 
 module Ttree_utils = struct
   open Teika
-  module Typer_context = Context.Typer_context (Normalize) (Unify)
+  open Context
 
   let infer_term term =
     let open Typer_context in
     run @@ fun () -> Typer.infer_term term
 
   (* let normalize_term term =
-       Context.Normalize_context.test ~loc:Location.none ~vars:[]
-         ~offset:Offset.zero
-       @@ fun () -> Normalize.normalize_term term
+       Context.Normalize_context.test ~vars:[] ~offset:Offset.zero @@ fun () ->
+       Normalize.normalize_term term
 
      let dump code =
        let stree = Slexer.from_string Sparser.term_opt code |> Option.get in

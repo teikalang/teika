@@ -1,5 +1,5 @@
 open Ttree
-module Unify_context = Context.Unify_context (Normalize)
+open Context
 open Unify_context
 
 (* TODO: ensure this is eliminated *)
@@ -24,6 +24,19 @@ open Unify_context
 (* TODO: diff is a bad name *)
 let rec unify_term ~expected ~received =
   match (expected, received) with
+  | TT_annot { term = expected; annot = _ }, received ->
+      unify_term ~expected ~received
+  | expected, TT_annot { term = received; annot = _ } ->
+      unify_term ~expected ~received
+  | TT_loc { term = expected; loc = _ }, received ->
+      unify_term ~expected ~received
+  | expected, TT_loc { term = received; loc = _ } ->
+      unify_term ~expected ~received
+      (* TODO: use those locations for something? *)
+  | TT_offset { term = expected; offset }, received ->
+      with_expected_offset ~offset @@ fun () -> unify_term ~expected ~received
+  | expected, TT_offset { term = received; offset } ->
+      with_received_offset ~offset @@ fun () -> unify_term ~expected ~received
   | TT_var { offset = expected }, TT_var { offset = received } -> (
       let* expected_offset = expected_offset () in
       let* received_offset = received_offset () in
@@ -49,19 +62,6 @@ let rec unify_term ~expected ~received =
         unify_term ~expected:expected_lambda ~received:received_lambda
       in
       unify_term ~expected:expected_arg ~received:received_arg
-  | TT_annot { term = expected; annot = _ }, received ->
-      unify_term ~expected ~received
-  | expected, TT_annot { term = received; annot = _ } ->
-      unify_term ~expected ~received
-  | TT_loc { term = expected; loc = _ }, received ->
-      unify_term ~expected ~received
-  | expected, TT_loc { term = received; loc = _ } ->
-      unify_term ~expected ~received
-      (* TODO: use those locations for something? *)
-  | TT_offset { term = expected; offset }, received ->
-      with_expected_offset ~offset @@ fun () -> unify_term ~expected ~received
-  | expected, TT_offset { term = received; offset } ->
-      with_received_offset ~offset @@ fun () -> unify_term ~expected ~received
   | ( (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _),
       (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) ) ->
       error_type_clash ~expected ~received
@@ -82,6 +82,12 @@ and unify_pat ~expected ~received =
 
 let unify_term ~expected ~received =
   (* TODO: does it make sense to always normalize? *)
-  let* expected = normalize_term expected in
-  let* received = normalize_term received in
+  let* expected =
+    with_expected_normalize_context @@ fun () ->
+    Normalize.normalize_term expected
+  in
+  let* received =
+    with_received_normalize_context @@ fun () ->
+    Normalize.normalize_term received
+  in
   unify_term ~expected ~received
