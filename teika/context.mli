@@ -1,8 +1,8 @@
 open Ttree
 
-type error = private CError of { loc : Location.t; desc : error_desc }
-
-and error_desc = private
+type error = private
+  (* metadata *)
+  | CError_loc of { error : error; loc : Location.t [@opaque] }
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
   | CError_unify_type_clash of { expected : term; received : term }
@@ -25,7 +25,6 @@ module Normalize_context : sig
 
   (* monad *)
   val test :
-    loc:Warnings.loc ->
     vars:var_info list ->
     offset:Offset.t ->
     (unit -> 'a normalize_context) ->
@@ -62,7 +61,6 @@ end) : sig
 
   (* monad *)
   val test :
-    loc:Warnings.loc ->
     expected_offset:Offset.t ->
     received_offset:Offset.t ->
     (unit -> 'a unify_context) ->
@@ -108,10 +106,9 @@ end) : sig
   type 'a t = 'a typer_context
 
   (* monad *)
-  val run : loc:Location.t -> (unit -> 'a typer_context) -> ('a, error) result
+  val run : (unit -> 'a typer_context) -> ('a, error) result
 
   val test :
-    loc:Warnings.loc ->
     type_of_types:Level.t ->
     level:Level.t ->
     names:(Level.t * term) Name.Tbl.t ->

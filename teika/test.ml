@@ -249,8 +249,7 @@ module Ttree_utils = struct
 
   let infer_term term =
     let open Typer_context in
-    let loc = Location.none in
-    run ~loc @@ fun () -> Typer.infer_term term
+    run @@ fun () -> Typer.infer_term term
 
   (* let normalize_term term =
        Context.Normalize_context.test ~loc:Location.none ~vars:[]
@@ -262,11 +261,10 @@ module Ttree_utils = struct
        let ltree = Lparser.from_stree stree in
        let ttree = infer_term ltree |> Result.get_ok in
        let ttree = normalize_term ttree |> Result.get_ok in
-       let ttree = normalize_term ttree |> Result.get_ok in
-       Format.eprintf "%a\n%!" pp_term ttree
+       Format.eprintf "%a\n%!" Tprinter.pp_term ttree;
+       assert false
 
-     let () =
-       dump "((id : (A : Type) -> (x : A) -> A) => id) (A => x => x) Type Type" *)
+     let () = dump "((id : (A : Type) -> (x : A) -> A) => id) (A => x => x)" *)
 end
 
 module Typer = struct
