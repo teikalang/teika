@@ -1,8 +1,9 @@
 open Ttree
 
-type error = CError of { loc : Location.t; [@opaque] desc : error_desc }
-
-and error_desc =
+type error =
+  (* TODO: why track nested locations?
+      Probably because things like macros exists *)
+  | CError_loc of { error : error; loc : Location.t [@opaque] }
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
   | CError_unify_type_clash of {
@@ -34,17 +35,17 @@ module Normalize_context = struct
       vars:var_info list ->
       offset:Offset.t ->
       ok:('a -> 'k) ->
-      error:(error_desc -> 'k) ->
+      error:(error -> 'k) ->
       'k;
   }
   [@@ocaml.unboxed]
 
   type 'a t = 'a normalize_context
 
-  let[@inline always] test ~loc ~vars ~offset f =
+  let[@inline always] test ~vars ~offset f =
     let { context } = f () in
     let ok value = Ok value in
-    let error desc = Error (CError { loc; desc }) in
+    let error error = Error error in
     context ~vars ~offset ~ok ~error
 
   let[@inline always] return value =
@@ -124,17 +125,17 @@ struct
       expected_offset:Offset.t ->
       received_offset:Offset.t ->
       ok:('a -> 'k) ->
-      error:(error_desc -> 'k) ->
+      error:(error -> 'k) ->
       'k;
   }
   [@@ocaml.unboxed]
 
   type 'a t = 'a unify_context
 
-  let[@inline always] test ~loc ~expected_offset ~received_offset f =
+  let[@inline always] test ~expected_offset ~received_offset f =
     let { context } = f () in
     let ok value = Ok value in
-    let error desc = Error (CError { loc; desc }) in
+    let error error = Error error in
     context ~expected_offset ~received_offset ~ok ~error
 
   let[@inline always] return value =
@@ -239,14 +240,14 @@ struct
       level:Level.t ->
       names:(Level.t * term) Name.Tbl.t ->
       ok:('a -> 'k) ->
-      error:(error_desc -> 'k) ->
+      error:(error -> 'k) ->
       'k;
   }
   [@@ocaml.unboxed]
 
   type 'a t = 'a typer_context
 
-  let[@inline always] run ~loc f =
+  let[@inline always] run f =
     let { context } = f () in
     let type_of_types = Level.zero in
     let level = Level.next type_of_types in
@@ -260,13 +261,13 @@ struct
      (* TODO: better place for constants *)
      Name.Tbl.add names type_name (type_of_types, type_));
     let ok value = Ok value in
-    let error desc = Error (CError { loc; desc }) in
+    let error error = Error error in
     context ~type_of_types ~level ~names ~ok ~error
 
-  let[@inline always] test ~loc ~type_of_types ~level ~names f =
+  let[@inline always] test ~type_of_types ~level ~names f =
     let { context } = f () in
     let ok value = Ok value in
-    let error desc = Error (CError { loc; desc }) in
+    let error error = Error error in
     context ~type_of_types ~level ~names ~ok ~error
 
   let[@inline always] return value =
@@ -352,6 +353,7 @@ struct
     let context ~type_of_types ~level ~names ~ok ~error =
       let { context } = f () in
       let ok term = ok @@ TT_loc { term; loc } in
+      let error desc = error @@ CError_loc { error = desc; loc } in
       context ~type_of_types ~level ~names ~ok ~error
     in
     { context }
