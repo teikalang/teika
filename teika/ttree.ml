@@ -7,16 +7,24 @@
    makes normalization cached, with unification this
    means that this cache will probably be dependent on holes *)
 
-type term =
-  | TT_loc of { term : term; loc : Location.t [@opaque] }
-  | TT_offset of { term : term; offset : Offset.t }
-  | TT_var of { offset : Offset.t }
-  | TT_forall of { param : pat; return : term }
-  | TT_lambda of { param : pat; return : term }
-  | TT_apply of { lambda : term; arg : term }
-  | TT_annot of { term : term; annot : term }
+type loc = Loc
+type offset = Offset
+type annot = Annot
+type core = Core
 
-and pat =
-  | TP_loc of { pat : pat; loc : Location.t [@opaque] }
-  | TP_var of { var : Name.t }
-  | TP_annot of { pat : pat; annot : term }
+type _ term =
+  | TT_loc : { term : _ term; loc : Location.t } -> loc term
+  | TT_offset : { term : _ term; offset : Offset.t } -> offset term
+  | TT_var : { offset : Offset.t } -> core term
+  | TT_forall : { param : annot pat; return : _ term } -> core term
+  | TT_lambda : { param : annot pat; return : _ term } -> core term
+  | TT_apply : { lambda : _ term; arg : _ term } -> core term
+  | TT_annot : { term : _ term; annot : _ term } -> annot term
+
+and _ pat =
+  | TP_loc : { pat : _ pat; loc : Location.t } -> loc pat
+  | TP_var : { var : Name.t } -> core pat
+  | TP_annot : { pat : _ pat; annot : _ term } -> annot pat
+
+type ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
+type ex_pat = Ex_pat : _ pat -> ex_pat [@@ocaml.unboxed]

@@ -22,7 +22,8 @@ open Unify_context
 (* TODO: occurs should probably be on it's own context *)
 
 (* TODO: diff is a bad name *)
-let rec unify_term ~expected ~received =
+let rec unify_term : type e r. expected:e term -> received:r term -> _ =
+ fun ~expected ~received ->
   match (expected, received) with
   | TT_annot { term = expected; annot = _ }, received ->
       unify_term ~expected ~received
@@ -66,7 +67,8 @@ let rec unify_term ~expected ~received =
       (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) ) ->
       error_type_clash ~expected ~received
 
-and unify_pat ~expected ~received =
+and unify_pat : type e r. expected:e pat -> received:r pat -> _ =
+ fun ~expected ~received ->
   match (expected, received) with
   | TP_var { var = _ }, TP_var { var = _ } -> return ()
   | ( TP_annot { pat = expected; annot = expected_annot },
@@ -82,11 +84,11 @@ and unify_pat ~expected ~received =
 
 let unify_term ~expected ~received =
   (* TODO: does it make sense to always normalize? *)
-  let* expected =
+  let* (Ex_term expected) =
     with_expected_normalize_context @@ fun () ->
     Normalize.normalize_term expected
   in
-  let* received =
+  let* (Ex_term received) =
     with_received_normalize_context @@ fun () ->
     Normalize.normalize_term received
   in
