@@ -7,17 +7,19 @@ type error =
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
   | CError_unify_type_clash of {
-      expected : term; [@printer Tprinter.pp_term]
-      received : term; [@printer Tprinter.pp_term]
+      expected : ex_term; [@printer Tprinter.pp_ex_term]
+      received : ex_term; [@printer Tprinter.pp_ex_term]
     }
   | CError_unify_pat_clash of {
-      expected : pat; [@printer Tprinter.pp_pat]
-      received : pat; [@printer Tprinter.pp_pat]
+      expected : ex_pat; [@printer Tprinter.pp_ex_pat]
+      received : ex_pat; [@printer Tprinter.pp_ex_pat]
     }
   | CError_unify_var_escape_scope of { var : Offset.t }
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }
-  | Cerror_typer_not_a_forall of { type_ : term [@printer Tprinter.pp_term] }
+  | Cerror_typer_not_a_forall of {
+      type_ : ex_term; [@printer Tprinter.pp_ex_term]
+    }
   | CError_typer_pat_not_annotated of { pat : Ltree.pat }
   | CError_typer_pairs_not_implemented
   (* invariant *)
@@ -31,7 +33,7 @@ type ('a, 'b) result = { match_ : 'k. ok:('a -> 'k) -> error:('b -> 'k) -> 'k }
 let[@inline always] ok value = { match_ = (fun ~ok ~error:_ -> ok value) }
 let[@inline always] error desc = { match_ = (fun ~ok:_ ~error -> error desc) }
 
-type var_info = Subst of { to_ : term } | Bound of { base : Offset.t }
+type var_info = Subst of { to_ : ex_term } | Bound of { base : Offset.t }
 
 module Normalize_context = struct
   type 'a normalize_context =
@@ -63,16 +65,16 @@ module Normalize_context = struct
       let index = Offset.(repr (var - one)) in
       List.nth_opt vars index
     with
-    | Some (Subst { to_ }) ->
+    | Some (Subst { to_ = Ex_term to_ }) ->
         let offset = Offset.(var + offset) in
-        ok @@ TT_offset { term = to_; offset }
+        ok @@ Ex_term (TT_offset { term = to_; offset })
     | Some (Bound { base }) ->
         let offset = Offset.(var + offset - base) in
-        ok @@ TT_var { offset }
+        ok @@ Ex_term (TT_var { offset })
     | None | (exception Invalid_argument _) ->
         (* free var *)
         let offset = Offset.(var + offset) in
-        ok @@ TT_var { offset }
+        ok @@ Ex_term (TT_var { offset })
 
   let[@inline always] with_var f ~vars ~offset =
     let vars = Bound { base = offset } :: vars in
@@ -129,9 +131,13 @@ module Unify_context = struct
     fail @@ CError_unify_var_clash { expected; received }
 
   let[@inline always] error_type_clash ~expected ~received =
+    let expected = Ex_term expected in
+    let received = Ex_term received in
     fail @@ CError_unify_type_clash { expected; received }
 
   let[@inline always] error_pat_clash ~expected ~received =
+    let expected = Ex_pat expected in
+    let received = Ex_pat received in
     fail @@ CError_unify_pat_clash { expected; received }
 
   let[@inline always] error_var_escape_scope ~var =
@@ -169,7 +175,7 @@ module Typer_context = struct
     type_of_types:Level.t ->
     level:Level.t ->
     (* TODO: Hashtbl *)
-    names:(Level.t * term) Name.Map.t ->
+    names:(Level.t * ex_term) Name.Map.t ->
     received_vars:var_info list ->
     ('a, error) result
 
@@ -184,7 +190,7 @@ module Typer_context = struct
       let type_ = TT_var { offset = Offset.zero } in
       let type_ = TT_annot { term = type_; annot = type_ } in
       (* TODO: better place for constants *)
-      Name.Map.add type_name (type_of_types, type_) names
+      Name.Map.add type_name (type_of_types, Ex_term type_) names
     in
     let received_vars = [ Bound { base = Offset.zero } ] in
     (* TODO: should Type be here? *)
@@ -229,20 +235,21 @@ module Typer_context = struct
     fail @@ CError_typer_pairs_not_implemented
 
   let[@inline always] error_not_a_forall ~type_ =
+    let type_ = Ex_term type_ in
     fail @@ Cerror_typer_not_a_forall { type_ }
 
   let[@inline always] instance ~name ~type_of_types:_ ~level ~names
       ~received_vars:_ =
     match Name.Map.find_opt name names with
-    | Some (var_level, type_) ->
+    | Some (var_level, Ex_term type_) ->
         let offset = Level.offset ~from:var_level ~to_:level in
         let type_ = TT_offset { term = type_; offset } in
-        ok @@ (offset, type_)
+        ok @@ (offset, Ex_term type_)
     | None -> error @@ CError_typer_unknown_var { name }
 
   let[@inline always] with_binder ~name ~type_ f ~type_of_types ~level ~names
       ~received_vars =
-    let names = Name.Map.add name (level, type_) names in
+    let names = Name.Map.add name (level, Ex_term type_) names in
     let received_vars = Bound { base = Offset.zero } :: received_vars in
     (* TODO: weird, level increases first? *)
     let level = Level.next level in
@@ -257,47 +264,16 @@ module Typer_context = struct
       ~level:_ ~names:_ ~received_vars:_ =
     f () ~vars:[] ~offset:Offset.zero
 
-  let[@inline always] with_tt_loc ~loc f ~type_of_types ~level ~names
+  let[@inline always] with_loc ~loc f ~type_of_types ~level ~names
       ~received_vars =
-    (f () ~type_of_types ~level ~names ~received_vars).match_
-      ~ok:(fun term -> ok @@ TT_loc { term; loc })
+    (f () ~type_of_types ~level ~names ~received_vars).match_ ~ok
       ~error:(fun desc -> error @@ CError_loc { error = desc; loc })
-
-  let[@inline always] with_tp_loc ~loc f ~type_of_types ~level ~names
-      ~received_vars =
-    f
-      (fun pat k ->
-        let pat = TP_loc { pat; loc } in
-        k pat)
-      ~type_of_types ~level ~names ~received_vars
 
   open Ttree
 
-  let[@inline always] tt_type ~type_of_types ~level =
-    let offset = Level.offset ~from:type_of_types ~to_:level in
-    TT_var { offset }
-
-  let[@inline always] tt_annot ~annot term = TT_annot { term; annot }
-
   let[@inline always] tt_type () ~type_of_types ~level ~names:_ ~received_vars:_
       =
-    ok @@ tt_type ~type_of_types ~level
+    let offset = Level.offset ~from:type_of_types ~to_:level in
 
-  let[@inline always] tt_var ~annot ~offset =
-    return @@ tt_annot ~annot @@ TT_var { offset }
-
-  let[@inline always] tt_forall ~param ~return =
-    return_raw @@ ok @@ TT_forall { param; return }
-
-  let[@inline always] tt_lambda ~param ~return =
-    return_raw @@ ok @@ TT_lambda { param; return }
-
-  let[@inline always] tt_apply ~lambda ~arg = return @@ TT_apply { lambda; arg }
-  let[@inline always] tt_annot ~term ~annot = return @@ tt_annot ~annot term
-  let[@inline always] tp_annot ~annot pat = TP_annot { pat; annot }
-
-  let[@inline always] tp_var ~annot ~var =
-    return @@ tp_annot ~annot @@ TP_var { var }
-
-  let[@inline always] tp_annot ~pat ~annot = return @@ TP_annot { pat; annot }
+    ok @@ TT_var { offset }
 end

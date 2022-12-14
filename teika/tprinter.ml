@@ -74,8 +74,6 @@ type loc_mode = Loc_default | Loc_meaningful | Loc_force
 type var_mode = Var_name | Var_index | Var_both
 type offset_mode = Offset_default | Offset_meaningful | Offset_force
 
-open Ptree
-
 let should_print_loc ~loc_mode ~loc =
   match loc_mode with
   | Loc_default -> false
@@ -88,7 +86,10 @@ let should_print_offset ~offset_mode ~offset =
   | Offset_force -> true
   | Offset_meaningful -> not Offset.(equal offset zero)
 
-let rec ptree_of_term ~loc_mode ~offset_mode ~var_mode offset term =
+let rec ptree_of_term :
+    type a. loc_mode:_ -> offset_mode:_ -> var_mode:_ -> _ -> a term -> _ =
+ fun ~loc_mode ~offset_mode ~var_mode offset (term : a term) ->
+  let open Ptree in
   let ptree_of_term offset term =
     ptree_of_term ~loc_mode ~offset_mode ~var_mode offset term
   in
@@ -130,7 +131,10 @@ let rec ptree_of_term ~loc_mode ~offset_mode ~var_mode offset term =
       let annot = ptree_of_term offset annot in
       PT_annot { term; annot }
 
-and ptree_of_pat ~loc_mode ~offset_mode ~var_mode offset pat =
+and ptree_of_pat :
+    type a. loc_mode:_ -> offset_mode:_ -> var_mode:_ -> _ -> a pat -> _ =
+ fun ~loc_mode ~offset_mode ~var_mode offset pat ->
+  let open Ptree in
   let ptree_of_term term =
     ptree_of_term ~loc_mode ~offset_mode ~var_mode offset term
   in
@@ -161,3 +165,6 @@ let pp_term fmt term =
 let pp_pat fmt pat =
   let pterm = ptree_of_pat ~loc_mode ~offset_mode ~var_mode Offset.zero pat in
   Ptree.pp_term fmt pterm
+
+let pp_ex_term fmt (Ex_term term) = pp_term fmt term
+let pp_ex_pat fmt (Ex_pat pat) = pp_pat fmt pat

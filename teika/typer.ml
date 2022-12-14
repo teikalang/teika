@@ -9,108 +9,128 @@ let normalize_received_term term =
 let unify_term ~expected ~received =
   with_unify_context @@ fun () -> Unify.unify_term ~expected ~received
 
-let split_forall type_ =
+let split_forall (type a) (type_ : a term) =
   (* TODO: two normalize guarantees no TT_offset? *)
   (* TODO: it doesn't *)
-  let* type_ = normalize_received_term type_ in
+  let* (Ex_term type_) = normalize_received_term type_ in
   match type_ with
-  | TT_forall { param; return } -> Typer_context.return (param, return)
+  | TT_forall { param; return } -> Typer_context.return (param, Ex_term return)
   | TT_var _ | TT_lambda _ | TT_apply _ | TT_annot _ | TT_loc _ | TT_offset _ ->
       error_not_a_forall ~type_
 
-let rec typeof_term term =
-  match term with
-  | TT_var { offset = var } -> error_term_var_not_annotated ~var
-  | TT_forall { param = _; return = _ } -> tt_type ()
-  | TT_lambda { param; return } ->
-      let* return = typeof_term return in
-      tt_forall ~param ~return
-  | TT_apply { lambda; arg } ->
-      let* forall = typeof_term lambda in
-      let+ param, return = split_forall forall in
-      let lambda = TT_lambda { param; return } in
-      TT_apply { lambda; arg }
-  | TT_annot { term = _; annot } -> return annot
-  | TT_loc { term; loc = _ } -> typeof_term term
-  | TT_offset { term; offset } ->
-      let* term = typeof_term term in
-      return @@ TT_offset { term; offset }
+let typeof_term term =
+  let (TT_annot { term = _; annot }) = term in
+  Ex_term annot
 
-and typeof_pat pat =
-  match pat with
-  | TP_var { var = name } -> error_pat_var_not_annotated ~name
-  | TP_annot { pat = _; annot } -> return @@ annot
-  | TP_loc { pat; loc = _ } -> typeof_pat pat
+let typeof_pat pat =
+  let (TP_annot { pat = _; annot }) = pat in
+  Ex_term annot
+
+let tt_annot ~annot term = TT_annot { term; annot }
+let tp_annot ~annot pat = TP_annot { pat; annot }
+
+let with_tt_loc ~loc f =
+  with_loc ~loc @@ fun () ->
+  let+ (TT_annot { term; annot }) = f () in
+  let term = TT_loc { term; loc } in
+  tt_annot ~annot term
+
+let with_tp_loc ~loc k =
+  with_loc ~loc @@ fun () ->
+  k @@ fun (TP_annot { pat; annot }) k ->
+  let pat = TP_loc { pat; loc } in
+  k @@ tp_annot ~annot pat
 
 let rec infer_term term =
   match term with
   | LT_var { var = name } ->
-      let* offset, annot = instance ~name in
-      tt_var ~annot ~offset
+      let+ offset, Ex_term annot = instance ~name in
+      tt_annot ~annot @@ TT_var { offset }
   | LT_forall { param; return } ->
+      let* annot = tt_type () in
       infer_pat param @@ fun param ->
-      let* return =
+      let+ return =
         let* expected = tt_type () in
         check_term return ~expected
       in
-      tt_forall ~param ~return
+      tt_annot ~annot @@ TT_forall { param; return }
   | LT_lambda { param; return } ->
       infer_pat param @@ fun param ->
-      let* return = infer_term return in
-      tt_lambda ~param ~return
+      let+ return = infer_term return in
+      let annot =
+        let (Ex_term return) = typeof_term return in
+        TT_forall { param; return }
+      in
+      tt_annot ~annot @@ TT_lambda { param; return }
   | LT_apply { lambda; arg } ->
       let* lambda = infer_term lambda in
-      let* arg =
-        let* expected =
-          let* forall = typeof_term lambda in
-          let* param, _return = split_forall forall in
-          typeof_pat param
-        in
-        check_term arg ~expected
+      let (Ex_term forall) = typeof_term lambda in
+      let* param, Ex_term return = split_forall forall in
+      let+ arg =
+        let (Ex_term param) = typeof_pat param in
+        check_term arg ~expected:param
       in
-      tt_apply ~lambda ~arg
+      let annot =
+        (* TODO: this is not ideal, generating core terms *)
+        let lambda = TT_lambda { param; return } in
+        TT_apply { lambda; arg }
+      in
+      tt_annot ~annot @@ TT_apply { lambda; arg }
   | LT_exists _ -> error_pairs_not_implemented ()
   | LT_pair _ -> error_pairs_not_implemented ()
   | LT_let { bound; return } ->
       (* TODO: use this loc *)
       let (LBind { loc = _; pat; value }) = bound in
+
+      (* TODO: this is not ideal, generating core terms *)
       let* value = infer_term value in
-      let* param = typeof_term value in
-      let* lambda =
+      let+ param, return =
+        let (Ex_term param) = typeof_term value in
         check_pat pat ~expected:param @@ fun param ->
-        let* return = infer_term return in
-        tt_lambda ~param ~return
+        let+ return = infer_term return in
+        (param, return)
       in
-      tt_apply ~lambda ~arg:value
+      let apply =
+        let lambda = TT_lambda { param; return } in
+        TT_apply { lambda; arg = value }
+      in
+      let annot =
+        let (Ex_term return) = typeof_term return in
+        let lambda = TT_lambda { param; return } in
+        TT_apply { lambda; arg = value }
+      in
+      tt_annot ~annot apply
   | LT_annot { term; annot } ->
       let* annot =
         let* expected = tt_type () in
         check_term annot ~expected
       in
-      let* term = check_term term ~expected:annot in
-      tt_annot ~term ~annot
+      let+ term = check_term term ~expected:annot in
+      tt_annot ~annot term
   | LT_loc { term; loc } -> with_tt_loc ~loc @@ fun () -> infer_term term
 
-and check_term term ~expected =
+and check_term : type a. _ -> expected:a term -> _ =
+ fun term ~expected ->
   (* TODO: repr function for term, maybe with_term? *)
   match (term, expected) with
   | ( LT_lambda { param; return },
       TT_forall { param = expected_param; return = expected_return } ) ->
-      let* expected_param_type = typeof_pat expected_param in
+      let (Ex_term expected_param_type) = typeof_pat expected_param in
       check_pat param ~expected:expected_param_type @@ fun param ->
-      let* return = check_term return ~expected:expected_return in
-      tt_lambda ~param ~return
+      let+ return = check_term return ~expected:expected_return in
+      tt_annot ~annot:expected @@ TT_lambda { param; return }
   | LT_loc { term; loc }, expected ->
       with_tt_loc ~loc @@ fun () -> check_term term ~expected
       (* TODO: what about this loc? *)
   | term, TT_loc { term = expected; loc = _ } -> check_term term ~expected
+  | term, TT_annot { term = expected; annot = _ } -> check_term term ~expected
   (* TODO: maybe LT_annot? *)
   | ( ( LT_var _ | LT_forall _ | LT_lambda _ | LT_apply _ | LT_exists _
       | LT_pair _ | LT_let _ | LT_annot _ ),
       expected ) ->
       let* term = infer_term term in
       let+ () =
-        let* received = typeof_term term in
+        let (Ex_term received) = typeof_term term in
         unify_term ~expected ~received
       in
       term
@@ -130,14 +150,14 @@ and infer_pat : type a. _ -> (_ -> a typer_context) -> a typer_context =
   | LP_var _ | LP_pair _ -> error_pat_not_annotated ~pat
 
 and check_pat :
-    type a. _ -> expected:_ -> (_ -> a typer_context) -> a typer_context =
+    type a k. _ -> expected:k term -> (_ -> a typer_context) -> a typer_context
+    =
  fun pat ~expected f ->
   (* TODO: expected should be a pattern, to achieve strictness *)
   match (pat, expected) with
   | LP_var { var = name }, expected ->
       with_binder ~name ~type_:expected @@ fun () ->
-      let* pat = tp_var ~annot:expected ~var:name in
-      f pat
+      f @@ tp_annot ~annot:expected @@ TP_var { var = name }
   | LP_pair _, _ -> error_pairs_not_implemented ()
   | LP_annot { pat; annot }, _expected_desc ->
       let* annot =
