@@ -36,6 +36,11 @@ let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
       let (Ex_term lambda) = subst_term ~from lambda in
       let (Ex_term arg) = subst_term ~from arg in
       Ex_term (TT_apply { lambda; arg })
+  | TT_let { pat; value; return } ->
+      let (Ex_term value) = subst_term ~from value in
+      subst_pat ~from pat @@ fun ~from pat ->
+      let (Ex_term return) = subst_term ~from return in
+      Ex_term (TT_let { pat; value; return })
   | TT_annot { term; annot } ->
       let (Ex_term annot) = subst_term ~from annot in
       let (Ex_term term) = subst_term ~from term in

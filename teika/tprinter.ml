@@ -13,6 +13,7 @@ module Ptree = struct
     | PT_forall of { param : term; return : term }
     | PT_lambda of { param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
+    | PT_let of { pat : term; value : term; return : term }
     | PT_annot of { term : term; annot : term }
 
   let pp_loc fmt loc =
@@ -26,7 +27,7 @@ module Ptree = struct
     | true -> fprintf fmt "[%a .. %a]" pp_pos loc_start pp_pos loc_end
     | false -> fprintf fmt "[__NONE__]"
 
-  let pp_term_syntax ~pp_wrapped ~pp_funct ~pp_apply ~pp_atom fmt term =
+  let pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term =
     match term with
     | PT_loc { term; loc } -> fprintf fmt "%a#%a" pp_atom term pp_loc loc
     | PT_typed { term; annot } ->
@@ -39,26 +40,31 @@ module Ptree = struct
         fprintf fmt "%a => %a" pp_atom param pp_funct return
     | PT_apply { lambda; arg } ->
         fprintf fmt "%a %a" pp_apply lambda pp_atom arg
+    | PT_let { pat; value; return } ->
+        fprintf fmt "%a = %a; %a" pp_atom pat pp_funct value pp_let return
     | PT_annot { term; annot } ->
         fprintf fmt "%a : %a" pp_funct term pp_wrapped annot
 
-  type prec = Wrapped | Funct | Apply | Atom
+  type prec = Wrapped | Let | Funct | Apply | Atom
 
   let rec pp_term prec fmt term =
     let pp_wrapped fmt term = pp_term Wrapped fmt term in
+    let pp_let fmt term = pp_term Let fmt term in
     let pp_funct fmt term = pp_term Funct fmt term in
     let pp_apply fmt term = pp_term Apply fmt term in
     let pp_atom fmt term = pp_term Atom fmt term in
     match (term, prec) with
     | ( (PT_loc _ | PT_var_index _ | PT_var_name _),
-        (Wrapped | Funct | Apply | Atom) )
-    | PT_apply _, (Wrapped | Funct | Apply)
-    | (PT_forall _ | PT_lambda _), (Wrapped | Funct)
+        (Wrapped | Let | Funct | Apply | Atom) )
+    | PT_apply _, (Wrapped | Let | Funct | Apply)
+    | (PT_forall _ | PT_lambda _), (Wrapped | Let | Funct)
+    | PT_let _, (Wrapped | Let)
     | (PT_typed _ | PT_annot _), Wrapped ->
-        pp_term_syntax ~pp_wrapped ~pp_funct ~pp_apply ~pp_atom fmt term
+        pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term
     | PT_apply _, Atom
     | (PT_forall _ | PT_lambda _), (Apply | Atom)
-    | (PT_typed _ | PT_annot _), (Funct | Apply | Atom) ->
+    | PT_let _, (Funct | Apply | Atom)
+    | (PT_typed _ | PT_annot _), (Let | Funct | Apply | Atom) ->
         fprintf fmt "(%a)" pp_wrapped term
 
   let pp_term fmt term = pp_term Wrapped fmt term
@@ -115,6 +121,11 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
       let lambda = ptree_of_term lambda in
       let arg = ptree_of_term arg in
       PT_apply { lambda; arg }
+  | TT_let { pat; value; return } ->
+      let pat = ptree_of_pat pat in
+      let value = ptree_of_term value in
+      let return = ptree_of_term return in
+      PT_let { pat; value; return }
   | TT_annot { term; annot } ->
       let term = ptree_of_term term in
       let annot = ptree_of_term annot in

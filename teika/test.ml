@@ -261,21 +261,11 @@ module Ttree_utils = struct
              Format.eprintf "%a\n%!" Context.pp_error error;
              failwith "infer"
        in
-       let (TT_annot { term = _ttree; annot = ttree }) = ttree in
-       let (Ex_term ttree) =
-         match
-           Context.Normalize_context.test ~vars:[ Bound ] @@ fun () ->
-           Normalize.normalize_term ttree
-         with
-         | Ok ttree -> ttree
-         | Error error ->
-             Format.eprintf "%a\n%!" Context.pp_error error;
-             failwith "normal"
-       in
+       let (TT_typed { term = _ttree; annot = ttree }) = ttree in
        Format.eprintf "%a\n%!" Tprinter.pp_term ttree;
        assert false
 
-     let () = dump {|((((id : (A : Type) -> (x : A) -> A) => id)) )|} *)
+     let () = dump {|(id = (A : Type) => (x : A) => x; id)|} *)
 end
 
 module Typer = struct
@@ -297,6 +287,10 @@ module Typer = struct
   let id_propagate =
     check "id_propagate" ~wrapper:false
       {|((A => x => x) : (A : Type) -> (x : A) -> A)|}
+
+  let let_id =
+    check "let_id" ~wrapper:false
+      {|((id = (A : Type) => (x : A) => x; id) : (A : Type) -> (x : A) -> A)|}
 
   let id_type =
     check "id_type" ~wrapper:false
@@ -364,6 +358,7 @@ module Typer = struct
     [
       id;
       id_propagate;
+      let_id;
       id_type;
       id_type_never;
       return_id_propagate;

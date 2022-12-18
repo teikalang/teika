@@ -14,6 +14,8 @@ type _ term =
   | TT_lambda : { param : typed pat; return : _ term } -> core term
   (* l a *)
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
+  (* (x : A) = t; u *)
+  | TT_let : { pat : typed pat; value : _ term; return : _ term } -> sugar term
   (* (v : T) *)
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 
