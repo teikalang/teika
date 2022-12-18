@@ -2,24 +2,15 @@ open Ltree
 open Ttree
 open Context
 open Typer_context
+open Expand_head
 
 let unify_term ~expected ~received =
   with_unify_context @@ fun () -> Unify.unify_term ~expected ~received
 
-let normalize_received_term term =
-  with_received_normalize_context @@ fun () -> Normalize.normalize_term term
-
 let split_forall (type a) (type_ : a term) =
-  let* (Ex_term type_) = normalize_received_term type_ in
-  let rec split_forall : type a. a term -> _ =
-   fun type_ ->
-    match type_ with
-    | TT_loc { term; loc = _ } -> split_forall term
-    | TT_annot { term; annot = _ } -> split_forall term
-    | TT_forall { param; return } -> Typer_context.return (param, Ex_term return)
-    | TT_var _ | TT_lambda _ | TT_apply _ -> error_not_a_forall ~type_
-  in
-  split_forall type_
+  match expand_head type_ with
+  | TT_forall { param; return } -> Typer_context.return (param, Ex_term return)
+  | TT_var _ | TT_lambda _ | TT_apply _ -> error_not_a_forall ~type_
 
 let typeof_term term =
   let (TT_annot { term = _; annot }) = term in

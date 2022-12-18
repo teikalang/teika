@@ -1,7 +1,7 @@
 open Ttree
 open Context
 open Unify_context
-
+open Expand_head
 (* TODO: ensure this is eliminated *)
 
 (* TODO: maybe some quality of life, guarantee that unification always
@@ -22,17 +22,10 @@ open Unify_context
 (* TODO: occurs should probably be on it's own context *)
 
 (* TODO: diff is a bad name *)
+
 let rec unify_term : type e r. expected:e term -> received:r term -> _ =
  fun ~expected ~received ->
-  match (expected, received) with
-  | TT_annot { term = expected; annot = _ }, received ->
-      unify_term ~expected ~received
-  | expected, TT_annot { term = received; annot = _ } ->
-      unify_term ~expected ~received
-  | TT_loc { term = expected; loc = _ }, received ->
-      unify_term ~expected ~received
-  | expected, TT_loc { term = received; loc = _ } ->
-      unify_term ~expected ~received
+  match (expand_head expected, expand_head received) with
   | TT_var { offset = expected }, TT_var { offset = received } -> (
       match Offset.equal expected received with
       | true -> return ()
@@ -41,12 +34,12 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
   | ( TT_forall { param = expected_param; return = expected_return },
       TT_forall { param = received_param; return = received_return } ) ->
       (* TODO: contravariance *)
-      let* () = unify_pat ~expected:expected_param ~received:received_param in
+      let* () = unify_param ~expected:expected_param ~received:received_param in
       unify_term ~expected:expected_return ~received:received_return
   | ( TT_lambda { param = expected_param; return = expected_return },
       TT_lambda { param = received_param; return = received_return } ) ->
       (* TODO: contravariance *)
-      let* () = unify_pat ~expected:expected_param ~received:received_param in
+      let* () = unify_param ~expected:expected_param ~received:received_param in
       unify_term ~expected:expected_return ~received:received_return
   | ( TT_apply { lambda = expected_lambda; arg = expected_arg },
       TT_apply { lambda = received_lambda; arg = received_arg } ) ->
@@ -54,9 +47,16 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
         unify_term ~expected:expected_lambda ~received:received_lambda
       in
       unify_term ~expected:expected_arg ~received:received_arg
-  | ( (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _),
-      (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) ) ->
-      error_type_clash ~expected ~received
+  | ( ((TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) as expected_norm),
+      ((TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) as received_norm) )
+    ->
+      error_type_clash ~expected ~expected_norm ~received ~received_norm
+
+and unify_param ~expected ~received =
+  let (TP_annot { pat = expected_pat; annot = expected_annot }) = expected in
+  let (TP_annot { pat = received_pat; annot = received_annot }) = received in
+  let* () = unify_term ~expected:expected_annot ~received:received_annot in
+  unify_pat ~expected:expected_pat ~received:received_pat
 
 and unify_pat : type e r. expected:e pat -> received:r pat -> _ =
  fun ~expected ~received ->
@@ -72,15 +72,3 @@ and unify_pat : type e r. expected:e pat -> received:r pat -> _ =
       unify_pat ~expected ~received
   | (TP_var _ | TP_annot _), (TP_var _ | TP_annot _) ->
       error_pat_clash ~expected ~received
-
-let unify_term ~expected ~received =
-  (* TODO: does it make sense to always normalize? *)
-  let* (Ex_term expected) =
-    with_expected_normalize_context @@ fun () ->
-    Normalize.normalize_term expected
-  in
-  let* (Ex_term received) =
-    with_received_normalize_context @@ fun () ->
-    Normalize.normalize_term received
-  in
-  unify_term ~expected ~received
