@@ -52,9 +52,8 @@ and shift_pat :
       f ~depth (TP_annot { pat; annot })
 
 let shift_term ~from term =
-  let by = Offset.(from - one) in
-  let depth = Offset.one in
-  shift_term ~by ~depth term
+  let depth = Offset.zero in
+  shift_term ~by:from ~depth term
 
 let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
  fun ~from ~to_ term ->
