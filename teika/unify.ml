@@ -33,16 +33,7 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       unify_term ~expected ~received
   | expected, TT_loc { term = received; loc = _ } ->
       unify_term ~expected ~received
-      (* TODO: use those locations for something? *)
-  | TT_offset { term = expected; offset }, received ->
-      with_expected_offset ~offset @@ fun () -> unify_term ~expected ~received
-  | expected, TT_offset { term = received; offset } ->
-      with_received_offset ~offset @@ fun () -> unify_term ~expected ~received
   | TT_var { offset = expected }, TT_var { offset = received } -> (
-      let* expected_offset = expected_offset () in
-      let* received_offset = received_offset () in
-      let expected = Offset.(expected + expected_offset) in
-      let received = Offset.(received + received_offset) in
       match Offset.equal expected received with
       | true -> return ()
       | false -> error_var_clash ~expected ~received)

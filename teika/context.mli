@@ -18,7 +18,7 @@ type error = private
   | CError_typer_pat_var_not_annotated of { name : Name.t }
 [@@deriving show]
 
-type var_info = Bound of { base : Offset.t }
+type var_info = Bound
 
 module Normalize_context : sig
   type 'a normalize_context
@@ -26,10 +26,7 @@ module Normalize_context : sig
 
   (* monad *)
   val test :
-    vars:var_info list ->
-    offset:Offset.t ->
-    (unit -> 'a normalize_context) ->
-    ('a, error) result
+    vars:var_info list -> (unit -> 'a normalize_context) -> ('a, error) result
 
   val return : 'a -> 'a normalize_context
 
@@ -42,12 +39,8 @@ module Normalize_context : sig
   val ( let+ ) : 'a normalize_context -> ('a -> 'b) -> 'b normalize_context
 
   (* vars *)
-  val repr_var : var:Offset.t -> ex_term normalize_context
-  val with_var : (unit -> 'a normalize_context) -> 'a normalize_context
 
-  (* offset *)
-  val with_offset :
-    offset:Offset.t -> (unit -> 'a normalize_context) -> 'a normalize_context
+  val with_var : (unit -> 'a normalize_context) -> 'a normalize_context
 end
 
 (* TODO: this is bad *)
@@ -58,9 +51,7 @@ module Unify_context : sig
   (* monad *)
   val test :
     expected_vars:var_info list ->
-    expected_offset:Offset.t ->
     received_vars:var_info list ->
-    received_offset:Offset.t ->
     (unit -> 'a unify_context) ->
     ('a, error) result
 
@@ -86,16 +77,6 @@ module Unify_context : sig
 
   val with_received_normalize_context :
     (unit -> 'a Normalize_context.t) -> 'a unify_context
-
-  (* offset *)
-  val expected_offset : unit -> Offset.t unify_context
-  val received_offset : unit -> Offset.t unify_context
-
-  val with_expected_offset :
-    offset:Offset.t -> (unit -> 'a unify_context) -> 'a unify_context
-
-  val with_received_offset :
-    offset:Offset.t -> (unit -> 'a unify_context) -> 'a unify_context
 end
 
 module Typer_context : sig
