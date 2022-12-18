@@ -105,7 +105,7 @@ module Unify_context = struct
     fail @@ CError_unify_var_escape_scope { var }
 
   let[@inline always] with_expected_normalize_context f ~expected_vars
-      ~received_vars:_ : _ =
+      ~received_vars:_ =
     f () ~vars:expected_vars
 
   let[@inline always] with_received_normalize_context f ~expected_vars:_
@@ -119,6 +119,7 @@ module Typer_context = struct
     level:Level.t ->
     (* TODO: Hashtbl *)
     names:(Level.t * ex_term) Name.Map.t ->
+    expected_vars:var_info list ->
     received_vars:var_info list ->
     ('a, error) result
 
@@ -136,27 +137,30 @@ module Typer_context = struct
       Name.Map.add type_name (type_of_types, Ex_term type_) names
     in
     let received_vars = [ Bound ] in
+    let expected_vars = received_vars in
     (* TODO: should Type be here? *)
-    (f () ~type_of_types ~level ~names ~received_vars).match_
+    (f () ~type_of_types ~level ~names ~expected_vars ~received_vars).match_
       ~ok:(fun value -> Ok value)
       ~error:(fun desc -> Error desc)
 
-  let[@inline always] test ~type_of_types ~level ~names ~received_vars f =
-    (f () ~type_of_types ~level ~names ~received_vars).match_
+  let[@inline always] test ~type_of_types ~level ~names ~expected_vars
+      ~received_vars f =
+    (f () ~type_of_types ~level ~names ~expected_vars ~received_vars).match_
       ~ok:(fun value -> Ok value)
       ~error:(fun desc -> Error desc)
 
   let[@inline always] return_raw value ~type_of_types:_ ~level:_ ~names:_
-      ~received_vars:_ =
+      ~expected_vars:_ ~received_vars:_ =
     value
 
   let[@inline always] return value = return_raw @@ ok value
   let[@inline always] fail desc = return_raw @@ error desc
 
-  let[@inline always] bind context f ~type_of_types ~level ~names ~received_vars
-      =
-    (context ~type_of_types ~level ~names ~received_vars).match_
-      ~ok:(fun value -> f value ~type_of_types ~level ~names ~received_vars)
+  let[@inline always] bind context f ~type_of_types ~level ~names ~expected_vars
+      ~received_vars =
+    (context ~type_of_types ~level ~names ~expected_vars ~received_vars).match_
+      ~ok:(fun value ->
+        f value ~type_of_types ~level ~names ~expected_vars ~received_vars)
       ~error
 
   let ( let* ) = bind
@@ -182,7 +186,7 @@ module Typer_context = struct
     fail @@ Cerror_typer_not_a_forall { type_ }
 
   let[@inline always] instance ~name ~type_of_types:_ ~level ~names
-      ~received_vars:_ =
+      ~expected_vars:_ ~received_vars:_ =
     match Name.Map.find_opt name names with
     | Some (var_level, Ex_term type_) ->
         let offset = Level.offset ~from:var_level ~to_:level in
@@ -190,8 +194,13 @@ module Typer_context = struct
         ok @@ (offset, Ex_term type_)
     | None -> error @@ CError_typer_unknown_var { name }
 
-  let[@inline always] with_binder ~name ~type_ f ~type_of_types ~level ~names
-      ~received_vars =
+  let[@inline always] with_expected_var f ~type_of_types ~level ~names
+      ~expected_vars ~received_vars =
+    let expected_vars = Bound :: expected_vars in
+    f () ~type_of_types ~level ~names ~expected_vars ~received_vars
+
+  let[@inline always] with_received_var ~name ~type_ f ~type_of_types ~level
+      ~names ~expected_vars ~received_vars =
     let names = Name.Map.add name (level, Ex_term type_) names in
     let received_vars = Bound :: received_vars in
     (* TODO: weird, level increases first? *)
@@ -202,25 +211,25 @@ module Typer_context = struct
       Name.Map.add name (level, Ex_term type_) names
     in
     let received_vars = Bound :: received_vars in
-    f () ~type_of_types ~level ~names ~received_vars
+    f () ~type_of_types ~level ~names ~expected_vars ~received_vars
 
   let[@inline always] with_unify_context f ~type_of_types:_ ~level:_ ~names:_
-      ~received_vars:_ =
-    f () ~expected_vars:[] ~received_vars:[]
+      ~expected_vars ~received_vars =
+    f () ~expected_vars ~received_vars
 
   let[@inline always] with_received_normalize_context f ~type_of_types:_
-      ~level:_ ~names:_ ~received_vars:_ =
-    f () ~vars:[]
+      ~level:_ ~names:_ ~expected_vars:_ ~received_vars =
+    f () ~vars:received_vars
 
   let[@inline always] with_loc ~loc f ~type_of_types ~level ~names
-      ~received_vars =
-    (f () ~type_of_types ~level ~names ~received_vars).match_ ~ok
+      ~expected_vars ~received_vars =
+    (f () ~type_of_types ~level ~names ~expected_vars ~received_vars).match_ ~ok
       ~error:(fun desc -> error @@ CError_loc { error = desc; loc })
 
   open Ttree
 
-  let[@inline always] tt_type () ~type_of_types ~level ~names:_ ~received_vars:_
-      =
+  let[@inline always] tt_type () ~type_of_types ~level ~names:_ ~expected_vars:_
+      ~received_vars:_ =
     let offset = Level.offset ~from:type_of_types ~to_:level in
     ok @@ TT_var { offset }
 end

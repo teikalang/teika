@@ -3,12 +3,20 @@ open Context.Normalize_context
 
 (* TODO: with subtyping, should normalize be able to recover information? *)
 
+let rec match_term : type a. a term -> (core term -> _) -> _ =
+ fun term f ->
+  match term with
+  | TT_loc { term; loc = _ } -> match_term term f
+  | TT_var _ -> f term
+  | TT_forall _ -> f term
+  | TT_lambda _ -> f term
+  | TT_apply _ -> f term
+  (* TODO: is removing those ok / ideal? *)
+  | TT_annot { term; annot = _ } -> match_term term f
+
 let rec normalize_term : type a. a term -> _ =
  fun term ->
-  match term with
-  (* TODO: is removing those ok / ideal? *)
-  | TT_annot { term; annot = _ } -> normalize_term term
-  | TT_loc { term; loc = _ } -> normalize_term term
+  match_term term @@ function
   | TT_var { offset } -> return @@ Ex_term (TT_var { offset })
   | TT_forall { param; return } ->
       normalize_pat param @@ fun param ->
@@ -21,7 +29,7 @@ let rec normalize_term : type a. a term -> _ =
   | TT_apply { lambda; arg } -> (
       let* (Ex_term lambda) = normalize_term lambda in
       let* (Ex_term arg) = normalize_term arg in
-      match lambda with
+      match_term lambda @@ function
       | TT_lambda { param; return } ->
           (* TODO: match every case below *)
           elim_apply ~pat:param ~return ~arg
