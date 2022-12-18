@@ -33,7 +33,7 @@ type ('a, 'b) result = { match_ : 'k. ok:('a -> 'k) -> error:('b -> 'k) -> 'k }
 let[@inline always] ok value = { match_ = (fun ~ok ~error:_ -> ok value) }
 let[@inline always] error desc = { match_ = (fun ~ok:_ ~error -> error desc) }
 
-type var_info = Subst of { to_ : ex_term } | Bound of { base : Offset.t }
+type var_info = Bound of { base : Offset.t }
 
 module Normalize_context = struct
   type 'a normalize_context =
@@ -65,9 +65,6 @@ module Normalize_context = struct
       let index = Offset.(repr (var - one)) in
       List.nth_opt vars index
     with
-    | Some (Subst { to_ = Ex_term to_ }) ->
-        let offset = Offset.(var + offset) in
-        ok @@ Ex_term (TT_offset { term = to_; offset })
     | Some (Bound { base }) ->
         let offset = Offset.(var + offset - base) in
         ok @@ Ex_term (TT_var { offset })
@@ -78,10 +75,6 @@ module Normalize_context = struct
 
   let[@inline always] with_var f ~vars ~offset =
     let vars = Bound { base = offset } :: vars in
-    f () ~vars ~offset
-
-  let[@inline always] elim_var ~to_ f ~vars ~offset =
-    let vars = Subst { to_ } :: vars in
     f () ~vars ~offset
 
   let[@inline always] with_offset ~offset f ~vars ~offset:current_offset =

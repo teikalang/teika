@@ -18,7 +18,7 @@ type error = private
   | CError_typer_pat_var_not_annotated of { name : Name.t }
 [@@deriving show]
 
-type var_info = Subst of { to_ : ex_term } | Bound of { base : Offset.t }
+type var_info = Bound of { base : Offset.t }
 
 module Normalize_context : sig
   type 'a normalize_context
@@ -44,9 +44,6 @@ module Normalize_context : sig
   (* vars *)
   val repr_var : var:Offset.t -> ex_term normalize_context
   val with_var : (unit -> 'a normalize_context) -> 'a normalize_context
-
-  val elim_var :
-    to_:ex_term -> (unit -> 'a normalize_context) -> 'a normalize_context
 
   (* offset *)
   val with_offset :
