@@ -75,25 +75,18 @@ let rec infer_term term =
   | LT_let { bound; return } ->
       (* TODO: use this loc *)
       let (LBind { loc = _; pat; value }) = bound in
-
-      (* TODO: this is not ideal, generating core terms *)
       let* value = infer_term value in
-      let+ param, return =
-        let (Ex_term param) = typeof_term value in
-        check_pat pat ~expected:param @@ fun param ->
+      let+ pat, return =
+        let (Ex_term value_type) = typeof_term value in
+        check_pat pat ~expected:value_type @@ fun pat ->
         let+ return = infer_term return in
-        (param, return)
-      in
-      let apply =
-        let lambda = TT_lambda { param; return } in
-        TT_apply { lambda; arg = value }
+        (pat, return)
       in
       let annot =
         let (Ex_term return) = typeof_term return in
-        let lambda = TT_lambda { param; return } in
-        TT_apply { lambda; arg = value }
+        TT_let { pat; value; return }
       in
-      tt_typed ~annot apply
+      tt_typed ~annot @@ TT_let { pat; value; return }
   | LT_annot { term; annot } ->
       let* annot =
         let* expected = tt_type () in
@@ -106,20 +99,15 @@ let rec infer_term term =
 and check_term : type a. _ -> expected:a term -> _ =
  fun term ~expected ->
   (* TODO: repr function for term, maybe with_term? *)
-  match (term, expected) with
+  match (term, expand_head expected) with
+  | LT_loc { term; loc }, expected ->
+      with_tt_loc ~loc @@ fun () -> check_term term ~expected
   | ( LT_lambda { param; return },
       TT_forall { param = expected_param; return = expected_return } ) ->
       let (Ex_term expected_param_type) = typeof_pat expected_param in
       check_pat param ~expected:expected_param_type @@ fun param ->
       let+ return = check_term return ~expected:expected_return in
       tt_typed ~annot:expected @@ TT_lambda { param; return }
-  | LT_loc { term; loc }, expected ->
-      with_tt_loc ~loc @@ fun () -> check_term term ~expected
-      (* TODO: what about this loc? *)
-  | term, TT_loc { term = expected; loc = _ } -> check_term term ~expected
-  | term, TT_typed { term = expected; annot = _ } -> check_term term ~expected
-  | term, TT_annot { term = expected; annot = _ } -> check_term term ~expected
-  (* TODO: maybe LT_annot? *)
   | ( ( LT_var _ | LT_forall _ | LT_lambda _ | LT_apply _ | LT_exists _
       | LT_pair _ | LT_let _ | LT_annot _ ),
       expected ) ->

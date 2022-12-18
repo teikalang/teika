@@ -13,6 +13,7 @@ let rec expand_head : type a. a term -> core term =
       match lambda with
       | TT_lambda { param; return } -> elim_apply ~pat:param ~return ~arg
       | _lambda -> TT_apply { lambda; arg })
+  | TT_let { pat; value; return } -> elim_apply ~pat ~return ~arg:value
   | TT_annot { term; annot = _ } -> expand_head term
 
 (* TODO: weird *)

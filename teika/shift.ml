@@ -31,6 +31,11 @@ let rec shift_term : type a. by:_ -> depth:_ -> a term -> a term =
       let lambda = shift_term ~depth lambda in
       let arg = shift_term ~depth arg in
       TT_apply { lambda; arg }
+  | TT_let { pat; value; return } ->
+      let value = shift_term ~depth value in
+      shift_pat ~depth pat @@ fun ~depth pat ->
+      let return = shift_term ~depth return in
+      TT_let { pat; value; return }
   | TT_annot { term; annot } ->
       let term = shift_term ~depth term in
       let annot = shift_term ~depth annot in
