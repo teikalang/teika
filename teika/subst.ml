@@ -10,6 +10,10 @@ let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
   | TT_loc { term; loc } ->
       let (Ex_term term) = subst_term ~from term in
       Ex_term (TT_loc { term; loc })
+  | TT_typed { term; annot } ->
+      let (Ex_term annot) = subst_term ~from annot in
+      let (Ex_term term) = subst_term ~from term in
+      Ex_term (TT_typed { term; annot })
   | TT_var { offset = var } -> (
       match Offset.equal var from with
       | true -> Ex_term (shift_term ~offset:from to_)
@@ -45,6 +49,9 @@ and subst_pat :
   match pat with
   | TP_loc { pat; loc } ->
       subst_pat pat @@ fun ~from pat -> f ~from (TP_loc { pat; loc })
+  | TP_typed { pat; annot } ->
+      let (Ex_term annot) = subst_term ~from annot in
+      subst_pat pat @@ fun ~from pat -> f ~from (TP_typed { pat; annot })
   | TP_var { var } ->
       let from = Offset.(from + one) in
       f ~from (TP_var { var })

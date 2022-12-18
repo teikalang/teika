@@ -13,33 +13,33 @@ let split_forall (type a) (type_ : a term) =
   | TT_var _ | TT_lambda _ | TT_apply _ -> error_not_a_forall ~type_
 
 let typeof_term term =
-  let (TT_annot { term = _; annot }) = term in
+  let (TT_typed { term = _; annot }) = term in
   Ex_term annot
 
 let typeof_pat pat =
-  let (TP_annot { pat = _; annot }) = pat in
+  let (TP_typed { pat = _; annot }) = pat in
   Ex_term annot
 
-let tt_annot ~annot term = TT_annot { term; annot }
-let tp_annot ~annot pat = TP_annot { pat; annot }
+let tt_typed ~annot term = TT_typed { term; annot }
+let tp_typed ~annot pat = TP_typed { pat; annot }
 
 let with_tt_loc ~loc f =
   with_loc ~loc @@ fun () ->
-  let+ (TT_annot { term; annot }) = f () in
+  let+ (TT_typed { term; annot }) = f () in
   let term = TT_loc { term; loc } in
-  tt_annot ~annot term
+  tt_typed ~annot term
 
 let with_tp_loc ~loc k =
   with_loc ~loc @@ fun () ->
-  k @@ fun (TP_annot { pat; annot }) k ->
+  k @@ fun (TP_typed { pat; annot }) k ->
   let pat = TP_loc { pat; loc } in
-  k @@ tp_annot ~annot pat
+  k @@ tp_typed ~annot pat
 
 let rec infer_term term =
   match term with
   | LT_var { var = name } ->
       let+ offset, Ex_term annot = instance ~name in
-      tt_annot ~annot @@ TT_var { offset }
+      tt_typed ~annot @@ TT_var { offset }
   | LT_forall { param; return } ->
       let* annot = tt_type () in
       infer_pat param @@ fun param ->
@@ -47,7 +47,7 @@ let rec infer_term term =
         let* expected = tt_type () in
         check_term return ~expected
       in
-      tt_annot ~annot @@ TT_forall { param; return }
+      tt_typed ~annot @@ TT_forall { param; return }
   | LT_lambda { param; return } ->
       infer_pat param @@ fun param ->
       let+ return = infer_term return in
@@ -55,7 +55,7 @@ let rec infer_term term =
         let (Ex_term return) = typeof_term return in
         TT_forall { param; return }
       in
-      tt_annot ~annot @@ TT_lambda { param; return }
+      tt_typed ~annot @@ TT_lambda { param; return }
   | LT_apply { lambda; arg } ->
       let* lambda = infer_term lambda in
       let (Ex_term forall) = typeof_term lambda in
@@ -69,7 +69,7 @@ let rec infer_term term =
         let lambda = TT_lambda { param; return } in
         TT_apply { lambda; arg }
       in
-      tt_annot ~annot @@ TT_apply { lambda; arg }
+      tt_typed ~annot @@ TT_apply { lambda; arg }
   | LT_exists _ -> error_pairs_not_implemented ()
   | LT_pair _ -> error_pairs_not_implemented ()
   | LT_let { bound; return } ->
@@ -93,14 +93,14 @@ let rec infer_term term =
         let lambda = TT_lambda { param; return } in
         TT_apply { lambda; arg = value }
       in
-      tt_annot ~annot apply
+      tt_typed ~annot apply
   | LT_annot { term; annot } ->
       let* annot =
         let* expected = tt_type () in
         check_term annot ~expected
       in
       let+ term = check_term term ~expected:annot in
-      tt_annot ~annot term
+      tt_typed ~annot @@ TT_annot { term; annot }
   | LT_loc { term; loc } -> with_tt_loc ~loc @@ fun () -> infer_term term
 
 and check_term : type a. _ -> expected:a term -> _ =
@@ -112,11 +112,12 @@ and check_term : type a. _ -> expected:a term -> _ =
       let (Ex_term expected_param_type) = typeof_pat expected_param in
       check_pat param ~expected:expected_param_type @@ fun param ->
       let+ return = check_term return ~expected:expected_return in
-      tt_annot ~annot:expected @@ TT_lambda { param; return }
+      tt_typed ~annot:expected @@ TT_lambda { param; return }
   | LT_loc { term; loc }, expected ->
       with_tt_loc ~loc @@ fun () -> check_term term ~expected
       (* TODO: what about this loc? *)
   | term, TT_loc { term = expected; loc = _ } -> check_term term ~expected
+  | term, TT_typed { term = expected; annot = _ } -> check_term term ~expected
   | term, TT_annot { term = expected; annot = _ } -> check_term term ~expected
   (* TODO: maybe LT_annot? *)
   | ( ( LT_var _ | LT_forall _ | LT_lambda _ | LT_apply _ | LT_exists _
@@ -153,7 +154,7 @@ and check_pat :
       (* TODO: add different names for left and right *)
       with_expected_var @@ fun () ->
       with_received_var ~name ~type_:expected @@ fun () ->
-      f @@ tp_annot ~annot:expected @@ TP_var { var = name }
+      f @@ tp_typed ~annot:expected @@ TP_var { var = name }
   | LP_pair _, _ -> error_pairs_not_implemented ()
   | LP_annot { pat; annot }, _expected_desc ->
       let* annot =
