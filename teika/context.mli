@@ -90,6 +90,7 @@ module Typer_context : sig
     type_of_types:Level.t ->
     level:Level.t ->
     names:(Level.t * ex_term) Name.Map.t ->
+    expected_vars:var_info list ->
     received_vars:var_info list ->
     (unit -> 'a typer_context) ->
     ('a, error) result
@@ -111,8 +112,9 @@ module Typer_context : sig
 
   (* vars *)
   val instance : name:Name.t -> (Offset.t * ex_term) typer_context
+  val with_expected_var : (unit -> 'a typer_context) -> 'a typer_context
 
-  val with_binder :
+  val with_received_var :
     name:Name.t ->
     type_:_ term ->
     (unit -> 'a typer_context) ->

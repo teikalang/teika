@@ -251,25 +251,31 @@ module Ttree_utils = struct
     let open Typer_context in
     run @@ fun () -> Typer.infer_term term
 
-  (* let normalize_term term =
-       Context.Normalize_context.test ~vars:[] @@ fun () ->
-       Normalize.normalize_term term
-
-     let dump code =
+  (* let dump code =
        let stree = Slexer.from_string Sparser.term_opt code |> Option.get in
        let ltree = Lparser.from_stree stree in
-       let (TT_annot { term = _; annot = ttree }) =
+       let ttree =
          match infer_term ltree with
          | Ok ttree -> ttree
          | Error error ->
              Format.eprintf "%a\n%!" Context.pp_error error;
              failwith "infer"
        in
-       let (Ex_term ttree) = normalize_term ttree |> Result.get_ok in
+       let (TT_annot { term = _ttree; annot = ttree }) = ttree in
+       let (Ex_term ttree) =
+         match
+           Context.Normalize_context.test ~vars:[ Bound ] @@ fun () ->
+           Normalize.normalize_term ttree
+         with
+         | Ok ttree -> ttree
+         | Error error ->
+             Format.eprintf "%a\n%!" Context.pp_error error;
+             failwith "normal"
+       in
        Format.eprintf "%a\n%!" Tprinter.pp_term ttree;
        assert false
 
-     let () = dump "((A : Type) => (x : A) => x) Type" *)
+     let () = dump {|((((id : (A : Type) -> (x : A) -> A) => id)) )|} *)
 end
 
 module Typer = struct

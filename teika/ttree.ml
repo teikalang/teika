@@ -7,6 +7,7 @@
    makes normalization cached, with unification this
    means that this cache will probably be dependent on holes *)
 
+(* TODO: try parametric hoas *)
 type loc = Loc
 type offset = Offset
 type annot = Annot
