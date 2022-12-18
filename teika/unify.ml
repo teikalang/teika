@@ -53,22 +53,24 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       error_type_clash ~expected ~expected_norm ~received ~received_norm
 
 and unify_param ~expected ~received =
-  let (TP_annot { pat = expected_pat; annot = expected_annot }) = expected in
-  let (TP_annot { pat = received_pat; annot = received_annot }) = received in
+  let (TP_typed { pat = expected_pat; annot = expected_annot }) = expected in
+  let (TP_typed { pat = received_pat; annot = received_annot }) = received in
   let* () = unify_term ~expected:expected_annot ~received:received_annot in
   unify_pat ~expected:expected_pat ~received:received_pat
 
 and unify_pat : type e r. expected:e pat -> received:r pat -> _ =
  fun ~expected ~received ->
   match (expected, received) with
-  | TP_var { var = _ }, TP_var { var = _ } -> return ()
-  | ( TP_annot { pat = expected; annot = expected_annot },
-      TP_annot { pat = received; annot = received_annot } ) ->
-      let* () = unify_term ~expected:expected_annot ~received:received_annot in
-      unify_pat ~expected ~received
   | TP_loc { pat = expected; loc = _ }, received ->
       unify_pat ~expected ~received
   | expected, TP_loc { pat = received; loc = _ } ->
       unify_pat ~expected ~received
-  | (TP_var _ | TP_annot _), (TP_var _ | TP_annot _) ->
-      error_pat_clash ~expected ~received
+  | TP_typed { pat = expected; annot = _ }, received ->
+      unify_pat ~expected ~received
+  | expected, TP_typed { pat = received; annot = _ } ->
+      unify_pat ~expected ~received
+  | TP_var { var = _ }, TP_var { var = _ } -> return ()
+  | TP_annot { pat = expected; annot = _ }, received ->
+      unify_pat ~expected ~received
+  | expected, TP_annot { pat = received; annot = _ } ->
+      unify_pat ~expected ~received

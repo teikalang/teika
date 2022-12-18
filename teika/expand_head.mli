@@ -1,3 +1,3 @@
 open Ttree
 
-val expand_head : 'a term -> core term
+val expand_head : _ term -> core term

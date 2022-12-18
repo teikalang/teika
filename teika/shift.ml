@@ -8,6 +8,10 @@ let rec shift_term : type a. by:_ -> depth:_ -> a term -> a term =
   | TT_loc { term; loc } ->
       let term = shift_term ~depth term in
       TT_loc { term; loc }
+  | TT_typed { term; annot } ->
+      let term = shift_term ~depth term in
+      let annot = shift_term ~depth annot in
+      TT_typed { term; annot }
   | TT_var { offset = var } ->
       let var =
         match Offset.(var < depth) with
@@ -40,6 +44,10 @@ and shift_pat :
   match pat with
   | TP_loc { pat; loc } ->
       shift_pat ~depth pat @@ fun ~depth pat -> f ~depth (TP_loc { pat; loc })
+  | TP_typed { pat; annot } ->
+      let annot = shift_term ~depth annot in
+      shift_pat ~depth pat @@ fun ~depth pat ->
+      f ~depth (TP_typed { pat; annot })
   | TP_var { var } ->
       let depth = Offset.(depth + one) in
       f ~depth (TP_var { var })
