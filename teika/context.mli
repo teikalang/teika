@@ -5,7 +5,12 @@ type error = private
   | CError_loc of { error : error; loc : Location.t [@opaque] }
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
-  | CError_unify_type_clash of { expected : ex_term; received : ex_term }
+  | CError_unify_type_clash of {
+      expected : ex_term;
+      expected_norm : core term;
+      received : ex_term;
+      received_norm : core term;
+    }
   | CError_unify_pat_clash of { expected : ex_pat; received : ex_pat }
   | CError_unify_var_escape_scope of { var : Offset.t }
   (* typer *)
@@ -67,7 +72,13 @@ module Unify_context : sig
   val error_var_clash :
     expected:Offset.t -> received:Offset.t -> 'a unify_context
 
-  val error_type_clash : expected:_ term -> received:_ term -> 'a unify_context
+  val error_type_clash :
+    expected:_ term ->
+    expected_norm:core term ->
+    received:_ term ->
+    received_norm:core term ->
+    'a unify_context
+
   val error_pat_clash : expected:_ pat -> received:_ pat -> 'a unify_context
   val error_var_escape_scope : var:Offset.t -> 'a unify_context
 

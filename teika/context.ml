@@ -2,13 +2,15 @@ open Ttree
 
 type error =
   (* TODO: why track nested locations?
-      Probably because things like macros exists *)
+       Probably because things like macros exists *)
   | CError_loc of { error : error; loc : Location.t [@opaque] }
   (* unify *)
   | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
   | CError_unify_type_clash of {
       expected : ex_term; [@printer Tprinter.pp_ex_term]
+      expected_norm : core term; [@printer Tprinter.pp_term]
       received : ex_term; [@printer Tprinter.pp_ex_term]
+      received_norm : core term; [@printer Tprinter.pp_term]
     }
   | CError_unify_pat_clash of {
       expected : ex_pat; [@printer Tprinter.pp_ex_pat]
@@ -91,10 +93,13 @@ module Unify_context = struct
   let[@inline always] error_var_clash ~expected ~received =
     fail @@ CError_unify_var_clash { expected; received }
 
-  let[@inline always] error_type_clash ~expected ~received =
+  let[@inline always] error_type_clash ~expected ~expected_norm ~received
+      ~received_norm =
     let expected = Ex_term expected in
     let received = Ex_term received in
-    fail @@ CError_unify_type_clash { expected; received }
+    fail
+    @@ CError_unify_type_clash
+         { expected; expected_norm; received; received_norm }
 
   let[@inline always] error_pat_clash ~expected ~received =
     let expected = Ex_pat expected in
