@@ -252,7 +252,7 @@ module Ttree_utils = struct
     run @@ fun () -> Typer.infer_term term
 
   (* let normalize_term term =
-       Context.Normalize_context.test ~vars:[] ~offset:Offset.zero @@ fun () ->
+       Context.Normalize_context.test ~vars:[] @@ fun () ->
        Normalize.normalize_term term
 
      let dump code =

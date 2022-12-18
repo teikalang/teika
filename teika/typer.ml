@@ -15,7 +15,7 @@ let split_forall (type a) (type_ : a term) =
   let* (Ex_term type_) = normalize_received_term type_ in
   match type_ with
   | TT_forall { param; return } -> Typer_context.return (param, Ex_term return)
-  | TT_var _ | TT_lambda _ | TT_apply _ | TT_annot _ | TT_loc _ | TT_offset _ ->
+  | TT_var _ | TT_lambda _ | TT_apply _ | TT_annot _ | TT_loc _ ->
       error_not_a_forall ~type_
 
 let typeof_term term =

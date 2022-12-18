@@ -33,25 +33,21 @@ type ('a, 'b) result = { match_ : 'k. ok:('a -> 'k) -> error:('b -> 'k) -> 'k }
 let[@inline always] ok value = { match_ = (fun ~ok ~error:_ -> ok value) }
 let[@inline always] error desc = { match_ = (fun ~ok:_ ~error -> error desc) }
 
-type var_info = Bound of { base : Offset.t }
+type var_info = Bound
 
 module Normalize_context = struct
-  type 'a normalize_context =
-    vars:var_info list -> offset:Offset.t -> ('a, error) result
-
+  type 'a normalize_context = vars:var_info list -> ('a, error) result
   type 'a t = 'a normalize_context
 
-  let[@inline always] test ~vars ~offset f =
-    (f () ~vars ~offset).match_
+  let[@inline always] test ~vars f =
+    (f () ~vars).match_
       ~ok:(fun value -> Ok value)
       ~error:(fun desc -> Error desc)
 
-  let[@inline always] return value ~vars:_ ~offset:_ = ok value
+  let[@inline always] return value ~vars:_ = ok value
 
-  let[@inline always] bind context f ~vars ~offset =
-    (context ~vars ~offset).match_
-      ~ok:(fun value -> f value ~vars ~offset)
-      ~error
+  let[@inline always] bind context f ~vars =
+    (context ~vars).match_ ~ok:(fun value -> f value ~vars) ~error
 
   let ( let* ) = bind
 
@@ -59,59 +55,31 @@ module Normalize_context = struct
     let* value = context in
     return @@ f value
 
-  let[@inline always] repr_var ~var ~vars ~offset =
-    match
-      (* TODO: should this be var + offset? *)
-      let index = Offset.(repr var) in
-      List.nth_opt vars index
-    with
-    | Some (Bound { base }) ->
-        let offset = Offset.(var + offset - base) in
-        ok @@ Ex_term (TT_var { offset })
-    | None | (exception Invalid_argument _) ->
-        (* free var *)
-        let offset = Offset.(var + offset) in
-        ok @@ Ex_term (TT_var { offset })
-
-  let[@inline always] with_var f ~vars ~offset =
-    let vars = Bound { base = offset } :: vars in
-    f () ~vars ~offset
-
-  let[@inline always] with_offset ~offset f ~vars ~offset:current_offset =
-    let offset = Offset.(current_offset + offset) in
-    f () ~vars ~offset
+  let[@inline always] with_var f ~vars =
+    let vars = Bound :: vars in
+    f () ~vars
 end
 
 module Unify_context = struct
   type 'a unify_context =
     expected_vars:var_info list ->
-    expected_offset:Offset.t ->
     received_vars:var_info list ->
-    received_offset:Offset.t ->
     ('a, error) result
 
   type 'a t = 'a unify_context
 
-  let[@inline always] test ~expected_vars ~expected_offset ~received_vars
-      ~received_offset f =
-    (f () ~expected_vars ~expected_offset ~received_vars ~received_offset)
-      .match_
+  let[@inline always] test ~expected_vars ~received_vars f =
+    (f () ~expected_vars ~received_vars).match_
       ~ok:(fun value -> Ok value)
       ~error:(fun desc -> Error desc)
 
-  let[@inline always] return_raw value ~expected_vars:_ ~expected_offset:_
-      ~received_vars:_ ~received_offset:_ =
-    value
-
+  let[@inline always] return_raw value ~expected_vars:_ ~received_vars:_ = value
   let[@inline always] return value = return_raw @@ ok value
   let[@inline always] fail desc = return_raw @@ error desc
 
-  let[@inline always] bind context f ~expected_vars ~expected_offset
-      ~received_vars ~received_offset =
-    (context ~expected_vars ~expected_offset ~received_vars ~received_offset)
-      .match_
-      ~ok:(fun value ->
-        f value ~expected_vars ~expected_offset ~received_vars ~received_offset)
+  let[@inline always] bind context f ~expected_vars ~received_vars =
+    (context ~expected_vars ~received_vars).match_
+      ~ok:(fun value -> f value ~expected_vars ~received_vars)
       ~error
 
   let ( let* ) = bind
@@ -137,30 +105,12 @@ module Unify_context = struct
     fail @@ CError_unify_var_escape_scope { var }
 
   let[@inline always] with_expected_normalize_context f ~expected_vars
-      ~expected_offset ~received_vars:_ ~received_offset:_ =
-    f () ~vars:expected_vars ~offset:expected_offset
+      ~received_vars:_ : _ =
+    f () ~vars:expected_vars
 
   let[@inline always] with_received_normalize_context f ~expected_vars:_
-      ~expected_offset:_ ~received_vars ~received_offset =
-    f () ~vars:received_vars ~offset:received_offset
-
-  let[@inline always] expected_offset () ~expected_vars:_ ~expected_offset
-      ~received_vars:_ ~received_offset:_ =
-    ok expected_offset
-
-  let[@inline always] received_offset () ~expected_vars:_ ~expected_offset:_
-      ~received_vars:_ ~received_offset =
-    ok received_offset
-
-  let[@inline always] with_expected_offset ~offset f ~expected_vars
-      ~expected_offset ~received_vars ~received_offset =
-    let expected_offset = Offset.(expected_offset + offset) in
-    f () ~expected_vars ~expected_offset ~received_vars ~received_offset
-
-  let[@inline always] with_received_offset ~offset f ~expected_vars
-      ~expected_offset ~received_vars ~received_offset =
-    let received_offset = Offset.(received_offset + offset) in
-    f () ~expected_vars ~expected_offset ~received_vars ~received_offset
+      ~received_vars =
+    f () ~vars:received_vars
 end
 
 module Typer_context = struct
@@ -185,7 +135,7 @@ module Typer_context = struct
       (* TODO: better place for constants *)
       Name.Map.add type_name (type_of_types, Ex_term type_) names
     in
-    let received_vars = [ Bound { base = Offset.zero } ] in
+    let received_vars = [ Bound ] in
     (* TODO: should Type be here? *)
     (f () ~type_of_types ~level ~names ~received_vars).match_
       ~ok:(fun value -> Ok value)
@@ -236,29 +186,31 @@ module Typer_context = struct
     match Name.Map.find_opt name names with
     | Some (var_level, Ex_term type_) ->
         let offset = Level.offset ~from:var_level ~to_:level in
-        let type_ = TT_offset { term = type_; offset } in
+        let type_ = Shift.shift_term ~offset type_ in
         ok @@ (offset, Ex_term type_)
     | None -> error @@ CError_typer_unknown_var { name }
 
   let[@inline always] with_binder ~name ~type_ f ~type_of_types ~level ~names
       ~received_vars =
+    let names = Name.Map.add name (level, Ex_term type_) names in
+    let received_vars = Bound :: received_vars in
+    (* TODO: weird, level increases first? *)
     let level = Level.next level in
     let names =
-      (* TODO: why this offset here? *)
-      let type_ = TT_offset { term = type_; offset = Offset.one } in
+      (* TODO: why this shift here? *)
+      let type_ = Shift.shift_term ~offset:Offset.one type_ in
       Name.Map.add name (level, Ex_term type_) names
     in
-    let received_vars = Bound { base = Offset.zero } :: received_vars in
+    let received_vars = Bound :: received_vars in
     f () ~type_of_types ~level ~names ~received_vars
 
   let[@inline always] with_unify_context f ~type_of_types:_ ~level:_ ~names:_
       ~received_vars:_ =
-    f () ~expected_vars:[] ~expected_offset:Offset.zero ~received_vars:[]
-      ~received_offset:Offset.zero
+    f () ~expected_vars:[] ~received_vars:[]
 
   let[@inline always] with_received_normalize_context f ~type_of_types:_
       ~level:_ ~names:_ ~received_vars:_ =
-    f () ~vars:[] ~offset:Offset.zero
+    f () ~vars:[]
 
   let[@inline always] with_loc ~loc f ~type_of_types ~level ~names
       ~received_vars =

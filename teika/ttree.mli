@@ -5,7 +5,6 @@ type core = Core
 
 type _ term =
   | TT_loc : { term : _ term; loc : Location.t } -> loc term
-  | TT_offset : { term : _ term; offset : Offset.t } -> offset term
   (* x *)
   | TT_var : { offset : Offset.t } -> core term
   (* (x : A) -> B *)

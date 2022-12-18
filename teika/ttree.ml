@@ -14,7 +14,6 @@ type core = Core
 
 type _ term =
   | TT_loc : { term : _ term; loc : Location.t } -> loc term
-  | TT_offset : { term : _ term; offset : Offset.t } -> offset term
   | TT_var : { offset : Offset.t } -> core term
   | TT_forall : { param : annot pat; return : _ term } -> core term
   | TT_lambda : { param : annot pat; return : _ term } -> core term

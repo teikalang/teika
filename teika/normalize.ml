@@ -9,9 +9,7 @@ let rec normalize_term : type a. a term -> _ =
   (* TODO: is removing those ok / ideal? *)
   | TT_annot { term; annot = _ } -> normalize_term term
   | TT_loc { term; loc = _ } -> normalize_term term
-  | TT_offset { term; offset } ->
-      with_offset ~offset @@ fun () -> normalize_term term
-  | TT_var { offset } -> repr_var ~var:offset
+  | TT_var { offset } -> return @@ Ex_term (TT_var { offset })
   | TT_forall { param; return } ->
       normalize_pat param @@ fun param ->
       let+ (Ex_term return) = normalize_term return in
