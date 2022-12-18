@@ -62,7 +62,7 @@ module Normalize_context = struct
   let[@inline always] repr_var ~var ~vars ~offset =
     match
       (* TODO: should this be var + offset? *)
-      let index = Offset.(repr (var - one)) in
+      let index = Offset.(repr var) in
       List.nth_opt vars index
     with
     | Some (Bound { base }) ->
@@ -175,8 +175,8 @@ module Typer_context = struct
   type 'a t = 'a typer_context
 
   let[@inline always] run f =
-    let type_of_types = Level.zero in
-    let level = Level.next type_of_types in
+    let level = Level.next Level.zero in
+    let type_of_types = level in
     let names = Name.Map.empty in
     let type_name = Name.make "Type" in
     let names =
@@ -242,10 +242,13 @@ module Typer_context = struct
 
   let[@inline always] with_binder ~name ~type_ f ~type_of_types ~level ~names
       ~received_vars =
-    let names = Name.Map.add name (level, Ex_term type_) names in
-    let received_vars = Bound { base = Offset.zero } :: received_vars in
-    (* TODO: weird, level increases first? *)
     let level = Level.next level in
+    let names =
+      (* TODO: why this offset here? *)
+      let type_ = TT_offset { term = type_; offset = Offset.one } in
+      Name.Map.add name (level, Ex_term type_) names
+    in
+    let received_vars = Bound { base = Offset.zero } :: received_vars in
     f () ~type_of_types ~level ~names ~received_vars
 
   let[@inline always] with_unify_context f ~type_of_types:_ ~level:_ ~names:_
@@ -267,6 +270,5 @@ module Typer_context = struct
   let[@inline always] tt_type () ~type_of_types ~level ~names:_ ~received_vars:_
       =
     let offset = Level.offset ~from:type_of_types ~to_:level in
-
     ok @@ TT_var { offset }
 end

@@ -36,7 +36,7 @@ and elim_apply : type p r a. pat:p pat -> return:r term -> arg:a term -> _ =
   | TP_annot { pat; annot = _ }, arg -> elim_apply ~pat ~return ~arg
   | TP_loc { pat; loc = _ }, arg -> elim_apply ~pat ~return ~arg
   | TP_var { var = _ }, arg ->
-      let from = Offset.one in
+      let from = Offset.zero in
       let (Ex_term return) = Subst.subst_term ~from ~to_:arg return in
       (* TODO: is this normalize needed? *)
       normalize_term return
