@@ -33,7 +33,10 @@ let provider buf () =
   let start, stop = Sedlexing.lexing_positions buf in
   (token, start, stop)
 
-let from_string parser string =
+(* TODO: expose better APIs *)
+let from_string ~filename parser string =
   let buf = from_string string in
+  (* TODO: Sedlexing.set_position, ppx for tests *)
+  Sedlexing.set_filename buf filename;
   let provider = provider buf in
   MenhirLib.Convert.Simplified.traditional2revised parser provider

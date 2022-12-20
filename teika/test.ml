@@ -96,7 +96,9 @@ module Sparser = struct
   let test (name, test) =
     let check () =
       let (Works { expected; input }) = test in
-      let actual = Slexer.from_string Sparser.term_opt input in
+      let actual =
+        Slexer.from_string ~filename:"test.ml" Sparser.term_opt input
+      in
       Alcotest.(
         check' (option equal_stree) ~msg:"works" ~expected:(Some expected)
           ~actual)
@@ -228,7 +230,9 @@ module Lparser = struct
   let test (name, test) =
     let check () =
       let (Works { expected; input }) = test in
-      let actual = Slexer.from_string Teika.Sparser.term_opt input in
+      let actual =
+        Slexer.from_string ~filename:"test.ml" Teika.Sparser.term_opt input
+      in
       let actual =
         match actual with
         | Some stree -> Some (Lparser.from_stree stree)
@@ -376,7 +380,9 @@ module Typer = struct
   let test test =
     let (Check { name; annotated_term; wrapper = _ }) = test in
     let check () =
-      let actual = Slexer.from_string Sparser.term_opt annotated_term in
+      let actual =
+        Slexer.from_string ~filename:"test.ml" Sparser.term_opt annotated_term
+      in
       match actual with
       | Some stree -> (
           let ltree = Lparser.from_stree stree in
