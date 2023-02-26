@@ -14,14 +14,9 @@ let rec tokenizer buf =
   match%sedlex buf with
   | whitespace -> tokenizer buf
   | variable -> VAR (lexeme buf)
-  | string ->
-      let buf = lexeme buf in
-      let string = String.sub buf 1 (String.length buf - 2) in
-      STRING string
   | "->" -> ARROW
   | "=>" -> FAT_ARROW
-  | "=" -> EQUAL
-  | "," -> COMMA
+  | "===" -> ALIAS
   | ":" -> COLON
   | ";" -> SEMICOLON
   | "(" -> LEFT_PARENS
