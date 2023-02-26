@@ -1,40 +1,22 @@
-type term = private LT of { loc : Location.t; desc : term_desc }
-
-and term_desc = private
+type term =
+  | LT_loc of { term : term; loc : Location.t }
   (* x *)
   | LT_var of { var : Name.t }
-  (* "string" *)
-  | LT_literal of { literal : Literal.t }
-  (* (x: a) -> b *)
-  | LT_arrow of { var : Name.t; param : term; return : term }
-  (* (x: a) => m *)
-  | LT_lambda of { var : Name.t; param : term; return : term }
+  (* P -> T *)
+  | LT_arrow of { param : pat; return : term }
+  (* P => m *)
+  | LT_lambda of { param : pat; return : term }
   (* (m n) *)
   | LT_apply of { lambda : term; arg : term }
-  (* (x: a, b) *)
-  | LT_sigma of { var : Name.t; left : term; right : term }
-  (* (x = m, n : a) *)
-  | LT_pair of { var : Name.t; left : term; right : term; annot : term }
-  (* (x, y) = m; n *)
-  | LT_unpair of { left : Name.t; right : Name.t; pair : term; return : term }
-  (* x = m; n *)
-  | LT_let of { var : Name.t; value : term; return : term }
-  (* (m : a) *)
-  | LT_annot of { value : term; type_ : term }
+  (* P === m; n *)
+  | LT_alias of { bound : pat; value : term; return : term }
+  (* (m : T) *)
+  | LT_annot of { term : term; annot : term }
+
+and pat =
+  | LP_loc of { pat : pat; loc : Location.t }
+  (* x *)
+  | LP_var of { var : Name.t }
+  (* x : T *)
+  | LP_annot of { pat : pat; annot : term }
 [@@deriving show]
-
-val lt_var : Location.t -> var:Name.t -> term
-val lt_literal : Location.t -> literal:Literal.t -> term
-val lt_arrow : Location.t -> var:Name.t -> param:term -> return:term -> term
-val lt_lambda : Location.t -> var:Name.t -> param:term -> return:term -> term
-val lt_apply : Location.t -> lambda:term -> arg:term -> term
-val lt_sigma : Location.t -> var:Name.t -> left:term -> right:term -> term
-
-val lt_pair :
-  Location.t -> var:Name.t -> left:term -> right:term -> annot:term -> term
-
-val lt_unpair :
-  Location.t -> left:Name.t -> right:Name.t -> pair:term -> return:term -> term
-
-val lt_let : Location.t -> var:Name.t -> value:term -> return:term -> term
-val lt_annot : Location.t -> value:term -> type_:term -> term

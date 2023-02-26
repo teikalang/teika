@@ -47,5 +47,3 @@ let predef name =
   create name
 
 let type_ = predef "Type"
-let string = predef "String"
-let debug = predef "debug"
