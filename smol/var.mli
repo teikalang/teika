@@ -9,9 +9,3 @@ val name : var -> Name.t
 (* predefined *)
 (* Type *)
 val type_ : var
-
-(* String *)
-val string : var
-
-(* debug *)
-val debug : var
