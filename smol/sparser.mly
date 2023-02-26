@@ -1,16 +1,15 @@
 %{
 open Stree
 
-let mk (loc_start, loc_end) =
-  Location.{ loc_start; loc_end; loc_ghost = false }
+let wrap (loc_start, loc_end) term =
+  let loc = Location.{ loc_start; loc_end; loc_ghost = false } in
+  ST_loc { term; loc }
 
 %}
 %token <string> VAR (* x *)
-%token <string> STRING (* "string" *)
 %token ARROW (* -> *)
 %token FAT_ARROW (* => *)
-%token EQUAL (* = *)
-%token COMMA (* , *)
+%token ALIAS (* === *)
 %token COLON (* : *)
 %token SEMICOLON (* ; *)
 %token LEFT_PARENS (* ( *)
@@ -22,7 +21,6 @@ let mk (loc_start, loc_end) =
 
 %%
 
-(* difference between term and type is just the precedence *)
 let term_opt :=
   | EOF;
     { None }
@@ -30,15 +28,15 @@ let term_opt :=
     { Some term }
 
 
-let term := term_rec_semi
+let term := term_rec_annot
 
-let term_rec_semi :=
-  | term_rec_bind
-  | term_semi(term_rec_semi, term_rec_bind)
+let term_rec_annot :=
+  | term_rec_alias
+  | term_annot(term_rec_annot, term_rec_alias)
 
-let term_rec_bind :=
+let term_rec_alias :=
   | term_rec_funct
-  | term_bind(term_rec_funct, term_rec_funct)
+  | term_alias(term_rec_alias, term_rec_funct)
 
 let term_rec_funct :=
   | term_rec_apply
@@ -51,44 +49,26 @@ let term_rec_apply :=
 
 let term_atom :=
   | term_var
-  | term_string
-  | term_parens(term_parens_maybe_pair)
-
-let term_parens_maybe_pair :=
-  | term_parens_maybe_annot
-  | term_pair(term_parens_maybe_pair, term_parens_maybe_annot)
-
-let term_parens_maybe_annot :=
-  | term
-  | term_annot(term_parens_maybe_annot, term)
+  | term_parens(term)
 
 let term_var ==
   | var = VAR;
-    { st_var (mk $loc) ~var:(Name.make var) }
-let term_string ==
-  | string = STRING;
-    { st_string (mk $loc) ~string }
+    { wrap $loc @@ ST_var { var = Name.make var } }
 let term_arrow(self, lower) ==
   | param = lower; ARROW; return = self;
-    { st_arrow (mk $loc) ~param ~return }
+    { wrap $loc @@ ST_arrow { param; return } }
 let term_lambda(self, lower) ==
   | param = lower; FAT_ARROW; return = self;
-    { st_lambda (mk $loc) ~param ~return }
+    { wrap $loc @@ ST_lambda { param; return } }
 let term_apply(self, lower) ==
   | lambda = self; arg = lower;
-    { st_apply (mk $loc) ~lambda ~arg }
-let term_pair(self, lower) ==
-  | left = lower; COMMA; right = self;
-    { st_pair (mk $loc) ~left ~right }
-let term_bind(self, lower) ==
-  | bound = lower; EQUAL; value = self;
-    { st_bind (mk $loc) ~bound ~value }
-let term_semi(self, lower) ==
-  | left = lower; SEMICOLON; right = self;
-    { st_semi (mk $loc) ~left ~right }
+    { wrap $loc @@ ST_apply { lambda; arg } }
+let term_alias(self, lower) ==
+  | bound = lower; ALIAS; value = lower; return = self;
+  { wrap $loc @@ ST_alias { bound; value; return } }
 let term_annot(self, lower) ==
-  | value = lower; COLON; type_ = self;
-    { st_annot (mk $loc) ~value ~type_ }
+  | term = lower; COLON; annot = self;
+    { wrap $loc @@ ST_annot { term; annot } }
 let term_parens(content) ==
-  | LEFT_PARENS; term = content; RIGHT_PARENS;
-    { term }
+  | LEFT_PARENS; term = term; RIGHT_PARENS;
+    { wrap $loc @@ ST_parens { term } }
