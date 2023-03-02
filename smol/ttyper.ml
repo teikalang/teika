@@ -85,3 +85,64 @@ let rec expand_head : type a. a term -> _ =
 let rename ~from ~to_ term =
   let to_ = TT_var { var = to_ } in
   subst_term ~from ~to_ term
+
+let split_pat pat =
+  let (TP_typed { pat; type_ }) = pat in
+  (pat_var pat, Ex_term type_)
+
+(* TODO: maybe Var.copy *)
+let copy_var var = Var.create (Var.name var)
+
+(* equal1 checks for physical equality
+   equal2 does structural equality *)
+let rec equal1 : type r e. received:r term -> expected:e term -> _ =
+ fun ~received ~expected ->
+  let received = expand_head received in
+  let expected = expand_head expected in
+  match expected == received with
+  | true -> ()
+  | false -> equal2 ~received ~expected
+
+and equal2 ~received ~expected =
+  match (received, expected) with
+  | TT_var { var = received }, TT_var { var = expected } -> (
+      match Var.equal received expected with
+      | true -> ()
+      | false -> failwith "var clash")
+  | ( TT_arrow { param = received_param; return = received_return },
+      TT_arrow { param = expected_param; return = expected_return } ) ->
+      equal_arrow_lambda ~received_param ~received_return ~expected_param
+        ~expected_return
+  | ( TT_lambda { param = received_param; return = received_return },
+      TT_lambda { param = expected_param; return = expected_return } ) ->
+      equal_arrow_lambda ~received_param ~received_return ~expected_param
+        ~expected_return
+  | ( TT_apply { lambda = received_lambda; arg = received_arg },
+      TT_apply { lambda = expected_lambda; arg = expected_arg } ) ->
+      equal1 ~received:received_lambda ~expected:expected_lambda;
+      equal1 ~received:received_arg ~expected:expected_arg
+  | ( (TT_var _ | TT_arrow _ | TT_lambda _ | TT_apply _),
+      (TT_var _ | TT_arrow _ | TT_lambda _ | TT_apply _) ) ->
+      failwith "type clash"
+
+and equal_arrow_lambda :
+    type r e.
+    received_param:_ ->
+    received_return:r term ->
+    expected_param:_ ->
+    expected_return:e term ->
+    _ =
+ fun ~received_param ~received_return ~expected_param ~expected_return ->
+  let received_var, Ex_term received_type = split_pat received_param in
+  let expected_var, Ex_term expected_type = split_pat expected_param in
+  (* TODO: is this checking needed? Maybe a flag *)
+  equal1 ~received:expected_type ~expected:received_type;
+
+  let skolem_var = copy_var expected_var in
+  let (Ex_term received_return) =
+    rename ~from:received_var ~to_:skolem_var received_return
+  in
+  let (Ex_term expected_return) =
+    rename ~from:expected_var ~to_:skolem_var expected_return
+  in
+  equal1 ~received:received_return ~expected:expected_return
