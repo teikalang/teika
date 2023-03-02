@@ -40,7 +40,7 @@ let term_rec_alias :=
 
 let term_rec_funct :=
   | term_rec_apply
-  | term_arrow(term_rec_funct, term_rec_apply)
+  | term_forall(term_rec_funct, term_rec_apply)
   | term_lambda(term_rec_funct, term_rec_apply)
 
 let term_rec_apply :=
@@ -54,9 +54,9 @@ let term_atom :=
 let term_var ==
   | var = VAR;
     { wrap $loc @@ ST_var { var = Name.make var } }
-let term_arrow(self, lower) ==
+let term_forall(self, lower) ==
   | param = lower; ARROW; return = self;
-    { wrap $loc @@ ST_arrow { param; return } }
+    { wrap $loc @@ ST_forall { param; return } }
 let term_lambda(self, lower) ==
   | param = lower; FAT_ARROW; return = self;
     { wrap $loc @@ ST_lambda { param; return } }
