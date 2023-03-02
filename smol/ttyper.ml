@@ -164,3 +164,34 @@ let wrap_pat type_ pat = TP_typed { pat; type_ }
 let tt_type =
   let type_ = TT_var { var = Var.type_ } in
   wrap_term type_ @@ TT_var { var = Var.type_ }
+
+module Context : sig
+  type context
+  type t = context
+
+  val initial : context
+  val enter_param : param:typed pat -> context -> context
+  val enter_alias : bound:typed pat -> value:typed term -> context -> context
+  val lookup : name:Name.t -> context -> typed term option
+end = struct
+  type context = typed term Name.Map.t
+  type t = context
+
+  let initial =
+    let open Name.Map in
+    add (Var.name Var.type_) tt_type empty
+
+  let enter_param ~param ctx =
+    let var, Ex_term type_ = split_pat param in
+    let name = Var.name var in
+    let term = TT_typed { term = TT_var { var }; type_ } in
+    Name.Map.add name term ctx
+
+  let enter_alias ~bound ~value ctx =
+    let var = pat_var bound in
+    let name = Var.name var in
+    (* TODO: preserve aliasing on lookup *)
+    Name.Map.add name value ctx
+
+  let lookup ~name ctx = Name.Map.find_opt name ctx
+end
