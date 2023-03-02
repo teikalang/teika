@@ -8,7 +8,7 @@ type _ term =
   | TT_typed : { term : _ term; type_ : _ term } -> typed term
   | TT_subst : { from : Var.t; to_ : _ term; term : _ term } -> subst term
   | TT_var : { var : Var.t } -> core term
-  | TT_arrow : { param : typed pat; return : _ term } -> core term
+  | TT_forall : { param : typed pat; return : _ term } -> core term
   | TT_lambda : { param : typed pat; return : _ term } -> core term
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
 

@@ -3,7 +3,7 @@ type term =
   (* x *)
   | LT_var of { var : Name.t }
   (* P -> T *)
-  | LT_arrow of { param : pat; return : term }
+  | LT_forall of { param : pat; return : term }
   (* P => m *)
   | LT_lambda of { param : pat; return : term }
   (* (m n) *)

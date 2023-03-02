@@ -12,10 +12,10 @@ let rec parse_term ~loc term =
       LT_loc { term; loc }
   | ST_parens { term } -> parse_term ~loc term
   | ST_var { var } -> LT_var { var }
-  | ST_arrow { param; return } ->
+  | ST_forall { param; return } ->
       let param = parse_pat ~loc param in
       let return = parse_term ~loc return in
-      LT_arrow { param; return }
+      LT_forall { param; return }
   | ST_lambda { param; return } ->
       let param = parse_pat ~loc param in
       let return = parse_term ~loc return in
@@ -41,5 +41,5 @@ and parse_pat ~loc term =
       LP_loc { pat; loc }
   | ST_parens { term = pat } -> parse_pat ~loc pat
   | ST_var { var } -> LP_var { var }
-  | ST_arrow _ | ST_lambda _ | ST_apply _ | ST_alias _ | ST_annot _ ->
+  | ST_forall _ | ST_lambda _ | ST_apply _ | ST_alias _ | ST_annot _ ->
       raise (Invalid_notation { loc })

@@ -30,14 +30,14 @@ let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
       match Var.equal var from with
       | true -> Ex_term to_
       | false -> Ex_term (TT_var { var }))
-  | TT_arrow { param; return } ->
+  | TT_forall { param; return } ->
       let param = subst_pat param in
       let (Ex_term return) =
         match Var.equal from (pat_var param) with
         | true -> Ex_term return
         | false -> subst_term return
       in
-      Ex_term (TT_arrow { param; return })
+      Ex_term (TT_forall { param; return })
   | TT_lambda { param; return } ->
       let param = subst_pat param in
       let (Ex_term return) =
@@ -74,7 +74,7 @@ let rec expand_head : type a. a term -> _ =
       let (Ex_term term) = subst_term ~from ~to_ term in
       expand_head term
   | TT_var _ as term -> term
-  | TT_arrow _ as term -> term
+  | TT_forall _ as term -> term
   | TT_lambda _ as term -> term
   | TT_apply { lambda; arg } -> (
       match expand_head lambda with
@@ -112,23 +112,23 @@ and equal2 ~received ~expected =
       match Var.equal received expected with
       | true -> ()
       | false -> failwith "var clash")
-  | ( TT_arrow { param = received_param; return = received_return },
-      TT_arrow { param = expected_param; return = expected_return } ) ->
-      equal_arrow_lambda ~received_param ~received_return ~expected_param
+  | ( TT_forall { param = received_param; return = received_return },
+      TT_forall { param = expected_param; return = expected_return } ) ->
+      equal_forall_lambda ~received_param ~received_return ~expected_param
         ~expected_return
   | ( TT_lambda { param = received_param; return = received_return },
       TT_lambda { param = expected_param; return = expected_return } ) ->
-      equal_arrow_lambda ~received_param ~received_return ~expected_param
+      equal_forall_lambda ~received_param ~received_return ~expected_param
         ~expected_return
   | ( TT_apply { lambda = received_lambda; arg = received_arg },
       TT_apply { lambda = expected_lambda; arg = expected_arg } ) ->
       equal1 ~received:received_lambda ~expected:expected_lambda;
       equal1 ~received:received_arg ~expected:expected_arg
-  | ( (TT_var _ | TT_arrow _ | TT_lambda _ | TT_apply _),
-      (TT_var _ | TT_arrow _ | TT_lambda _ | TT_apply _) ) ->
+  | ( (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _),
+      (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) ) ->
       failwith "type clash"
 
-and equal_arrow_lambda :
+and equal_forall_lambda :
     type r e.
     received_param:_ ->
     received_return:r term ->
@@ -207,13 +207,13 @@ let rec infer_term ctx term =
       match Context.lookup ~name:var ctx with
       | Some term -> term
       | None -> failwith "unknown variable")
-  | LT_arrow { param; return } ->
+  | LT_forall { param; return } ->
       let param = infer_pat ctx param in
       let return =
         let ctx = Context.enter_param ~param ctx in
         check_type ctx return
       in
-      wrap_term tt_type @@ TT_arrow { param; return }
+      wrap_term tt_type @@ TT_forall { param; return }
   | LT_lambda { param; return } ->
       let param = infer_pat ctx param in
       let return =
@@ -222,14 +222,14 @@ let rec infer_term ctx term =
       in
       let forall =
         let (Ex_term return) = typeof_term return in
-        TT_arrow { param; return }
+        TT_forall { param; return }
       in
       wrap_term forall @@ TT_lambda { param; return }
   | LT_apply { lambda; arg } -> (
       let lambda = infer_term ctx lambda in
       let (Ex_term forall) = typeof_term lambda in
       match forall with
-      | TT_arrow { param; return } ->
+      | TT_forall { param; return } ->
           let arg =
             let (Ex_term expected) = typeof_pat param in
             check_term ctx arg ~expected
