@@ -1,3 +1,4 @@
+open Ltree
 open Ttree
 
 (* TODO: remove all failwith *)
@@ -8,11 +9,13 @@ let rec pat_var : type a. a pat -> _ =
   | TP_typed { pat; type_ = _ } -> pat_var pat
   | TP_var { var } -> var
 
+let lazy_subst_term ~from ~to_ term = TT_subst { from; to_; term }
+
 let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
  fun ~from ~to_ term ->
   let subst_term term = subst_term ~from ~to_ term in
   (* TODO: to go further on lazy substitutions, rename the function below *)
-  let lazy_subst_term term = TT_subst { from; to_; term } in
+  let lazy_subst_term term = lazy_subst_term ~from ~to_ term in
   let subst_pat pat = subst_pat ~from ~to_ pat in
   match term with
   | TT_loc { term; loc } ->
@@ -146,3 +149,18 @@ and equal_arrow_lambda :
     rename ~from:expected_var ~to_:skolem_var expected_return
   in
   equal1 ~received:received_return ~expected:expected_return
+
+let typeof_term term =
+  let (TT_typed { term = _; type_ }) = term in
+  Ex_term type_
+
+let typeof_pat term =
+  let (TP_typed { pat = _; type_ }) = term in
+  Ex_term type_
+
+let wrap_term type_ term = TT_typed { term; type_ }
+let wrap_pat type_ pat = TP_typed { pat; type_ }
+
+let tt_type =
+  let type_ = TT_var { var = Var.type_ } in
+  wrap_term type_ @@ TT_var { var = Var.type_ }
