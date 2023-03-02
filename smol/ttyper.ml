@@ -195,3 +195,105 @@ end = struct
 
   let lookup ~name ctx = Name.Map.find_opt name ctx
 end
+
+let rec infer_term ctx term =
+  match term with
+  | LT_loc { term; loc } ->
+      let (TT_typed { term; type_ }) = infer_term ctx term in
+      wrap_term type_ @@ TT_loc { term; loc }
+  | LT_var { var } -> (
+      (* TODO: is instantiation needed here?
+          Maybe a flag to make it even safer? *)
+      match Context.lookup ~name:var ctx with
+      | Some term -> term
+      | None -> failwith "unknown variable")
+  | LT_arrow { param; return } ->
+      let param = infer_pat ctx param in
+      let return =
+        let ctx = Context.enter_param ~param ctx in
+        check_type ctx return
+      in
+      wrap_term tt_type @@ TT_arrow { param; return }
+  | LT_lambda { param; return } ->
+      let param = infer_pat ctx param in
+      let return =
+        let ctx = Context.enter_param ~param ctx in
+        infer_term ctx return
+      in
+      let forall =
+        let (Ex_term return) = typeof_term return in
+        TT_arrow { param; return }
+      in
+      wrap_term forall @@ TT_lambda { param; return }
+  | LT_apply { lambda; arg } -> (
+      let lambda = infer_term ctx lambda in
+      let (Ex_term forall) = typeof_term lambda in
+      match forall with
+      | TT_arrow { param; return } ->
+          let arg =
+            let (Ex_term expected) = typeof_pat param in
+            check_term ctx arg ~expected
+          in
+          let type_ =
+            let from = pat_var param in
+            lazy_subst_term ~from ~to_:arg return
+          in
+          wrap_term type_ @@ TT_apply { lambda; arg }
+      | _ -> failwith "not a function")
+  | LT_alias { bound; value; return } ->
+      (* TODO: keep alias in typed tree as sugar *)
+      let bound = infer_pat ctx bound in
+      let value =
+        let (Ex_term expected) = typeof_pat bound in
+        check_term ctx value ~expected
+      in
+      let return =
+        let ctx = Context.enter_alias ~bound ~value ctx in
+        infer_term ctx return
+      in
+      (* TODO: keep alias in typed tree as sugar *)
+      return
+  | LT_annot { term; annot } ->
+      let annot = check_type ctx annot in
+      let term = check_term ctx term ~expected:annot in
+      (* TODO: keep annot in typed tree as sugar *)
+      term
+
+and check_term : type a. _ -> _ -> expected:a term -> _ =
+ fun ctx term ~expected ->
+  let term = infer_term ctx term in
+  let () =
+    let (Ex_term received) = typeof_term term in
+    equal1 ~received ~expected
+  in
+  term
+
+and check_type ctx term = check_term ctx term ~expected:tt_type
+
+and infer_pat ctx pat =
+  match pat with
+  | LP_loc { pat; loc } ->
+      let (TP_typed { pat; type_ }) = infer_pat ctx pat in
+      wrap_pat type_ @@ TP_loc { pat; loc }
+  | LP_var { var = _ } -> failwith "missing type annotation"
+  | LP_annot { pat; annot } ->
+      let annot = check_type ctx annot in
+      check_pat ctx pat ~expected:annot
+
+and check_pat ctx pat ~expected =
+  match pat with
+  | LP_loc { pat; loc } ->
+      let (TP_typed { pat; type_ }) = check_pat ctx pat ~expected in
+      wrap_pat type_ @@ TP_loc { pat; loc }
+  | LP_var { var } ->
+      let var = Var.create var in
+      wrap_pat expected @@ TP_var { var }
+  | LP_annot { pat; annot } ->
+      let annot = check_type ctx annot in
+      let pat = check_pat ctx pat ~expected:annot in
+      let () =
+        (* TODO: put error messages clash on the annot *)
+        equal1 ~received:annot ~expected
+      in
+      (* TODO: keep annot in typed tree as sugar *)
+      pat
