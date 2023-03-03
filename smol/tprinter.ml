@@ -14,6 +14,9 @@ module Ptree = struct
     | PT_forall of { param : term; return : term }
     | PT_lambda of { param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
+    | PT_self of { bound : term; body : term }
+    | PT_fix of { bound : term; body : term }
+    | PT_unroll of { term : term }
     | PT_alias of { bound : term; value : term; return : term }
     | PT_annot of { term : term; annot : term }
 
@@ -45,6 +48,11 @@ module Ptree = struct
         fprintf fmt "%a => %a" pp_atom param pp_funct return
     | PT_apply { lambda; arg } ->
         fprintf fmt "%a %a" pp_apply lambda pp_atom arg
+    | PT_self { bound; body } ->
+        fprintf fmt "%a @-> %a" pp_atom bound pp_funct body
+    | PT_fix { bound; body } ->
+        fprintf fmt "%a @=> %a" pp_atom bound pp_funct body
+    | PT_unroll { term } -> fprintf fmt "@%a" pp_atom term
     | PT_alias { bound; value; return } ->
         fprintf fmt "%a === %a; %a" pp_apply bound pp_funct value pp_alias
           return
@@ -62,14 +70,15 @@ module Ptree = struct
     match (term, prec) with
     | ( (PT_loc _ | PT_subst _ | PT_var_full _ | PT_var_name _),
         (Wrapped | Alias | Funct | Apply | Atom) )
-    | PT_apply _, (Wrapped | Alias | Funct | Apply)
-    | (PT_forall _ | PT_lambda _), (Wrapped | Alias | Funct)
+    | (PT_apply _ | PT_unroll _), (Wrapped | Alias | Funct | Apply)
+    | ( (PT_forall _ | PT_lambda _ | PT_self _ | PT_fix _),
+        (Wrapped | Alias | Funct) )
     | PT_alias _, (Wrapped | Alias)
     | (PT_typed _ | PT_annot _), Wrapped ->
         pp_term_syntax ~pp_wrapped ~pp_alias ~pp_funct ~pp_apply ~pp_atom fmt
           term
-    | PT_apply _, Atom
-    | (PT_forall _ | PT_lambda _), (Apply | Atom)
+    | (PT_apply _ | PT_unroll _), Atom
+    | (PT_forall _ | PT_lambda _ | PT_self _ | PT_fix _), (Apply | Atom)
     | PT_alias _, (Funct | Apply | Atom)
     | (PT_typed _ | PT_annot _), (Alias | Funct | Apply | Atom) ->
         fprintf fmt "(%a)" pp_wrapped term
@@ -143,6 +152,17 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
       let lambda = ptree_of_term lambda in
       let arg = ptree_of_term arg in
       PT_apply { lambda; arg }
+  | TT_self { bound; body } ->
+      let bound = ptree_of_pat bound in
+      let body = ptree_of_term body in
+      PT_self { bound; body }
+  | TT_fix { bound; body } ->
+      let bound = ptree_of_pat bound in
+      let body = ptree_of_term body in
+      PT_fix { bound; body }
+  | TT_unroll { term } ->
+      let term = ptree_of_term term in
+      PT_unroll { term }
 
 and ptree_of_pat : type a. _ -> a pat -> _ =
  fun config pat ->
