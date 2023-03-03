@@ -41,5 +41,9 @@ and parse_pat ~loc term =
       LP_loc { pat; loc }
   | ST_parens { term = pat } -> parse_pat ~loc pat
   | ST_var { var } -> LP_var { var }
-  | ST_forall _ | ST_lambda _ | ST_apply _ | ST_alias _ | ST_annot _ ->
+  | ST_annot { term = pat; annot } ->
+      let pat = parse_pat ~loc pat in
+      let annot = parse_term ~loc annot in
+      LP_annot { pat; annot }
+  | ST_forall _ | ST_lambda _ | ST_apply _ | ST_alias _ ->
       raise (Invalid_notation { loc })
