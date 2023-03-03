@@ -25,7 +25,9 @@ let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
       let (Ex_term term) = subst_term term in
       let type_ = lazy_subst_term type_ in
       Ex_term (TT_typed { term; type_ })
-  | TT_subst _ as term -> Ex_term (lazy_subst_term term)
+  | TT_subst _ as term ->
+      (* TODO: does this makes sense? *)
+      Ex_term (lazy_subst_term term)
   | TT_var { var } -> (
       match Var.equal var from with
       | true -> Ex_term to_
@@ -71,6 +73,7 @@ let rec expand_head : type a. a term -> _ =
   | TT_loc { term; loc = _ } -> expand_head term
   | TT_typed { term; type_ = _ } -> expand_head term
   | TT_subst { from; to_; term } ->
+      let term = expand_head term in
       let (Ex_term term) = subst_term ~from ~to_ term in
       expand_head term
   | TT_var _ as term -> term
@@ -79,10 +82,10 @@ let rec expand_head : type a. a term -> _ =
   | TT_apply { lambda; arg } -> (
       match expand_head lambda with
       | TT_lambda { param; return } ->
-          let (Ex_term term) =
+          let (Ex_term return) =
             subst_term ~from:(pat_var param) ~to_:arg return
           in
-          expand_head term
+          expand_head return
       | lambda -> TT_apply { lambda; arg })
 
 let rename ~from ~to_ term =
