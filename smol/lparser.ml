@@ -24,7 +24,17 @@ let rec parse_term ~loc term =
       let lambda = parse_term ~loc lambda in
       let arg = parse_term ~loc arg in
       LT_apply { lambda; arg }
-  | ST_self _ | ST_fix _ | ST_unroll _ -> raise (Invalid_notation { loc })
+  | ST_self { bound; body } ->
+      let bound = parse_pat ~loc bound in
+      let body = parse_term ~loc body in
+      LT_self { bound; body }
+  | ST_fix { bound; body } ->
+      let bound = parse_pat ~loc bound in
+      let body = parse_term ~loc body in
+      LT_fix { bound; body }
+  | ST_unroll { term } ->
+      let term = parse_term ~loc term in
+      LT_unroll { term }
   | ST_alias { bound; value; return } ->
       let bound = parse_pat ~loc bound in
       let value = parse_term ~loc value in

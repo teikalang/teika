@@ -8,6 +8,12 @@ type term =
   | LT_lambda of { param : pat; return : term }
   (* (m n) *)
   | LT_apply of { lambda : term; arg : term }
+  (* P @-> m *)
+  | LT_self of { bound : pat; body : term }
+  (* P @=> m *)
+  | LT_fix of { bound : pat; body : term }
+  (* @m *)
+  | LT_unroll of { term : term }
   (* P === m; n *)
   | LT_alias of { bound : pat; value : term; return : term }
   (* (m : T) *)
