@@ -218,6 +218,7 @@ let rec infer_term ctx term =
       in
       wrap_term tt_type @@ TT_forall { param; return }
   | LT_lambda { param; return } ->
+      (* TODO: this pattern appears also in check LT_lambda *)
       let param = infer_pat ctx param in
       let return =
         let ctx = Context.enter_param ~param ctx in
@@ -264,12 +265,36 @@ let rec infer_term ctx term =
 
 and check_term : type a. _ -> _ -> expected:a term -> _ =
  fun ctx term ~expected ->
-  let term = infer_term ctx term in
-  let () =
-    let (Ex_term received) = typeof_term term in
-    equal1 ~received ~expected
-  in
-  term
+  match (term, expand_head expected) with
+  | LT_loc { term; loc }, expected ->
+      let (TT_typed { term; type_ }) = check_term ctx term ~expected in
+      wrap_term type_ @@ TT_loc { term; loc }
+  | ( LT_lambda { param = received_param; return = received_return },
+      TT_forall { param = expected_param; return = expected_return } ) ->
+      let expected_var, param =
+        let expected_var, Ex_term expected = split_pat expected_param in
+        (expected_var, check_pat ctx received_param ~expected)
+      in
+      let return =
+        let (Ex_term expected) =
+          let received_var = pat_var param in
+          rename ~from:expected_var ~to_:received_var expected_return
+        in
+        let ctx = Context.enter_param ~param ctx in
+        check_term ctx received_return ~expected
+      in
+      let forall =
+        let (Ex_term return) = typeof_term return in
+        TT_forall { param; return }
+      in
+      wrap_term forall @@ TT_lambda { param; return }
+  | term, expected ->
+      let term = infer_term ctx term in
+      let () =
+        let (Ex_term received) = typeof_term term in
+        equal1 ~received ~expected
+      in
+      term
 
 and check_type ctx term = check_term ctx term ~expected:tt_type
 
@@ -283,7 +308,8 @@ and infer_pat ctx pat =
       let annot = check_type ctx annot in
       check_pat ctx pat ~expected:annot
 
-and check_pat ctx pat ~expected =
+and check_pat : type e. _ -> _ -> expected:e term -> _ =
+ fun ctx pat ~expected ->
   match pat with
   | LP_loc { pat; loc } ->
       let (TP_typed { pat; type_ }) = check_pat ctx pat ~expected in

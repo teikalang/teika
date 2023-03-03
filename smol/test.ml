@@ -9,6 +9,9 @@ let id =
     {|((A : Type) => (x : A) => x
       :(A : Type) -> (x : A) -> A)|}
 
+let id_propagate =
+  type_term "id_propagate" {|(A => x => x : (A : Type) -> (x : A) -> A)|}
+
 let sequence =
   type_term "sequence"
     {|((A : Type) => (x : A) => (B : Type) => (y : B) => y
@@ -17,19 +20,39 @@ let sequence =
 let bool =
   type_term "bool"
     {|((A : Type) => (x : A) => (y : A) => x
-         :(A : Type) -> (x : A) -> (y : A) -> A)|}
+               :(A : Type) -> (x : A) -> (y : A) -> A)|}
+
+let sequence_propagate =
+  type_term "sequence_propagate"
+    {|(A => x => B => y => y
+      :(A : Type) -> (x : A) -> (B : Type) -> (y : B) -> B)|}
 
 let true_ =
   type_term "true"
     {|((A : Type) => (x : A) => (y : A) => x
-         :(A : Type) -> (x : A) -> (y : A) -> A)|}
+      :(A : Type) -> (x : A) -> (y : A) -> A)|}
+
+let true_propagate =
+  type_term "true_propagate"
+    {|(A => x => y => x
+      :(A : Type) -> (x : A) -> (y : A) -> A)|}
 
 let false_ =
   type_term "false"
     {|((A : Type) => (x : A) => (y : A) => y
-         :(A : Type) -> (x : A) -> (y : A) -> A)|}
+      :(A : Type) -> (x : A) -> (y : A) -> A)|}
 
-let tests = [ id; sequence; bool; true_; false_ ]
+let tests =
+  [
+    id;
+    id_propagate;
+    sequence;
+    sequence_propagate;
+    bool;
+    true_;
+    true_propagate;
+    false_;
+  ]
 
 let type_term term =
   let term = Slexer.from_string Sparser.term_opt term in
