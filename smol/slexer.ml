@@ -14,8 +14,10 @@ let rec tokenizer buf =
   match%sedlex buf with
   | whitespace -> tokenizer buf
   | variable -> VAR (lexeme buf)
-  | "->" -> ARROW
-  | "=>" -> FAT_ARROW
+  | "->" -> FORALL
+  | "=>" -> LAMBDA
+  | "@->" -> SELF
+  | "@=>" -> FIX
   | "===" -> ALIAS
   | ":" -> COLON
   | ";" -> SEMICOLON
