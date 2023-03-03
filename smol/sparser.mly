@@ -64,7 +64,7 @@ let term_apply(self, lower) ==
   | lambda = self; arg = lower;
     { wrap $loc @@ ST_apply { lambda; arg } }
 let term_alias(self, lower) ==
-  | bound = lower; ALIAS; value = lower; return = self;
+  | bound = lower; ALIAS; value = lower; SEMICOLON; return = self;
   { wrap $loc @@ ST_alias { bound; value; return } }
 let term_annot(self, lower) ==
   | term = lower; COLON; annot = self;
