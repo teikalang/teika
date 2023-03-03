@@ -12,6 +12,9 @@ type _ term =
   | TT_forall : { param : typed pat; return : _ term } -> core term
   | TT_lambda : { param : typed pat; return : _ term } -> core term
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
+  | TT_self : { bound : _ pat; body : _ term } -> core term
+  | TT_fix : { bound : _ pat; body : _ term } -> core term
+  | TT_unroll : { term : _ term } -> core term
 
 and _ pat =
   | TP_loc : { pat : _ pat; loc : Location.t } -> loc pat
