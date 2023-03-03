@@ -67,11 +67,11 @@ let term_lambda(self, lower) ==
   | param = lower; LAMBDA; return = self;
     { wrap $loc @@ ST_lambda { param; return } }
 let term_self(self, lower) ==
-  | param = lower; SELF; return = self;
-    { wrap $loc @@ ST_self { param; return } }
+  | bound = lower; SELF; return = self;
+    { wrap $loc @@ ST_self { bound; return } }
 let term_fix(self, lower) ==
-  | param = lower; FIX; return = self;
-    { wrap $loc @@ ST_fix { param; return } }
+  | bound = lower; FIX; return = self;
+    { wrap $loc @@ ST_fix { bound; return } }
 let term_unroll(lower) ==
   | UNROLL; term = lower;
     { wrap $loc @@ ST_unroll { term } }
