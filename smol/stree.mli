@@ -5,8 +5,8 @@ type term =
   | ST_forall of { param : term; return : term }
   | ST_lambda of { param : term; return : term }
   | ST_apply of { lambda : term; arg : term }
-  | ST_fix of { bound : term; return : term }
-  | ST_self of { bound : term; return : term }
+  | ST_fix of { bound : term; body : term }
+  | ST_self of { bound : term; body : term }
   | ST_unroll of { term : term }
   | ST_alias of { bound : term; value : term; return : term }
   | ST_annot of { term : term; annot : term }
