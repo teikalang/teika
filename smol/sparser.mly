@@ -7,8 +7,11 @@ let wrap (loc_start, loc_end) term =
 
 %}
 %token <string> VAR (* x *)
-%token ARROW (* -> *)
-%token FAT_ARROW (* => *)
+%token FORALL (* -> *)
+%token LAMBDA (* => *)
+%token FIX (* @-> *)
+%token SELF (* @=> *)
+%token UNROLL (* @ *)
 %token ALIAS (* === *)
 %token COLON (* : *)
 %token SEMICOLON (* ; *)
@@ -42,10 +45,13 @@ let term_rec_funct :=
   | term_rec_apply
   | term_forall(term_rec_funct, term_rec_apply)
   | term_lambda(term_rec_funct, term_rec_apply)
+  | term_self(term_rec_funct, term_rec_apply)
+  | term_fix(term_rec_funct, term_rec_apply)
 
 let term_rec_apply :=
   | term_atom
   | term_apply(term_rec_apply, term_atom)
+  | term_unroll(term_atom)
 
 let term_atom :=
   | term_var
@@ -55,11 +61,20 @@ let term_var ==
   | var = VAR;
     { wrap $loc @@ ST_var { var = Name.make var } }
 let term_forall(self, lower) ==
-  | param = lower; ARROW; return = self;
+  | param = lower; FORALL; return = self;
     { wrap $loc @@ ST_forall { param; return } }
 let term_lambda(self, lower) ==
-  | param = lower; FAT_ARROW; return = self;
+  | param = lower; LAMBDA; return = self;
     { wrap $loc @@ ST_lambda { param; return } }
+let term_self(self, lower) ==
+  | param = lower; SELF; return = self;
+    { wrap $loc @@ ST_self { param; return } }
+let term_fix(self, lower) ==
+  | param = lower; FIX; return = self;
+    { wrap $loc @@ ST_fix { param; return } }
+let term_unroll(lower) ==
+  | UNROLL; term = lower;
+    { wrap $loc @@ ST_unroll { term } }
 let term_apply(self, lower) ==
   | lambda = self; arg = lower;
     { wrap $loc @@ ST_apply { lambda; arg } }
@@ -70,5 +85,5 @@ let term_annot(self, lower) ==
   | term = lower; COLON; annot = self;
     { wrap $loc @@ ST_annot { term; annot } }
 let term_parens(content) ==
-  | LEFT_PARENS; term = term; RIGHT_PARENS;
+  | LEFT_PARENS; term = content; RIGHT_PARENS;
     { wrap $loc @@ ST_parens { term } }
