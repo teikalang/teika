@@ -244,6 +244,7 @@ let rec infer_term ctx term =
           in
           wrap_term type_ @@ TT_apply { lambda; arg }
       | _ -> failwith "not a function")
+  | LT_self _ | LT_fix _ | LT_unroll _ -> failwith "not implemented"
   | LT_alias { bound; value; return } ->
       (* TODO: keep alias in typed tree as sugar *)
       let bound = infer_pat ctx bound in
@@ -269,6 +270,9 @@ and check_term : type a. _ -> _ -> expected:a term -> _ =
   | LT_loc { term; loc }, expected ->
       let (TT_typed { term; type_ }) = check_term ctx term ~expected in
       wrap_term type_ @@ TT_loc { term; loc }
+  (* TODO: add flag to disable propagation *)
+  (* TODO: also add a flag for double check, first with propagation
+      then generate a complete AST and run without propagation *)
   | ( LT_lambda { param = received_param; return = received_return },
       TT_forall { param = expected_param; return = expected_return } ) ->
       let expected_var, param =
