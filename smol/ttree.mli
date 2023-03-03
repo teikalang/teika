@@ -13,7 +13,9 @@ type _ term =
   | TT_lambda : { param : typed pat; return : _ term } -> core term
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
   | TT_self : { bound : _ pat; body : _ term } -> core term
-  | TT_fix : { bound : _ pat; body : _ term } -> core term
+  (* TODO: this typed term on the body is probably not needed
+      but this project tries to play very safe *)
+  | TT_fix : { bound : typed pat; body : _ term } -> core term
   | TT_unroll : { term : _ term } -> core term
 
 and _ pat =

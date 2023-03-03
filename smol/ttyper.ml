@@ -52,6 +52,25 @@ let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
       let (Ex_term lambda) = subst_term lambda in
       let (Ex_term arg) = subst_term arg in
       Ex_term (TT_apply { lambda; arg })
+  | TT_self { bound; body } ->
+      let bound = subst_pat bound in
+      let (Ex_term body) =
+        match Var.equal from (pat_var bound) with
+        | true -> Ex_term body
+        | false -> subst_term body
+      in
+      Ex_term (TT_self { bound; body })
+  | TT_fix { bound; body } ->
+      let bound = subst_pat bound in
+      let (Ex_term body) =
+        match Var.equal from (pat_var bound) with
+        | true -> Ex_term body
+        | false -> subst_term body
+      in
+      Ex_term (TT_fix { bound; body })
+  | TT_unroll { term } ->
+      let (Ex_term term) = subst_term term in
+      Ex_term (TT_unroll { term })
 
 and subst_pat : type a. from:_ -> to_:_ -> a pat -> a pat =
  fun ~from ~to_ pat ->
@@ -87,6 +106,16 @@ let rec expand_head : type a. a term -> _ =
           in
           expand_head return
       | lambda -> TT_apply { lambda; arg })
+  | TT_self _ as term -> term
+  | TT_fix _ as term -> term
+  | TT_unroll { term } -> (
+      match expand_head term with
+      | TT_fix { bound; body } as term ->
+          let (Ex_term return) =
+            subst_term ~from:(pat_var bound) ~to_:term body
+          in
+          expand_head return
+      | term -> TT_unroll { term })
 
 let rename ~from ~to_ term =
   let to_ = TT_var { var = to_ } in
@@ -117,41 +146,58 @@ and equal2 ~received ~expected =
       | false -> failwith "var clash")
   | ( TT_forall { param = received_param; return = received_return },
       TT_forall { param = expected_param; return = expected_return } ) ->
-      equal_forall_lambda ~received_param ~received_return ~expected_param
-        ~expected_return
+      let received_var, Ex_term received_type = split_pat received_param in
+      let expected_var, Ex_term expected_type = split_pat expected_param in
+      (* TODO: is the checking of annotation needed? Maybe a flag? *)
+      equal1 ~received:expected_type ~expected:received_type;
+      equal1_alpha_rename ~received_var ~expected_var ~received:received_return
+        ~expected:expected_return
   | ( TT_lambda { param = received_param; return = received_return },
       TT_lambda { param = expected_param; return = expected_return } ) ->
-      equal_forall_lambda ~received_param ~received_return ~expected_param
-        ~expected_return
+      let received_var, Ex_term received_type = split_pat received_param in
+      let expected_var, Ex_term expected_type = split_pat expected_param in
+      (* TODO: is the checking of annotation needed? Maybe a flag? *)
+      equal1 ~received:expected_type ~expected:received_type;
+      equal1_alpha_rename ~received_var ~expected_var ~received:received_return
+        ~expected:expected_return
   | ( TT_apply { lambda = received_lambda; arg = received_arg },
       TT_apply { lambda = expected_lambda; arg = expected_arg } ) ->
       equal1 ~received:received_lambda ~expected:expected_lambda;
       equal1 ~received:received_arg ~expected:expected_arg
-  | ( (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _),
-      (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) ) ->
+  | ( TT_self { bound = received_bound; body = received_body },
+      TT_self { bound = expected_bound; body = expected_body } ) ->
+      let received_var = pat_var received_bound in
+      let expected_var = pat_var expected_bound in
+      equal1_alpha_rename ~received_var ~expected_var ~received:received_body
+        ~expected:expected_body
+  | ( TT_fix { bound = received_bound; body = received_body },
+      TT_fix { bound = expected_bound; body = expected_body } ) ->
+      let received_var, Ex_term received_type = split_pat received_bound in
+      let expected_var, Ex_term expected_type = split_pat expected_bound in
+      equal1 ~received:expected_type ~expected:received_type;
+      equal1_alpha_rename ~received_var ~expected_var ~received:received_body
+        ~expected:expected_body
+  | TT_unroll { term = received }, TT_unroll { term = expected } ->
+      equal1 ~received ~expected
+  | ( ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _ | TT_fix _
+      | TT_unroll _ ),
+      ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _ | TT_fix _
+      | TT_unroll _ ) ) ->
       failwith "type clash"
 
-and equal_forall_lambda :
+and equal1_alpha_rename :
     type r e.
-    received_param:_ ->
-    received_return:r term ->
-    expected_param:_ ->
-    expected_return:e term ->
-    _ =
- fun ~received_param ~received_return ~expected_param ~expected_return ->
-  let received_var, Ex_term received_type = split_pat received_param in
-  let expected_var, Ex_term expected_type = split_pat expected_param in
-  (* TODO: is this checking needed? Maybe a flag *)
-  equal1 ~received:expected_type ~expected:received_type;
-
+    received_var:_ -> expected_var:_ -> received:r term -> expected:e term -> _
+    =
+ fun ~received_var ~expected_var ~received ~expected ->
+  (* TODO: explain cross alpha rename *)
+  (* TODO: why not rename to single side? like received_var := expected_var *)
   let skolem_var = copy_var expected_var in
-  let (Ex_term received_return) =
-    rename ~from:received_var ~to_:skolem_var received_return
-  in
-  let (Ex_term expected_return) =
-    rename ~from:expected_var ~to_:skolem_var expected_return
-  in
-  equal1 ~received:received_return ~expected:expected_return
+  let (Ex_term received) = rename ~from:received_var ~to_:skolem_var received in
+  let (Ex_term received) = rename ~from:expected_var ~to_:skolem_var received in
+  let (Ex_term expected) = rename ~from:received_var ~to_:skolem_var expected in
+  let (Ex_term expected) = rename ~from:expected_var ~to_:skolem_var expected in
+  equal1 ~received ~expected
 
 let typeof_term term =
   let (TT_typed { term = _; type_ }) = term in
