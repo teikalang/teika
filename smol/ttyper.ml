@@ -17,10 +17,6 @@ let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
   | TT_loc { term; loc } ->
       let (Ex_term term) = subst_term term in
       Ex_term (TT_loc { term; loc })
-  | TT_typed { term; type_ } ->
-      let (Ex_term term) = subst_term term in
-      let (Ex_term type_) = subst_term type_ in
-      Ex_term (TT_typed { term; type_ })
   | TT_var { var } -> (
       match Var.equal var from with
       | true -> Ex_term to_
@@ -83,7 +79,6 @@ let rec expand_head : type a. a term -> _ =
  fun term ->
   match term with
   | TT_loc { term; loc = _ } -> expand_head term
-  | TT_typed { term; type_ = _ } -> expand_head term
   | TT_var _ as term -> term
   | TT_forall _ as term -> term
   | TT_lambda _ as term -> term
@@ -198,10 +193,7 @@ let typeof_pat term =
 
 let wrap_term type_ term = TT_typed { term; type_ }
 let wrap_pat type_ pat = TP_typed { pat; type_ }
-
-let tt_type =
-  let type_ = TT_var { var = Var.type_ } in
-  wrap_term type_ @@ TT_var { var = Var.type_ }
+let tt_type = TT_var { var = Var.type_ }
 
 module Context : sig
   type context
@@ -209,15 +201,15 @@ module Context : sig
 
   val initial : context
   val enter_param : param:typed pat -> context -> context
-  val enter_alias : bound:typed pat -> value:typed term -> context -> context
-  val lookup : name:Name.t -> context -> typed term option
+  val enter_alias : bound:typed pat -> value:_ term -> context -> context
+  val lookup : name:Name.t -> context -> ty_term option
 end = struct
-  type context = typed term Name.Map.t
+  type context = ty_term Name.Map.t
   type t = context
 
   let initial =
     let open Name.Map in
-    add (Var.name Var.type_) tt_type empty
+    add (Var.name Var.type_) (wrap_term tt_type tt_type) empty
 
   let enter_param ~param ctx =
     let var, Ex_term type_ = split_pat param in
@@ -226,10 +218,11 @@ end = struct
     Name.Map.add name term ctx
 
   let enter_alias ~bound ~value ctx =
-    let var = pat_var bound in
+    let var, Ex_term type_ = split_pat bound in
     let name = Var.name var in
     (* TODO: preserve aliasing on lookup *)
-    Name.Map.add name value ctx
+    let term = TT_typed { term = value; type_ } in
+    Name.Map.add name term ctx
 
   let lookup ~name ctx = Name.Map.find_opt name ctx
 end
@@ -247,7 +240,7 @@ let rec infer_term ctx term =
       | None -> failwith "unknown variable")
   | LT_forall { param; return } ->
       let param = infer_pat ctx param in
-      let return =
+      let (Ex_term return) =
         let ctx = Context.enter_param ~param ctx in
         check_type ctx return
       in
@@ -255,21 +248,19 @@ let rec infer_term ctx term =
   | LT_lambda { param; return } ->
       (* TODO: this pattern appears also in check LT_lambda *)
       let param = infer_pat ctx param in
-      let return =
+      let (TT_typed { term = return; type_ = return_type }) =
         let ctx = Context.enter_param ~param ctx in
         infer_term ctx return
       in
-      let forall =
-        let (Ex_term return) = typeof_term return in
-        TT_forall { param; return }
-      in
+      let forall = TT_forall { param; return = return_type } in
       wrap_term forall @@ TT_lambda { param; return }
   | LT_apply { lambda; arg } -> (
-      let lambda = infer_term ctx lambda in
-      let (Ex_term forall) = typeof_term lambda in
+      let (TT_typed { term = lambda; type_ = forall }) =
+        infer_term ctx lambda
+      in
       match forall with
       | TT_forall { param; return } ->
-          let arg =
+          let (Ex_term arg) =
             let (Ex_term expected) = typeof_pat param in
             check_term ctx arg ~expected
           in
@@ -283,28 +274,28 @@ let rec infer_term ctx term =
   | LT_alias { bound; value; return } ->
       (* TODO: keep alias in typed tree as sugar *)
       let bound = infer_pat ctx bound in
-      let value =
+      let (Ex_term value) =
         let (Ex_term expected) = typeof_pat bound in
         check_term ctx value ~expected
       in
-      let return =
-        let ctx = Context.enter_alias ~bound ~value ctx in
-        infer_term ctx return
-      in
+
       (* TODO: keep alias in typed tree as sugar *)
-      return
+      let ctx = Context.enter_alias ~bound ~value ctx in
+      infer_term ctx return
   | LT_annot { term; annot } ->
-      let annot = check_type ctx annot in
-      let term = check_term ctx term ~expected:annot in
+      let (Ex_term annot) = check_type ctx annot in
+      let (Ex_term term) = check_term ctx term ~expected:annot in
       (* TODO: keep annot in typed tree as sugar *)
-      term
+      wrap_term annot term
 
 and check_term : type a. _ -> _ -> expected:a term -> _ =
  fun ctx term ~expected ->
+  (* TODO: bad naming *)
+  let wrap_term term = Ex_term term in
   match (term, expand_head expected) with
   | LT_loc { term; loc }, expected ->
-      let (TT_typed { term; type_ }) = check_term ctx term ~expected in
-      wrap_term type_ @@ TT_loc { term; loc }
+      let (Ex_term term) = check_term ctx term ~expected in
+      wrap_term @@ TT_loc { term; loc }
   (* TODO: add flag to disable propagation *)
   (* TODO: also add a flag for double check, first with propagation
       then generate a complete AST and run without propagation *)
@@ -314,7 +305,7 @@ and check_term : type a. _ -> _ -> expected:a term -> _ =
         let expected_var, Ex_term expected = split_pat expected_param in
         (expected_var, check_pat ctx received_param ~expected)
       in
-      let return =
+      let (Ex_term return) =
         let (Ex_term expected) =
           let received_var = pat_var param in
           rename ~from:expected_var ~to_:received_var expected_return
@@ -322,18 +313,11 @@ and check_term : type a. _ -> _ -> expected:a term -> _ =
         let ctx = Context.enter_param ~param ctx in
         check_term ctx received_return ~expected
       in
-      let forall =
-        let (Ex_term return) = typeof_term return in
-        TT_forall { param; return }
-      in
-      wrap_term forall @@ TT_lambda { param; return }
+      wrap_term @@ TT_lambda { param; return }
   | term, expected ->
-      let term = infer_term ctx term in
-      let () =
-        let (Ex_term received) = typeof_term term in
-        equal1 ~received ~expected
-      in
-      term
+      let (TT_typed { term; type_ = received }) = infer_term ctx term in
+      let () = equal1 ~received ~expected in
+      wrap_term term
 
 and check_type ctx term = check_term ctx term ~expected:tt_type
 
@@ -344,7 +328,7 @@ and infer_pat ctx pat =
       wrap_pat type_ @@ TP_loc { pat; loc }
   | LP_var { var = _ } -> failwith "missing type annotation"
   | LP_annot { pat; annot } ->
-      let annot = check_type ctx annot in
+      let (Ex_term annot) = check_type ctx annot in
       check_pat ctx pat ~expected:annot
 
 and check_pat : type e. _ -> _ -> expected:e term -> _ =
@@ -357,7 +341,7 @@ and check_pat : type e. _ -> _ -> expected:e term -> _ =
       let var = Var.create var in
       wrap_pat expected @@ TP_var { var }
   | LP_annot { pat; annot } ->
-      let annot = check_type ctx annot in
+      let (Ex_term annot) = check_type ctx annot in
       let pat = check_pat ctx pat ~expected:annot in
       let () =
         (* TODO: put error messages clash on the annot *)

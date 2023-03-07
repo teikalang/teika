@@ -123,13 +123,6 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
       match should_print_loc config ~loc with
       | true -> PT_loc { term; loc }
       | false -> term)
-  | TT_typed { term; type_ } -> (
-      let term = ptree_of_term term in
-      match should_print_typed config with
-      | true ->
-          let type_ = ptree_of_term type_ in
-          PT_typed { term; type_ }
-      | false -> term)
   | TT_var { var } -> ptree_of_var var
   | TT_forall { param; return } ->
       let param = ptree_of_pat param in
