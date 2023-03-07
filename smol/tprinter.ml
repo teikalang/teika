@@ -8,7 +8,6 @@ module Ptree = struct
   type term =
     | PT_loc of { term : term; loc : Location.t }
     | PT_typed of { term : term; type_ : term }
-    | PT_subst of { from : term; to_ : term; term : term }
     | PT_var_name of { name : Name.t }
     | PT_var_full of { var : Var.t }
     | PT_forall of { param : term; return : term }
@@ -37,9 +36,6 @@ module Ptree = struct
     | PT_loc { term; loc } -> fprintf fmt "%a#%a" pp_atom term pp_loc loc
     | PT_typed { term; type_ } ->
         fprintf fmt "%a #:# %a" pp_funct term pp_wrapped type_
-    | PT_subst { from; to_; term } ->
-        (* TODO: to_ is using pp_wrapped here *)
-        fprintf fmt "%a#[%a := %a]" pp_atom term pp_atom from pp_wrapped to_
     | PT_var_name { name } -> fprintf fmt "%s" (Name.repr name)
     | PT_var_full { var } -> fprintf fmt "%a" Var.pp var
     | PT_forall { param; return } ->
@@ -68,7 +64,7 @@ module Ptree = struct
     let pp_apply fmt term = pp_term Apply fmt term in
     let pp_atom fmt term = pp_term Atom fmt term in
     match (term, prec) with
-    | ( (PT_loc _ | PT_subst _ | PT_var_full _ | PT_var_name _),
+    | ( (PT_loc _ | PT_var_full _ | PT_var_name _),
         (Wrapped | Alias | Funct | Apply | Atom) )
     | (PT_apply _ | PT_unroll _), (Wrapped | Alias | Funct | Apply)
     | ( (PT_forall _ | PT_lambda _ | PT_self _ | PT_fix _),
@@ -134,11 +130,6 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
           let type_ = ptree_of_term type_ in
           PT_typed { term; type_ }
       | false -> term)
-  | TT_subst { from; to_; term } ->
-      let from = ptree_of_var from in
-      let to_ = ptree_of_term to_ in
-      let term = ptree_of_term term in
-      PT_subst { from; to_; term }
   | TT_var { var } -> ptree_of_var var
   | TT_forall { param; return } ->
       let param = ptree_of_pat param in
