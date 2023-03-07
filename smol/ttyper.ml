@@ -9,13 +9,9 @@ let rec pat_var : type a. a pat -> _ =
   | TP_typed { pat; type_ = _ } -> pat_var pat
   | TP_var { var } -> var
 
-let lazy_subst_term ~from ~to_ term = TT_subst { from; to_; term }
-
 let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
  fun ~from ~to_ term ->
   let subst_term term = subst_term ~from ~to_ term in
-  (* TODO: to go further on lazy substitutions, rename the function below *)
-  let lazy_subst_term term = lazy_subst_term ~from ~to_ term in
   let subst_pat pat = subst_pat ~from ~to_ pat in
   match term with
   | TT_loc { term; loc } ->
@@ -23,11 +19,8 @@ let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
       Ex_term (TT_loc { term; loc })
   | TT_typed { term; type_ } ->
       let (Ex_term term) = subst_term term in
-      let type_ = lazy_subst_term type_ in
+      let (Ex_term type_) = subst_term type_ in
       Ex_term (TT_typed { term; type_ })
-  | TT_subst _ as term ->
-      (* TODO: does this makes sense? *)
-      Ex_term (lazy_subst_term term)
   | TT_var { var } -> (
       match Var.equal var from with
       | true -> Ex_term to_
@@ -74,7 +67,7 @@ let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
 
 and subst_pat : type a. from:_ -> to_:_ -> a pat -> a pat =
  fun ~from ~to_ pat ->
-  let lazy_subst_term term = TT_subst { from; to_; term } in
+  let subst_term term = subst_term ~from ~to_ term in
   let subst_pat pat = subst_pat ~from ~to_ pat in
   match pat with
   | TP_loc { pat; loc } ->
@@ -82,7 +75,7 @@ and subst_pat : type a. from:_ -> to_:_ -> a pat -> a pat =
       TP_loc { pat; loc }
   | TP_typed { pat; type_ } ->
       let pat = subst_pat pat in
-      let type_ = lazy_subst_term type_ in
+      let (Ex_term type_) = subst_term type_ in
       TP_typed { pat; type_ }
   | TP_var _ as pat -> pat
 
@@ -91,10 +84,6 @@ let rec expand_head : type a. a term -> _ =
   match term with
   | TT_loc { term; loc = _ } -> expand_head term
   | TT_typed { term; type_ = _ } -> expand_head term
-  | TT_subst { from; to_; term } ->
-      let term = expand_head term in
-      let (Ex_term term) = subst_term ~from ~to_ term in
-      expand_head term
   | TT_var _ as term -> term
   | TT_forall _ as term -> term
   | TT_lambda _ as term -> term
@@ -284,9 +273,9 @@ let rec infer_term ctx term =
             let (Ex_term expected) = typeof_pat param in
             check_term ctx arg ~expected
           in
-          let type_ =
+          let (Ex_term type_) =
             let from = pat_var param in
-            lazy_subst_term ~from ~to_:arg return
+            subst_term ~from ~to_:arg return
           in
           wrap_term type_ @@ TT_apply { lambda; arg }
       | _ -> failwith "not a function")
