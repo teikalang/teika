@@ -3,7 +3,6 @@ type typed = Typed
 type core = Core
 
 type _ term =
-  | TT_loc : { term : _ term; loc : Location.t } -> loc term
   | TT_var : { var : Var.t } -> core term
   | TT_forall : { param : typed pat; return : _ term } -> core term
   | TT_lambda : { param : typed pat; return : _ term } -> core term
@@ -13,7 +12,6 @@ type _ term =
   | TT_unroll : { term : _ term } -> core term
 
 and _ pat =
-  | TP_loc : { pat : _ pat; loc : Location.t } -> loc pat
   | TP_typed : { pat : _ pat; type_ : _ term } -> typed pat
   | TP_var : { var : Var.t } -> core pat
 
