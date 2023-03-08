@@ -5,7 +5,6 @@ open Ttree
 let rec pat_var : type a. a pat -> _ =
  fun pat ->
   match pat with
-  | TP_loc { pat; loc = _ } -> pat_var pat
   | TP_typed { pat; type_ = _ } -> pat_var pat
   | TP_var { var } -> var
 
@@ -14,9 +13,6 @@ let rec subst_term : type a. from:_ -> to_:_ -> a term -> ex_term =
   let subst_term term = subst_term ~from ~to_ term in
   let subst_pat pat = subst_pat ~from ~to_ pat in
   match term with
-  | TT_loc { term; loc } ->
-      let (Ex_term term) = subst_term term in
-      Ex_term (TT_loc { term; loc })
   | TT_var { var } -> (
       match Var.equal var from with
       | true -> Ex_term to_
@@ -66,9 +62,6 @@ and subst_pat : type a. from:_ -> to_:_ -> a pat -> a pat =
   let subst_term term = subst_term ~from ~to_ term in
   let subst_pat pat = subst_pat ~from ~to_ pat in
   match pat with
-  | TP_loc { pat; loc } ->
-      let pat = subst_pat pat in
-      TP_loc { pat; loc }
   | TP_typed { pat; type_ } ->
       let pat = subst_pat pat in
       let (Ex_term type_) = subst_term type_ in
@@ -78,7 +71,6 @@ and subst_pat : type a. from:_ -> to_:_ -> a pat -> a pat =
 let rec expand_head : type a. a term -> _ =
  fun term ->
   match term with
-  | TT_loc { term; loc = _ } -> expand_head term
   | TT_var _ as term -> term
   | TT_forall _ as term -> term
   | TT_lambda _ as term -> term
@@ -229,9 +221,9 @@ end
 
 let rec infer_term ctx term =
   match term with
-  | LT_loc { term; loc } ->
-      let (TT_typed { term; type_ }) = infer_term ctx term in
-      wrap_term type_ @@ TT_loc { term; loc }
+  | LT_loc { term; loc = _ } ->
+      (* TODO: use this location *)
+      infer_term ctx term
   | LT_var { var } -> (
       (* TODO: is instantiation needed here?
           Maybe a flag to make it even safer? *)
@@ -293,9 +285,9 @@ and check_term : type a. _ -> _ -> expected:a term -> _ =
   (* TODO: bad naming *)
   let wrap_term term = Ex_term term in
   match (term, expand_head expected) with
-  | LT_loc { term; loc }, expected ->
-      let (Ex_term term) = check_term ctx term ~expected in
-      wrap_term @@ TT_loc { term; loc }
+  | LT_loc { term; loc = _ }, expected ->
+      (* TODO: use this location *)
+      check_term ctx term ~expected
   (* TODO: add flag to disable propagation *)
   (* TODO: also add a flag for double check, first with propagation
       then generate a complete AST and run without propagation *)
@@ -323,9 +315,9 @@ and check_type ctx term = check_term ctx term ~expected:tt_type
 
 and infer_pat ctx pat =
   match pat with
-  | LP_loc { pat; loc } ->
-      let (TP_typed { pat; type_ }) = infer_pat ctx pat in
-      wrap_pat type_ @@ TP_loc { pat; loc }
+  | LP_loc { pat; loc = _ } ->
+      (* TODO: use this location *)
+      infer_pat ctx pat
   | LP_var { var = _ } -> failwith "missing type annotation"
   | LP_annot { pat; annot } ->
       let (Ex_term annot) = check_type ctx annot in
@@ -334,9 +326,9 @@ and infer_pat ctx pat =
 and check_pat : type e. _ -> _ -> expected:e term -> _ =
  fun ctx pat ~expected ->
   match pat with
-  | LP_loc { pat; loc } ->
-      let (TP_typed { pat; type_ }) = check_pat ctx pat ~expected in
-      wrap_pat type_ @@ TP_loc { pat; loc }
+  | LP_loc { pat; loc = _ } ->
+      (* TODO: use this location *)
+      check_pat ctx pat ~expected
   | LP_var { var } ->
       let var = Var.create var in
       wrap_pat expected @@ TP_var { var }

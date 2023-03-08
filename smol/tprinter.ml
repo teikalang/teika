@@ -6,7 +6,6 @@ module Ptree = struct
   open Format
 
   type term =
-    | PT_loc of { term : term; loc : Location.t }
     | PT_typed of { term : term; type_ : term }
     | PT_var_name of { name : Name.t }
     | PT_var_full of { var : Var.t }
@@ -19,21 +18,9 @@ module Ptree = struct
     | PT_alias of { bound : term; value : term; return : term }
     | PT_annot of { term : term; annot : term }
 
-  let pp_loc fmt loc =
-    let pp_pos fmt pos =
-      let Lexing.{ pos_fname; pos_lnum; pos_bol; pos_cnum = _ } = pos in
-      (* TODO: print only file by default? *)
-      fprintf fmt "%s:%d:%d" pos_fname pos_lnum pos_bol
-    in
-    let Location.{ loc_start; loc_end; loc_ghost = _ } = loc in
-    match Location.is_none loc with
-    | true -> fprintf fmt "[%a .. %a]" pp_pos loc_start pp_pos loc_end
-    | false -> fprintf fmt "[__NONE__]"
-
   let pp_term_syntax ~pp_wrapped ~pp_alias ~pp_funct ~pp_apply ~pp_atom fmt term
       =
     match term with
-    | PT_loc { term; loc } -> fprintf fmt "%a#%a" pp_atom term pp_loc loc
     | PT_typed { term; type_ } ->
         fprintf fmt "%a #:# %a" pp_funct term pp_wrapped type_
     | PT_var_name { name } -> fprintf fmt "%s" (Name.repr name)
@@ -64,8 +51,7 @@ module Ptree = struct
     let pp_apply fmt term = pp_term Apply fmt term in
     let pp_atom fmt term = pp_term Atom fmt term in
     match (term, prec) with
-    | ( (PT_loc _ | PT_var_full _ | PT_var_name _),
-        (Wrapped | Alias | Funct | Apply | Atom) )
+    | (PT_var_full _ | PT_var_name _), (Wrapped | Alias | Funct | Apply | Atom)
     | (PT_apply _ | PT_unroll _), (Wrapped | Alias | Funct | Apply)
     | ( (PT_forall _ | PT_lambda _ | PT_self _ | PT_fix _),
         (Wrapped | Alias | Funct) )
@@ -84,24 +70,13 @@ end
 (* TODO: probably make printer tree *)
 
 type typed_mode = Typed_default | Typed_force
-type loc_mode = Loc_default | Loc_meaningful | Loc_force
 type var_mode = Var_name | Var_full
 
 (* TODO: mode to expand substitutions *)
-type config = {
-  typed_mode : typed_mode;
-  loc_mode : loc_mode;
-  var_mode : var_mode;
-}
+type config = { typed_mode : typed_mode; var_mode : var_mode }
 
 let should_print_typed config =
   match config.typed_mode with Typed_default -> false | Typed_force -> true
-
-let should_print_loc config ~loc =
-  match config.loc_mode with
-  | Loc_default -> false
-  | Loc_force -> true
-  | Loc_meaningful -> not (Location.is_none loc)
 
 let ptree_of_var config var =
   let open Ptree in
@@ -118,11 +93,6 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
   let ptree_of_term term = ptree_of_term config term in
   let ptree_of_pat pat = ptree_of_pat config pat in
   match term with
-  | TT_loc { term; loc } -> (
-      let term = ptree_of_term term in
-      match should_print_loc config ~loc with
-      | true -> PT_loc { term; loc }
-      | false -> term)
   | TT_var { var } -> ptree_of_var var
   | TT_forall { param; return } ->
       let param = ptree_of_pat param in
@@ -155,12 +125,6 @@ and ptree_of_pat : type a. _ -> a pat -> _ =
   let ptree_of_term term = ptree_of_term config term in
   let ptree_of_pat pat = ptree_of_pat config pat in
   match pat with
-  | TP_loc { pat; loc } -> (
-      let pat = ptree_of_pat pat in
-      match should_print_loc config ~loc with
-      (* TODO: calling this term is weird *)
-      | true -> PT_loc { term = pat; loc }
-      | false -> pat)
   | TP_typed { pat; type_ } -> (
       let pat = ptree_of_pat pat in
       match should_print_typed config with
@@ -171,8 +135,7 @@ and ptree_of_pat : type a. _ -> a pat -> _ =
       | false -> pat)
   | TP_var { var } -> ptree_of_var var
 
-let config =
-  { typed_mode = Typed_default; loc_mode = Loc_default; var_mode = Var_name }
+let config = { typed_mode = Typed_default; var_mode = Var_name }
 
 let pp_term fmt term =
   let pterm = ptree_of_term config term in
