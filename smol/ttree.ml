@@ -1,20 +1,13 @@
-type loc = Location
-type typed = Typed
-type core = Core
+type ty_term = TT_typed of { term : term; type_ : term }
 
-type _ term =
-  | TT_var : { var : Var.t } -> core term
-  | TT_forall : { param : typed pat; return : _ term } -> core term
-  | TT_lambda : { param : typed pat; return : _ term } -> core term
-  | TT_apply : { lambda : _ term; arg : _ term } -> core term
-  | TT_self : { bound : _ pat; body : _ term } -> core term
-  | TT_fix : { bound : typed pat; body : _ term } -> core term
-  | TT_unroll : { term : _ term } -> core term
+and term =
+  | TT_var of { var : Var.t }
+  | TT_forall of { param : ty_pat; return : term }
+  | TT_lambda of { param : ty_pat; return : term }
+  | TT_apply of { lambda : term; arg : term }
+  | TT_self of { bound : pat; body : term }
+  | TT_fix of { bound : ty_pat; body : term }
+  | TT_unroll of { term : term }
 
-and _ pat =
-  | TP_typed : { pat : _ pat; type_ : _ term } -> typed pat
-  | TP_var : { var : Var.t } -> core pat
-
-type ty_term = TT_typed : { term : _ term; type_ : _ term } -> ty_term
-type ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
-type ex_pat = Ex_pat : _ pat -> ex_pat [@@ocaml.unboxed]
+and ty_pat = TP_typed of { pat : pat; type_ : term }
+and pat = TP_var of { var : Var.t }

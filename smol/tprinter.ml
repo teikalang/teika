@@ -86,20 +86,20 @@ let ptree_of_var config var =
       PT_var_name { name }
   | Var_full -> PT_var_full { var }
 
-let rec ptree_of_term : type a. _ -> a term -> _ =
- fun config (term : a term) ->
+let rec ptree_of_term config term =
   let open Ptree in
   let ptree_of_var var = ptree_of_var config var in
   let ptree_of_term term = ptree_of_term config term in
+  let ptree_of_ty_pat pat = ptree_of_ty_pat config pat in
   let ptree_of_pat pat = ptree_of_pat config pat in
   match term with
   | TT_var { var } -> ptree_of_var var
   | TT_forall { param; return } ->
-      let param = ptree_of_pat param in
+      let param = ptree_of_ty_pat param in
       let return = ptree_of_term return in
       PT_forall { param; return }
   | TT_lambda { param; return } ->
-      let param = ptree_of_pat param in
+      let param = ptree_of_ty_pat param in
       let return = ptree_of_term return in
       PT_lambda { param; return }
   | TT_apply { lambda; arg } ->
@@ -111,17 +111,15 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
       let body = ptree_of_term body in
       PT_self { bound; body }
   | TT_fix { bound; body } ->
-      let bound = ptree_of_pat bound in
+      let bound = ptree_of_ty_pat bound in
       let body = ptree_of_term body in
       PT_fix { bound; body }
   | TT_unroll { term } ->
       let term = ptree_of_term term in
       PT_unroll { term }
 
-and ptree_of_pat : type a. _ -> a pat -> _ =
- fun config pat ->
+and ptree_of_ty_pat config pat =
   let open Ptree in
-  let ptree_of_var var = ptree_of_var config var in
   let ptree_of_term term = ptree_of_term config term in
   let ptree_of_pat pat = ptree_of_pat config pat in
   match pat with
@@ -133,7 +131,10 @@ and ptree_of_pat : type a. _ -> a pat -> _ =
           (* TODO: calling this term is weird *)
           PT_typed { term = pat; type_ }
       | false -> pat)
-  | TP_var { var } -> ptree_of_var var
+
+and ptree_of_pat config pat =
+  let ptree_of_var var = ptree_of_var config var in
+  match pat with TP_var { var } -> ptree_of_var var
 
 let config = { typed_mode = Typed_default; var_mode = Var_name }
 
@@ -144,6 +145,3 @@ let pp_term fmt term =
 let pp_pat fmt pat =
   let pterm = ptree_of_pat config pat in
   Ptree.pp_term fmt pterm
-
-let pp_ex_term fmt (Ex_term term) = pp_term fmt term
-let pp_ex_pat fmt (Ex_pat pat) = pp_pat fmt pat

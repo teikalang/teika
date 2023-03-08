@@ -62,7 +62,7 @@ let type_term term =
     Lparser.parse_term ~loc term
   in
   let ctx = Ttyper.Context.initial in
-  Ttyper.infer_term ctx term
+  Ttyper.infer_ty_term ctx term
 
 let test { name; term } =
   let check () =
