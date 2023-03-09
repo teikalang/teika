@@ -47,3 +47,9 @@ let predef name =
   create name
 
 let type_ = predef "Type"
+
+module Map = Map.Make (struct
+  type t = var
+
+  let compare = compare
+end)
