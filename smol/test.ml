@@ -42,6 +42,16 @@ let false_ =
     {|((A : Type) => (x : A) => (y : A) => y
       :(A : Type) -> (x : A) -> (y : A) -> A)|}
 
+let falseT =
+  type_term "FalseT"
+    {|((False : False @-> (f : f @-> @False f) -> Type) @=>
+        (f : f @-> @False f) => (P : (f : f @-> @False f) -> Type) -> P f)|}
+
+let unitT =
+  type_term "UnitT"
+    {|(Unit @-> (unit : unit @-> @Unit unit unit) ->
+        (u : u @-> @Unit u u) -> Type : Type)|}
+
 let tests =
   [
     id;
@@ -52,6 +62,8 @@ let tests =
     true_;
     (* true_propagate; *)
     false_;
+    falseT;
+    unitT;
   ]
 
 let type_term term =
