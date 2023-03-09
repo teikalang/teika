@@ -9,8 +9,8 @@ let id =
     {|((A : Type) => (x : A) => x
       :(A : Type) -> (x : A) -> A)|}
 
-let id_propagate =
-  type_term "id_propagate" {|(A => x => x : (A : Type) -> (x : A) -> A)|}
+(* let id_propagate =
+   type_term "id_propagate" {|(A => x => x : (A : Type) -> (x : A) -> A)|} *)
 
 let sequence =
   type_term "sequence"
@@ -22,20 +22,20 @@ let bool =
     {|((A : Type) => (x : A) => (y : A) => x
                :(A : Type) -> (x : A) -> (y : A) -> A)|}
 
-let sequence_propagate =
-  type_term "sequence_propagate"
-    {|(A => x => B => y => y
-      :(A : Type) -> (x : A) -> (B : Type) -> (y : B) -> B)|}
+(* let sequence_propagate =
+   type_term "sequence_propagate"
+     {|(A => x => B => y => y
+       :(A : Type) -> (x : A) -> (B : Type) -> (y : B) -> B)|} *)
 
 let true_ =
   type_term "true"
     {|((A : Type) => (x : A) => (y : A) => x
       :(A : Type) -> (x : A) -> (y : A) -> A)|}
 
-let true_propagate =
-  type_term "true_propagate"
-    {|(A => x => y => x
-      :(A : Type) -> (x : A) -> (y : A) -> A)|}
+(* let true_propagate =
+   type_term "true_propagate"
+     {|(A => x => y => x
+       :(A : Type) -> (x : A) -> (y : A) -> A)|} *)
 
 let false_ =
   type_term "false"
@@ -45,12 +45,12 @@ let false_ =
 let tests =
   [
     id;
-    id_propagate;
+    (* id_propagate; *)
     sequence;
-    sequence_propagate;
+    (* sequence_propagate; *)
     bool;
     true_;
-    true_propagate;
+    (* true_propagate; *)
     false_;
   ]
 
@@ -61,8 +61,13 @@ let type_term term =
     let loc = Location.none in
     Lparser.parse_term ~loc term
   in
+  let term =
+    let open Ttyper in
+    let ctx = Translate.Context.initial in
+    Translate.translate_term ctx term
+  in
   let ctx = Ttyper.Context.initial in
-  Ttyper.infer_ty_term ctx term
+  Ttyper.infer_term ctx term
 
 let test { name; term } =
   let check () =

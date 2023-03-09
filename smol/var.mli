@@ -9,3 +9,5 @@ val name : var -> Name.t
 (* predefined *)
 (* Type *)
 val type_ : var
+
+module Map : Map.S with type key = t
