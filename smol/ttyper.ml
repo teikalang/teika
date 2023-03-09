@@ -167,35 +167,67 @@ let wrap_pat type_ pat = TP_typed { pat; type_ }
 let tt_type = TT_var { var = Var.type_ }
 
 module Context : sig
-  type context
-  type t = context
+  type 'tag context
+  type 'tag t = 'tag context
 
-  val initial : context
-  val enter_param : param:ty_pat -> context -> context
-  val enter_alias : bound:ty_pat -> value:term -> context -> context
-  val lookup : name:Name.t -> context -> ty_term option
+  val initial : ty_term context
+  val enter_param : param:ty_pat -> 'tag context -> 'tag context
+  val enter_alias : bound:ty_pat -> value:term -> 'tag context -> 'tag context
+  val lookup : name:Name.t -> 'tag context -> 'tag option
+  val self_mode : ty_term context -> term context
 end = struct
-  type context = ty_term Name.Map.t
-  type t = context
+  type 'tag mode = M_typed : ty_term mode | M_self : term mode
+  type 'tag context = Context of { mode : 'tag mode; vars : 'tag Name.Map.t }
+  type 'tag t = 'tag context
 
   let initial =
-    let open Name.Map in
-    add (Var.name Var.type_) (wrap_term tt_type tt_type) empty
+    let mode = M_typed in
+    let vars =
+      let open Name.Map in
+      add (Var.name Var.type_) (wrap_term tt_type tt_type) empty
+    in
+    Context { mode; vars }
 
-  let enter_param ~param ctx =
+  let enter_param (type tag) ~param (ctx : tag context) =
+    let (Context { mode; vars }) = ctx in
     let var, type_ = split_pat param in
     let name = Var.name var in
-    let term = TT_typed { term = TT_var { var }; type_ } in
-    Name.Map.add name term ctx
+    let term = TT_var { var } in
+    let term : tag =
+      match mode with M_typed -> TT_typed { term; type_ } | M_self -> term
+    in
+    let vars = Name.Map.add name term vars in
+    Context { mode; vars }
 
-  let enter_alias ~bound ~value ctx =
+  let enter_alias (type tag) ~bound ~value (ctx : tag context) =
+    let (Context { mode; vars }) = ctx in
     let var, type_ = split_pat bound in
     let name = Var.name var in
     (* TODO: preserve aliasing on lookup *)
-    let term = TT_typed { term = value; type_ } in
-    Name.Map.add name term ctx
+    let term : tag =
+      match mode with
+      | M_typed -> TT_typed { term = value; type_ }
+      | M_self -> value
+    in
+    let vars = Name.Map.add name term vars in
+    Context { mode; vars }
 
-  let lookup ~name ctx = Name.Map.find_opt name ctx
+  let lookup ~name ctx =
+    let (Context { mode = _; vars }) = ctx in
+    Name.Map.find_opt name vars
+
+  let self_mode ctx =
+    let (Context { mode = _; vars }) = ctx in
+    let mode = M_self in
+    (* TODO: O(n) *)
+    let vars =
+      Name.Map.map
+        (fun ty_term ->
+          let (TT_typed { term; type_ = _ }) = ty_term in
+          term)
+        vars
+    in
+    Context { mode; vars }
 end
 
 let rec infer_ty_term ctx term =
@@ -313,3 +345,68 @@ and check_ty_pat ctx pat ~expected =
       in
       (* TODO: keep annot in typed tree as sugar *)
       pat
+
+and assume_term ctx term =
+  match term with
+  | LT_loc { term; loc = _ } ->
+      (* TODO: use this location *)
+      assume_term ctx term
+  | LT_var { var } -> (
+      (* TODO: is instantiation needed here?
+          Maybe a flag to make it even safer? *)
+      match Context.lookup ~name:var ctx with
+      | Some term -> term
+      | None -> failwith "unknown variable")
+  | LT_forall { param; return } ->
+      let param = assume_infer_pat ctx param in
+      let return =
+        let ctx = Context.enter_param ~param ctx in
+        assume_term ctx return
+      in
+      TT_forall { param; return }
+  | LT_lambda { param; return } ->
+      (* TODO: this pattern appears also in check LT_lambda *)
+      let param = assume_infer_pat ctx param in
+      let return =
+        let ctx = Context.enter_param ~param ctx in
+        assume_term ctx return
+      in
+      TT_lambda { param; return }
+  | LT_apply { lambda; arg } ->
+      let lambda = assume_term ctx lambda in
+      let arg = assume_term ctx arg in
+      TT_apply { lambda; arg }
+  | LT_self _ | LT_fix _ | LT_unroll _ -> failwith "not implemented"
+  | LT_alias { bound; value; return } ->
+      (* TODO: keep alias in typed tree as sugar *)
+      let bound = assume_infer_pat ctx bound in
+      let value = assume_term ctx value in
+
+      (* TODO: keep alias in typed tree as sugar *)
+      let ctx = Context.enter_alias ~bound ~value ctx in
+      assume_term ctx return
+  | LT_annot { term; annot = _ } -> assume_term ctx term
+
+and assume_infer_pat ctx pat =
+  match pat with
+  | LP_loc { pat; loc = _ } ->
+      (* TODO: use this location *)
+      assume_infer_pat ctx pat
+  | LP_var { var = _ } -> failwith "missing type annotation"
+  | LP_annot { pat; annot } ->
+      let type_ = assume_term ctx annot in
+      let rec find_var pat =
+        match pat with
+        | LP_loc { pat; loc = _ } ->
+            (* TODO: use this location *)
+            find_var pat
+        | LP_var { var } -> var
+        | LP_annot { pat; annot = _ } -> find_var pat
+      in
+
+      let pat =
+        let var = find_var pat in
+        let var = Var.create var in
+        TP_var { var }
+      in
+      TP_typed { pat; type_ }
