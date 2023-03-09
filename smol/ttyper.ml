@@ -1,6 +1,125 @@
 open Ltree
 open Ttree
 
+(* utils *)
+let pat_var pat = match pat with TP_var { var } -> var
+
+module Translate = struct
+  module Context : sig
+    type context
+    type t = context
+
+    val initial : context
+    val enter : name:Name.t -> term -> context -> context
+    val lookup : name:Name.t -> context -> term option
+  end = struct
+    type context = term Name.Map.t
+    type t = context
+
+    let initial =
+      let open Name.Map in
+      add (Var.name Var.type_) (TT_var { var = Var.type_ }) empty
+
+    let enter ~name term ctx = Name.Map.add name term ctx
+    let lookup ~name ctx = Name.Map.find_opt name ctx
+  end
+
+  let enter_param ~param ctx =
+    let (TP_typed { pat; type_ = _ }) = param in
+    let var = pat_var pat in
+    let name = Var.name var in
+    let term = TT_var { var } in
+    Context.enter ~name term ctx
+
+  let enter_self ~bound ctx =
+    let var = pat_var bound in
+    let name = Var.name var in
+    let term = TT_var { var } in
+    Context.enter ~name term ctx
+
+  let enter_alias ~bound ~value ctx =
+    let (TP_typed { pat; type_ = _ }) = bound in
+    let var = pat_var pat in
+    let name = Var.name var in
+    Context.enter ~name value ctx
+
+  let rec translate_term ctx term =
+    match term with
+    | LT_loc { term; loc = _ } ->
+        (* TODO: use this location *)
+        translate_term ctx term
+    | LT_var { var } -> (
+        match Context.lookup ~name:var ctx with
+        | Some term -> term
+        | None -> failwith "unknown variable")
+    | LT_forall { param; return } ->
+        let param = translate_ty_pat ctx param in
+        let return =
+          let ctx = enter_param ~param ctx in
+          translate_term ctx return
+        in
+        TT_forall { param; return }
+    | LT_lambda { param; return } ->
+        (* TODO: this pattern appears also in check LT_lambda *)
+        let param = translate_ty_pat ctx param in
+        let return =
+          let ctx = enter_param ~param ctx in
+          translate_term ctx return
+        in
+        TT_lambda { param; return }
+    | LT_apply { lambda; arg } ->
+        let lambda = translate_term ctx lambda in
+        let arg = translate_term ctx arg in
+        TT_apply { lambda; arg }
+    | LT_self { bound; body } ->
+        let bound = translate_pat bound in
+        let body =
+          let ctx = enter_self ~bound ctx in
+          translate_term ctx body
+        in
+        TT_self { bound; body }
+    | LT_fix { bound; body } ->
+        let bound = translate_ty_pat ctx bound in
+        let body =
+          (* TODO: bad naming *)
+          let ctx = enter_param ~param:bound ctx in
+          translate_term ctx body
+        in
+        TT_fix { bound; body }
+    | LT_unroll { term } ->
+        let term = translate_term ctx term in
+        TT_unroll { term }
+    | LT_alias { bound; value; return } ->
+        (* TODO: use annotation in bound  *)
+        let bound = translate_ty_pat ctx bound in
+        let value = translate_term ctx value in
+        let ctx = enter_alias ~bound ~value ctx in
+        translate_term ctx return
+    | LT_annot { term; annot = _ } ->
+        (* TODO: use annotation *)
+        translate_term ctx term
+
+  and translate_ty_pat ctx pat =
+    match pat with
+    | LP_loc { pat; loc = _ } ->
+        (* TODO: use this location *)
+        translate_ty_pat ctx pat
+    | LP_var { var = _ } -> failwith "missing type annotation"
+    | LP_annot { pat; annot } ->
+        let type_ = translate_term ctx annot in
+        let pat = translate_pat pat in
+        TP_typed { pat; type_ }
+
+  and translate_pat pat =
+    match pat with
+    | LP_loc { pat; loc = _ } ->
+        (* TODO: use this location *)
+        translate_pat pat
+    | LP_var { var } ->
+        let var = Var.create var in
+        TP_var { var }
+    | LP_annot { pat = _; annot = _ } -> failwith "unexpected type annotation"
+end
 (* TODO: remove all failwith *)
 
 let pat_var pat = match pat with TP_var { var } -> var
@@ -345,68 +464,3 @@ and check_ty_pat ctx pat ~expected =
       in
       (* TODO: keep annot in typed tree as sugar *)
       pat
-
-and assume_term ctx term =
-  match term with
-  | LT_loc { term; loc = _ } ->
-      (* TODO: use this location *)
-      assume_term ctx term
-  | LT_var { var } -> (
-      (* TODO: is instantiation needed here?
-          Maybe a flag to make it even safer? *)
-      match Context.lookup ~name:var ctx with
-      | Some term -> term
-      | None -> failwith "unknown variable")
-  | LT_forall { param; return } ->
-      let param = assume_infer_pat ctx param in
-      let return =
-        let ctx = Context.enter_param ~param ctx in
-        assume_term ctx return
-      in
-      TT_forall { param; return }
-  | LT_lambda { param; return } ->
-      (* TODO: this pattern appears also in check LT_lambda *)
-      let param = assume_infer_pat ctx param in
-      let return =
-        let ctx = Context.enter_param ~param ctx in
-        assume_term ctx return
-      in
-      TT_lambda { param; return }
-  | LT_apply { lambda; arg } ->
-      let lambda = assume_term ctx lambda in
-      let arg = assume_term ctx arg in
-      TT_apply { lambda; arg }
-  | LT_self _ | LT_fix _ | LT_unroll _ -> failwith "not implemented"
-  | LT_alias { bound; value; return } ->
-      (* TODO: keep alias in typed tree as sugar *)
-      let bound = assume_infer_pat ctx bound in
-      let value = assume_term ctx value in
-
-      (* TODO: keep alias in typed tree as sugar *)
-      let ctx = Context.enter_alias ~bound ~value ctx in
-      assume_term ctx return
-  | LT_annot { term; annot = _ } -> assume_term ctx term
-
-and assume_infer_pat ctx pat =
-  match pat with
-  | LP_loc { pat; loc = _ } ->
-      (* TODO: use this location *)
-      assume_infer_pat ctx pat
-  | LP_var { var = _ } -> failwith "missing type annotation"
-  | LP_annot { pat; annot } ->
-      let type_ = assume_term ctx annot in
-      let rec find_var pat =
-        match pat with
-        | LP_loc { pat; loc = _ } ->
-            (* TODO: use this location *)
-            find_var pat
-        | LP_var { var } -> var
-        | LP_annot { pat; annot = _ } -> find_var pat
-      in
-
-      let pat =
-        let var = find_var pat in
-        let var = Var.create var in
-        TP_var { var }
-      in
-      TP_typed { pat; type_ }
