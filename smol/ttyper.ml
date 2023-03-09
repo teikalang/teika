@@ -3,6 +3,167 @@ open Ttree
 
 (* utils *)
 let pat_var pat = match pat with TP_var { var } -> var
+let ty_pat_var pat = match pat with TP_typed { pat; type_ = _ } -> pat_var pat
+
+let split_pat pat =
+  let (TP_typed { pat; type_ }) = pat in
+  (pat_var pat, type_)
+
+(* TODO: maybe Var.copy *)
+let copy_var var = Var.create (Var.name var)
+
+let typeof_term term =
+  let (TT_typed { term = _; type_ }) = term in
+  type_
+
+let typeof_pat term =
+  let (TP_typed { pat = _; type_ }) = term in
+  type_
+
+let wrap_term type_ term = TT_typed { term; type_ }
+let wrap_pat type_ pat = TP_typed { pat; type_ }
+let tt_type = TT_var { var = Var.type_ }
+
+module Machinery = struct
+  let rec subst_term ~from ~to_ term =
+    let subst_term term = subst_term ~from ~to_ term in
+    let subst_ty_pat pat = subst_ty_pat ~from ~to_ pat in
+    let subst_pat pat = subst_pat ~from ~to_ pat in
+    match term with
+    | TT_var { var } -> (
+        match Var.equal var from with true -> to_ | false -> TT_var { var })
+    | TT_forall { param; return } ->
+        let param = subst_ty_pat param in
+        let return =
+          match Var.equal from (ty_pat_var param) with
+          | true -> return
+          | false -> subst_term return
+        in
+        TT_forall { param; return }
+    | TT_lambda { param; return } ->
+        let param = subst_ty_pat param in
+        let return =
+          match Var.equal from (ty_pat_var param) with
+          | true -> return
+          | false -> subst_term return
+        in
+        TT_lambda { param; return }
+    | TT_apply { lambda; arg } ->
+        let lambda = subst_term lambda in
+        let arg = subst_term arg in
+        TT_apply { lambda; arg }
+    | TT_self { bound; body } ->
+        let bound = subst_pat bound in
+        let body =
+          match Var.equal from (pat_var bound) with
+          | true -> body
+          | false -> subst_term body
+        in
+        TT_self { bound; body }
+    | TT_fix { bound; body } ->
+        let bound = subst_ty_pat bound in
+        let body =
+          match Var.equal from (ty_pat_var bound) with
+          | true -> body
+          | false -> subst_term body
+        in
+        TT_fix { bound; body }
+    | TT_unroll { term } ->
+        let term = subst_term term in
+        TT_unroll { term }
+
+  and subst_ty_pat ~from ~to_ pat : ty_pat =
+    let subst_term term = subst_term ~from ~to_ term in
+    let subst_pat pat = subst_pat ~from ~to_ pat in
+    match pat with
+    | TP_typed { pat; type_ } ->
+        let pat = subst_pat pat in
+        let type_ = subst_term type_ in
+        TP_typed { pat; type_ }
+
+  and subst_pat ~from:_ ~to_:_ pat = match pat with TP_var _ as pat -> pat
+
+  let rename_term ~from ~to_ term =
+    let to_ = TT_var { var = to_ } in
+    subst_term ~from ~to_ term
+
+  let rec expand_head term =
+    match term with
+    | TT_var _ as term -> term
+    | TT_forall _ as term -> term
+    | TT_lambda _ as term -> term
+    | TT_apply { lambda; arg } -> (
+        match expand_head lambda with
+        | TT_lambda { param; return } ->
+            expand_head @@ subst_term ~from:(ty_pat_var param) ~to_:arg return
+        | _ -> TT_apply { lambda; arg })
+    | TT_self _ as term -> term
+    | TT_fix _ as term -> term
+    | TT_unroll { term } -> (
+        match expand_head term with
+        | TT_fix { bound; body } ->
+            expand_head @@ subst_term ~from:(ty_pat_var bound) ~to_:term body
+        | _ -> TT_unroll { term })
+
+  let rec equal_term ~received ~expected =
+    let received = expand_head received in
+    let expected = expand_head expected in
+    match (received, expected) with
+    | TT_var { var = received }, TT_var { var = expected } -> (
+        match Var.equal received expected with
+        | true -> ()
+        | false -> failwith "var clash")
+    | ( TT_forall { param = received_param; return = received_return },
+        TT_forall { param = expected_param; return = expected_return } ) ->
+        let received_var, received_type = split_pat received_param in
+        let expected_var, expected_type = split_pat expected_param in
+        (* TODO: is the checking of annotation needed? Maybe a flag? *)
+        equal_term ~received:expected_type ~expected:received_type;
+        equal_term_alpha_rename ~received_var ~expected_var
+          ~received:received_return ~expected:expected_return
+    | ( TT_lambda { param = received_param; return = received_return },
+        TT_lambda { param = expected_param; return = expected_return } ) ->
+        let received_var, received_type = split_pat received_param in
+        let expected_var, expected_type = split_pat expected_param in
+        (* TODO: is the checking of annotation needed? Maybe a flag? *)
+        equal_term ~received:expected_type ~expected:received_type;
+        equal_term_alpha_rename ~received_var ~expected_var
+          ~received:received_return ~expected:expected_return
+    | ( TT_apply { lambda = received_lambda; arg = received_arg },
+        TT_apply { lambda = expected_lambda; arg = expected_arg } ) ->
+        equal_term ~received:received_lambda ~expected:expected_lambda;
+        equal_term ~received:received_arg ~expected:expected_arg
+    | ( TT_self { bound = received_bound; body = received_body },
+        TT_self { bound = expected_bound; body = expected_body } ) ->
+        let received_var = pat_var received_bound in
+        let expected_var = pat_var expected_bound in
+        equal_term_alpha_rename ~received_var ~expected_var
+          ~received:received_body ~expected:expected_body
+    | ( TT_fix { bound = received_bound; body = received_body },
+        TT_fix { bound = expected_bound; body = expected_body } ) ->
+        let received_var, received_type = split_pat received_bound in
+        let expected_var, expected_type = split_pat expected_bound in
+        equal_term ~received:expected_type ~expected:received_type;
+        equal_term_alpha_rename ~received_var ~expected_var
+          ~received:received_body ~expected:expected_body
+    | TT_unroll { term = received }, TT_unroll { term = expected } ->
+        equal_term ~received ~expected
+    | ( ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _
+        | TT_fix _ | TT_unroll _ ),
+        ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _
+        | TT_fix _ | TT_unroll _ ) ) ->
+        failwith "type clash"
+
+  and equal_term_alpha_rename ~received_var ~expected_var ~received ~expected =
+    (* TODO: explain cross alpha rename *)
+    (* TODO: why not rename to single side? like received_var := expected_var *)
+    let skolem_var = copy_var expected_var in
+    let received = rename_term ~from:received_var ~to_:skolem_var received in
+    let received = rename_term ~from:expected_var ~to_:skolem_var received in
+    let expected = rename_term ~from:received_var ~to_:skolem_var expected in
+    let expected = rename_term ~from:expected_var ~to_:skolem_var expected in
+    equal_term ~received ~expected
+end
 
 module Translate = struct
   module Context : sig
@@ -122,169 +283,6 @@ module Translate = struct
 end
 (* TODO: remove all failwith *)
 
-let pat_var pat = match pat with TP_var { var } -> var
-let ty_pat_var pat = match pat with TP_typed { pat; type_ = _ } -> pat_var pat
-
-let rec subst_term ~from ~to_ term =
-  let subst_term term = subst_term ~from ~to_ term in
-  let subst_ty_pat pat = subst_ty_pat ~from ~to_ pat in
-  let subst_pat pat = subst_pat ~from ~to_ pat in
-  match term with
-  | TT_var { var } -> (
-      match Var.equal var from with true -> to_ | false -> TT_var { var })
-  | TT_forall { param; return } ->
-      let param = subst_ty_pat param in
-      let return =
-        match Var.equal from (ty_pat_var param) with
-        | true -> return
-        | false -> subst_term return
-      in
-      TT_forall { param; return }
-  | TT_lambda { param; return } ->
-      let param = subst_ty_pat param in
-      let return =
-        match Var.equal from (ty_pat_var param) with
-        | true -> return
-        | false -> subst_term return
-      in
-      TT_lambda { param; return }
-  | TT_apply { lambda; arg } ->
-      let lambda = subst_term lambda in
-      let arg = subst_term arg in
-      TT_apply { lambda; arg }
-  | TT_self { bound; body } ->
-      let bound = subst_pat bound in
-      let body =
-        match Var.equal from (pat_var bound) with
-        | true -> body
-        | false -> subst_term body
-      in
-      TT_self { bound; body }
-  | TT_fix { bound; body } ->
-      let bound = subst_ty_pat bound in
-      let body =
-        match Var.equal from (ty_pat_var bound) with
-        | true -> body
-        | false -> subst_term body
-      in
-      TT_fix { bound; body }
-  | TT_unroll { term } ->
-      let term = subst_term term in
-      TT_unroll { term }
-
-and subst_ty_pat ~from ~to_ pat : ty_pat =
-  let subst_term term = subst_term ~from ~to_ term in
-  let subst_pat pat = subst_pat ~from ~to_ pat in
-  match pat with
-  | TP_typed { pat; type_ } ->
-      let pat = subst_pat pat in
-      let type_ = subst_term type_ in
-      TP_typed { pat; type_ }
-
-and subst_pat ~from:_ ~to_:_ pat = match pat with TP_var _ as pat -> pat
-
-let rename_term ~from ~to_ term =
-  let to_ = TT_var { var = to_ } in
-  subst_term ~from ~to_ term
-
-let rec expand_head term =
-  match term with
-  | TT_var _ as term -> term
-  | TT_forall _ as term -> term
-  | TT_lambda _ as term -> term
-  | TT_apply { lambda; arg } -> (
-      match expand_head lambda with
-      | TT_lambda { param; return } ->
-          expand_head @@ subst_term ~from:(ty_pat_var param) ~to_:arg return
-      | _ -> TT_apply { lambda; arg })
-  | TT_self _ as term -> term
-  | TT_fix _ as term -> term
-  | TT_unroll { term } -> (
-      match expand_head term with
-      | TT_fix { bound; body } ->
-          expand_head @@ subst_term ~from:(ty_pat_var bound) ~to_:term body
-      | _ -> TT_unroll { term })
-
-let split_pat pat =
-  let (TP_typed { pat; type_ }) = pat in
-  (pat_var pat, type_)
-
-(* TODO: maybe Var.copy *)
-let copy_var var = Var.create (Var.name var)
-
-(* equal1 checks for physical equality
-   equal2 does structural equality *)
-let rec equal_term ~received ~expected =
-  let received = expand_head received in
-  let expected = expand_head expected in
-  match (received, expected) with
-  | TT_var { var = received }, TT_var { var = expected } -> (
-      match Var.equal received expected with
-      | true -> ()
-      | false -> failwith "var clash")
-  | ( TT_forall { param = received_param; return = received_return },
-      TT_forall { param = expected_param; return = expected_return } ) ->
-      let received_var, received_type = split_pat received_param in
-      let expected_var, expected_type = split_pat expected_param in
-      (* TODO: is the checking of annotation needed? Maybe a flag? *)
-      equal_term ~received:expected_type ~expected:received_type;
-      equal_term_alpha_rename ~received_var ~expected_var
-        ~received:received_return ~expected:expected_return
-  | ( TT_lambda { param = received_param; return = received_return },
-      TT_lambda { param = expected_param; return = expected_return } ) ->
-      let received_var, received_type = split_pat received_param in
-      let expected_var, expected_type = split_pat expected_param in
-      (* TODO: is the checking of annotation needed? Maybe a flag? *)
-      equal_term ~received:expected_type ~expected:received_type;
-      equal_term_alpha_rename ~received_var ~expected_var
-        ~received:received_return ~expected:expected_return
-  | ( TT_apply { lambda = received_lambda; arg = received_arg },
-      TT_apply { lambda = expected_lambda; arg = expected_arg } ) ->
-      equal_term ~received:received_lambda ~expected:expected_lambda;
-      equal_term ~received:received_arg ~expected:expected_arg
-  | ( TT_self { bound = received_bound; body = received_body },
-      TT_self { bound = expected_bound; body = expected_body } ) ->
-      let received_var = pat_var received_bound in
-      let expected_var = pat_var expected_bound in
-      equal_term_alpha_rename ~received_var ~expected_var
-        ~received:received_body ~expected:expected_body
-  | ( TT_fix { bound = received_bound; body = received_body },
-      TT_fix { bound = expected_bound; body = expected_body } ) ->
-      let received_var, received_type = split_pat received_bound in
-      let expected_var, expected_type = split_pat expected_bound in
-      equal_term ~received:expected_type ~expected:received_type;
-      equal_term_alpha_rename ~received_var ~expected_var
-        ~received:received_body ~expected:expected_body
-  | TT_unroll { term = received }, TT_unroll { term = expected } ->
-      equal_term ~received ~expected
-  | ( ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _ | TT_fix _
-      | TT_unroll _ ),
-      ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _ | TT_fix _
-      | TT_unroll _ ) ) ->
-      failwith "type clash"
-
-and equal_term_alpha_rename ~received_var ~expected_var ~received ~expected =
-  (* TODO: explain cross alpha rename *)
-  (* TODO: why not rename to single side? like received_var := expected_var *)
-  let skolem_var = copy_var expected_var in
-  let received = rename_term ~from:received_var ~to_:skolem_var received in
-  let received = rename_term ~from:expected_var ~to_:skolem_var received in
-  let expected = rename_term ~from:received_var ~to_:skolem_var expected in
-  let expected = rename_term ~from:expected_var ~to_:skolem_var expected in
-  equal_term ~received ~expected
-
-let typeof_term term =
-  let (TT_typed { term = _; type_ }) = term in
-  type_
-
-let typeof_pat term =
-  let (TP_typed { pat = _; type_ }) = term in
-  type_
-
-let wrap_term type_ term = TT_typed { term; type_ }
-let wrap_pat type_ pat = TP_typed { pat; type_ }
-let tt_type = TT_var { var = Var.type_ }
-
 module Context : sig
   type 'tag context
   type 'tag t = 'tag context
@@ -348,6 +346,8 @@ end = struct
     in
     Context { mode; vars }
 end
+
+open Machinery
 
 let rec infer_ty_term ctx term =
   match term with
