@@ -35,6 +35,9 @@ let rec parse_term ~loc term =
   | ST_unroll { term } ->
       let term = parse_term ~loc term in
       LT_unroll { term }
+  | ST_expand { term } ->
+      let term = parse_term ~loc term in
+      LT_expand { term }
   | ST_alias { bound; value; return } ->
       let bound = parse_pat ~loc bound in
       let value = parse_term ~loc value in
@@ -57,5 +60,5 @@ and parse_pat ~loc term =
       let annot = parse_term ~loc annot in
       LP_annot { pat; annot }
   | ST_forall _ | ST_lambda _ | ST_apply _ | ST_self _ | ST_fix _ | ST_unroll _
-  | ST_alias _ ->
+  | ST_expand _ | ST_alias _ ->
       raise (Invalid_notation { loc })

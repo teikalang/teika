@@ -15,6 +15,7 @@ module Ptree = struct
     | PT_self of { bound : term; body : term }
     | PT_fix of { bound : term; body : term }
     | PT_unroll of { term : term }
+    | PT_expand of { term : term }
     | PT_alias of { bound : term; value : term; return : term }
     | PT_annot of { term : term; annot : term }
 
@@ -36,6 +37,7 @@ module Ptree = struct
     | PT_fix { bound; body } ->
         fprintf fmt "%a @=> %a" pp_atom bound pp_funct body
     | PT_unroll { term } -> fprintf fmt "@%a" pp_atom term
+    | PT_expand { term } -> fprintf fmt "%%expand %a" pp_apply term
     | PT_alias { bound; value; return } ->
         fprintf fmt "%a === %a; %a" pp_apply bound pp_funct value pp_alias
           return
@@ -52,14 +54,14 @@ module Ptree = struct
     let pp_atom fmt term = pp_term Atom fmt term in
     match (term, prec) with
     | (PT_var_full _ | PT_var_name _), (Wrapped | Alias | Funct | Apply | Atom)
-    | (PT_apply _ | PT_unroll _), (Wrapped | Alias | Funct | Apply)
+    | (PT_apply _ | PT_unroll _ | PT_expand _), (Wrapped | Alias | Funct | Apply)
     | ( (PT_forall _ | PT_lambda _ | PT_self _ | PT_fix _),
         (Wrapped | Alias | Funct) )
     | PT_alias _, (Wrapped | Alias)
     | (PT_typed _ | PT_annot _), Wrapped ->
         pp_term_syntax ~pp_wrapped ~pp_alias ~pp_funct ~pp_apply ~pp_atom fmt
           term
-    | (PT_apply _ | PT_unroll _), Atom
+    | (PT_apply _ | PT_unroll _ | PT_expand _), Atom
     | (PT_forall _ | PT_lambda _ | PT_self _ | PT_fix _), (Apply | Atom)
     | PT_alias _, (Funct | Apply | Atom)
     | (PT_typed _ | PT_annot _), (Alias | Funct | Apply | Atom) ->
@@ -117,6 +119,9 @@ let rec ptree_of_term config term =
   | TT_unroll { term } ->
       let term = ptree_of_term term in
       PT_unroll { term }
+  | TT_expand { term } ->
+      let term = ptree_of_term term in
+      PT_expand { term }
 
 and ptree_of_ty_pat config pat =
   let open Ptree in

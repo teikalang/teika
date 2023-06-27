@@ -12,6 +12,7 @@ let wrap (loc_start, loc_end) term =
 %token FIX (* @-> *)
 %token SELF (* @=> *)
 %token UNROLL (* @ *)
+%token EXPAND (* %expand *)
 %token ALIAS (* === *)
 %token COLON (* : *)
 %token SEMICOLON (* ; *)
@@ -51,10 +52,11 @@ let term_rec_funct :=
 let term_rec_apply :=
   | term_atom
   | term_apply(term_rec_apply, term_atom)
-  | term_unroll(term_atom)
+  | term_expand(term_atom)
 
 let term_atom :=
   | term_var
+  | term_unroll(term_atom)
   | term_parens(term)
 
 let term_var ==
@@ -75,6 +77,9 @@ let term_fix(self, lower) ==
 let term_unroll(lower) ==
   | UNROLL; term = lower;
     { wrap $loc @@ ST_unroll { term } }
+let term_expand(lower) ==
+  | EXPAND; term = lower;
+    { wrap $loc @@ ST_expand { term } }
 let term_apply(self, lower) ==
   | lambda = self; arg = lower;
     { wrap $loc @@ ST_apply { lambda; arg } }

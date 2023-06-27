@@ -8,6 +8,7 @@ type term =
   | ST_fix of { bound : term; body : term }
   | ST_self of { bound : term; body : term }
   | ST_unroll of { term : term }
+  | ST_expand of { term : term }
   | ST_alias of { bound : term; value : term; return : term }
   | ST_annot of { term : term; annot : term }
 [@@deriving show { with_path = false }]

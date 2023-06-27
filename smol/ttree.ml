@@ -8,6 +8,7 @@ and term =
   | TT_self of { bound : pat; body : term }
   | TT_fix of { bound : ty_pat; body : term }
   | TT_unroll of { term : term }
+  | TT_expand of { term : term }
 
 and ty_pat = TP_typed of { pat : pat; type_ : term }
 and pat = TP_var of { var : Var.t }

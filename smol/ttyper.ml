@@ -72,6 +72,9 @@ module Machinery = struct
     | TT_unroll { term } ->
         let term = subst_term term in
         TT_unroll { term }
+    | TT_expand { term } ->
+        let term = subst_term term in
+        TT_expand { term }
 
   and subst_ty_pat ~from ~to_ pat : ty_pat =
     let subst_term term = subst_term ~from ~to_ term in
@@ -100,11 +103,10 @@ module Machinery = struct
         | _ -> TT_apply { lambda; arg })
     | TT_self _ as term -> term
     | TT_fix _ as term -> term
-    | TT_unroll { term } -> (
-        match expand_head term with
-        | TT_fix { bound; body } ->
-            expand_head @@ subst_term ~from:(ty_pat_var bound) ~to_:term body
-        | _ -> TT_unroll { term })
+    | TT_unroll _ as term -> term
+    | TT_expand { term } ->
+        (* TODO: is this safe? *)
+        expand_head term
 
   let rec equal_term ~received ~expected =
     let received = expand_head received in
@@ -150,9 +152,9 @@ module Machinery = struct
     | TT_unroll { term = received }, TT_unroll { term = expected } ->
         equal_term ~received ~expected
     | ( ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _
-        | TT_fix _ | TT_unroll _ ),
+        | TT_fix _ | TT_unroll _ | TT_expand _ ),
         ( TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _
-        | TT_fix _ | TT_unroll _ ) ) ->
+        | TT_fix _ | TT_unroll _ | TT_expand _ ) ) ->
         failwith "type clash"
 
   and equal_term_alpha_rename ~received_var ~expected_var ~received ~expected =
@@ -164,6 +166,27 @@ module Machinery = struct
     let expected = rename_term ~from:received_var ~to_:skolem_var expected in
     let expected = rename_term ~from:expected_var ~to_:skolem_var expected in
     equal_term ~received ~expected
+
+  let rec expand_unroll term =
+    (* TODO: this only expands shallow for convenience
+        a more principled solution is possible *)
+    (* TODO: why not expand_head? *)
+    match term with
+    | TT_var _ as term -> term
+    | TT_forall _ as term -> term
+    | TT_lambda _ as term -> term
+    | TT_apply { lambda; arg } ->
+        let lambda = expand_unroll lambda in
+        let arg = expand_unroll arg in
+        TT_apply { lambda; arg }
+    | TT_self _ as term -> term
+    | TT_fix _ as term -> term
+    | TT_unroll { term } -> (
+        match expand_head term with
+        | TT_fix { bound; body } as fix ->
+            subst_term ~from:(ty_pat_var bound) ~to_:fix body
+        | _ -> TT_unroll { term })
+    | TT_expand _ as term -> term
 end
 
 module Translate = struct
@@ -254,6 +277,9 @@ module Translate = struct
     | LT_unroll { term } ->
         let term = translate_term ctx term in
         TT_unroll { term }
+    | LT_expand { term } ->
+        let term = translate_term ctx term in
+        TT_expand { term }
     | LT_alias { bound; value; return } ->
         (* TODO: use annotation in bound  *)
         let bound = translate_ty_pat ctx bound in
@@ -317,6 +343,16 @@ let enter_self ~bound ~body ctx =
   let assumption = TT_self { bound; body } in
   Context.enter ~var assumption ctx
 
+let enter_alias ~bound ctx =
+  let (TP_typed { pat; type_ }) = bound in
+  let var = pat_var pat in
+  Context.enter ~var type_ ctx
+
+let split_self term =
+  match expand_head @@ term with
+  | TT_self { bound; body } -> (bound, body)
+  | _ -> failwith "not a self"
+
 let rec infer_term ctx term =
   match term with
   | TT_var { var } -> (
@@ -341,7 +377,7 @@ let rec infer_term ctx term =
       in
       TT_forall { param; return }
   | TT_apply { lambda; arg } -> (
-      match infer_term ctx lambda with
+      match expand_head @@ infer_term ctx lambda with
       | TT_forall { param; return } ->
           let () =
             let expected = typeof_pat param in
@@ -356,21 +392,31 @@ let rec infer_term ctx term =
         check_type ctx body
       in
       tt_type
-  | TT_fix { bound; body } ->
+  | TT_fix { bound; body } as fix ->
       let () = check_ty_pat ctx bound in
-      let body =
+      let received_body =
         let ctx = enter_param ~param:bound ctx in
         infer_term ctx body
       in
       let (TP_typed { pat; type_ = expected }) = bound in
-      let received = TT_self { bound = pat; body } in
-      let () = equal_term ~received ~expected in
+
+      let () =
+        let received_body =
+          let received_var = pat_var pat in
+          subst_term ~from:received_var ~to_:fix received_body
+        in
+        let expected_body =
+          let bound, expected_body = split_self expected in
+          let expected_var = pat_var bound in
+          subst_term ~from:expected_var ~to_:fix expected_body
+        in
+        equal_term ~received:received_body ~expected:expected_body
+      in
       expected
-  | TT_unroll { term } -> (
-      match infer_term ctx term with
-      | TT_self { bound; body } ->
-          subst_term ~from:(pat_var bound) ~to_:term body
-      | _ -> failwith "not a self")
+  | TT_unroll { term } ->
+      let bound, body = split_self @@ infer_term ctx term in
+      subst_term ~from:(pat_var bound) ~to_:term body
+  | TT_expand { term } -> expand_unroll @@ infer_term ctx term
 
 and check_term ctx term ~expected =
   let received = infer_term ctx term in
