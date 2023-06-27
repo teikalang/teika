@@ -312,8 +312,9 @@ let enter_param ~param ctx =
   let var = pat_var pat in
   Context.enter ~var type_ ctx
 
-let enter_self ~bound ~assumption ctx =
+let enter_self ~bound ~body ctx =
   let var = pat_var bound in
+  let assumption = TT_self { bound; body } in
   Context.enter ~var assumption ctx
 
 let rec infer_term ctx term =
@@ -348,7 +349,28 @@ let rec infer_term ctx term =
           in
           subst_term ~from:(ty_pat_var param) ~to_:arg return
       | _ -> failwith "not a function")
-  | TT_self _ | TT_fix _ | TT_unroll _ -> failwith "not implemented"
+  | TT_self { bound; body } ->
+      let () =
+        (* TODO: all patterns are valid? Not checking bound *)
+        let ctx = enter_self ~bound ~body ctx in
+        check_type ctx body
+      in
+      tt_type
+  | TT_fix { bound; body } ->
+      let () = check_ty_pat ctx bound in
+      let body =
+        let ctx = enter_param ~param:bound ctx in
+        infer_term ctx body
+      in
+      let (TP_typed { pat; type_ = expected }) = bound in
+      let received = TT_self { bound = pat; body } in
+      let () = equal_term ~received ~expected in
+      expected
+  | TT_unroll { term } -> (
+      match infer_term ctx term with
+      | TT_self { bound; body } ->
+          subst_term ~from:(pat_var bound) ~to_:term body
+      | _ -> failwith "not a self")
 
 and check_term ctx term ~expected =
   let received = infer_term ctx term in

@@ -18,6 +18,7 @@ let rec tokenizer buf =
   | "=>" -> LAMBDA
   | "@->" -> SELF
   | "@=>" -> FIX
+  | "@" -> UNROLL
   | "===" -> ALIAS
   | ":" -> COLON
   | ";" -> SEMICOLON
