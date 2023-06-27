@@ -19,6 +19,7 @@ let rec tokenizer buf =
   | "@->" -> SELF
   | "@=>" -> FIX
   | "@" -> UNROLL
+  | "%expand" -> EXPAND
   | "===" -> ALIAS
   | ":" -> COLON
   | ";" -> SEMICOLON

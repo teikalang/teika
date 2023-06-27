@@ -14,6 +14,8 @@ type term =
   | LT_fix of { bound : pat; body : term }
   (* @m *)
   | LT_unroll of { term : term }
+  (* %expand m *)
+  | LT_expand of { term : term }
   (* P === m; n *)
   | LT_alias of { bound : pat; value : term; return : term }
   (* (m : T) *)

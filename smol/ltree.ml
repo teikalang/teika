@@ -7,6 +7,7 @@ type term =
   | LT_self of { bound : pat; body : term }
   | LT_fix of { bound : pat; body : term }
   | LT_unroll of { term : term }
+  | LT_expand of { term : term }
   | LT_alias of { bound : pat; value : term; return : term }
   | LT_annot of { term : term; annot : term }
 
