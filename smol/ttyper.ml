@@ -392,15 +392,26 @@ let rec infer_term ctx term =
         check_type ctx body
       in
       tt_type
-  | TT_fix { bound; body } ->
+  | TT_fix { bound; body } as fix ->
       let () = check_ty_pat ctx bound in
-      let body =
+      let received_body =
         let ctx = enter_param ~param:bound ctx in
         infer_term ctx body
       in
       let (TP_typed { pat; type_ = expected }) = bound in
-      let received = TT_self { bound = pat; body } in
-      let () = equal_term ~received ~expected in
+
+      let () =
+        let received_body =
+          let received_var = pat_var pat in
+          subst_term ~from:received_var ~to_:fix received_body
+        in
+        let expected_body =
+          let bound, expected_body = split_self expected in
+          let expected_var = pat_var bound in
+          subst_term ~from:expected_var ~to_:fix expected_body
+        in
+        equal_term ~received:received_body ~expected:expected_body
+      in
       expected
   | TT_unroll { term } ->
       let bound, body = split_self @@ infer_term ctx term in
