@@ -13,34 +13,32 @@ let write_exception buf exn =
   | false -> Eio.Buf_write.string buf (Printexc.to_string exn)
 
 let write_term buf term =
-  Eio.Buf_write.string buf (Format.asprintf "%a" Term.pp term)
+  Eio.Buf_write.string buf (Format.asprintf "%a" Tprinter.pp_term term)
 
-let term_of_string string =
+let type_of_string string =
   match Slexer.from_string Sparser.term_opt string with
   | Some term ->
-      let env = Env.initial in
-      let term = Lparser.from_stree term in
-      Some (Typer.type_term env term)
+      let term =
+        let loc = Location.none in
+        Lparser.parse_term ~loc term
+      in
+      let term =
+        let open Ttyper in
+        let ctx = Translate.Context.initial in
+        Translate.translate_term ctx term
+      in
+      let ctx = Ttyper.Context.initial in
+      Some (Ttyper.infer_term ctx term)
   | None -> None
 
 let check buf line =
-  match term_of_string line with
-  | Some term ->
-      let type_ = Machinery.typeof term in
-      write_term buf type_
+  match type_of_string line with
+  | Some type_ -> write_term buf type_
   | None -> ()
 
-let reduce buf line =
-  match term_of_string line with
-  | Some term ->
-      let normal = Machinery.normalize term in
-      write_term buf normal
-  | None -> ()
+type state = Check
 
-type state = Check | Reduce
-
-let run state buf line =
-  match state with Check -> check buf line | Reduce -> reduce buf line
+let run state buf line = match state with Check -> check buf line
 
 let run state buf line =
   try run state buf line with exn -> write_exception buf exn
@@ -49,7 +47,6 @@ let command state buf line =
   let state =
     match line with
     | ".check" -> Check
-    | ".reduce" -> Reduce
     | _ ->
         run state buf line;
         write_newline buf;
