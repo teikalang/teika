@@ -25,29 +25,6 @@ type error = private
 
 type var_info = Bound
 
-module Normalize_context : sig
-  type 'a normalize_context
-  type 'a t = 'a normalize_context
-
-  (* monad *)
-  val test :
-    vars:var_info list -> (unit -> 'a normalize_context) -> ('a, error) result
-
-  val return : 'a -> 'a normalize_context
-
-  val bind :
-    'a normalize_context -> ('a -> 'b normalize_context) -> 'b normalize_context
-
-  val ( let* ) :
-    'a normalize_context -> ('a -> 'b normalize_context) -> 'b normalize_context
-
-  val ( let+ ) : 'a normalize_context -> ('a -> 'b) -> 'b normalize_context
-
-  (* vars *)
-
-  val with_var : (unit -> 'a normalize_context) -> 'a normalize_context
-end
-
 (* TODO: this is bad *)
 module Unify_context : sig
   type 'a unify_context
@@ -81,13 +58,6 @@ module Unify_context : sig
 
   val error_pat_clash : expected:_ pat -> received:_ pat -> 'a unify_context
   val error_var_escape_scope : var:Offset.t -> 'a unify_context
-
-  (* normalize *)
-  val with_expected_normalize_context :
-    (unit -> 'a Normalize_context.t) -> 'a unify_context
-
-  val with_received_normalize_context :
-    (unit -> 'a Normalize_context.t) -> 'a unify_context
 end
 
 module Typer_context : sig
@@ -130,10 +100,6 @@ module Typer_context : sig
     type_:_ term ->
     (unit -> 'a typer_context) ->
     'a typer_context
-
-  (* normalize *)
-  val with_received_normalize_context :
-    (unit -> 'a Normalize_context.t) -> 'a typer_context
 
   (* unify *)
   val with_unify_context : (unit -> 'a Unify_context.t) -> 'a typer_context
