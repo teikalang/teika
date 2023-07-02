@@ -71,14 +71,10 @@ module Ptree = struct
 end
 (* TODO: probably make printer tree *)
 
-type typed_mode = Typed_default | Typed_force
 type var_mode = Var_name | Var_full
 
 (* TODO: mode to expand substitutions *)
-type config = { typed_mode : typed_mode; var_mode : var_mode }
-
-let should_print_typed config =
-  match config.typed_mode with Typed_default -> false | Typed_force -> true
+type config = { var_mode : var_mode }
 
 let ptree_of_var config var =
   let open Ptree in
@@ -128,20 +124,17 @@ and ptree_of_ty_pat config pat =
   let ptree_of_term term = ptree_of_term config term in
   let ptree_of_pat pat = ptree_of_pat config pat in
   match pat with
-  | TP_typed { pat; type_ } -> (
+  | TP_typed { pat; type_ } ->
       let pat = ptree_of_pat pat in
-      match should_print_typed config with
-      | true ->
-          let type_ = ptree_of_term type_ in
-          (* TODO: calling this term is weird *)
-          PT_typed { term = pat; type_ }
-      | false -> pat)
+      let annot = ptree_of_term type_ in
+      (* TODO: calling this term is weird *)
+      PT_annot { term = pat; annot }
 
 and ptree_of_pat config pat =
   let ptree_of_var var = ptree_of_var config var in
   match pat with TP_var { var } -> ptree_of_var var
 
-let config = { typed_mode = Typed_default; var_mode = Var_name }
+let config = { var_mode = Var_name }
 
 let pp_term fmt term =
   let pterm = ptree_of_term config term in

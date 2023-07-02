@@ -239,7 +239,8 @@ module Translate = struct
     | LT_var { var } -> (
         match Context.lookup ~name:var ctx with
         | Some term -> term
-        | None -> failwith "unknown variable")
+        | None ->
+            failwith @@ Format.sprintf "unknown variable: %s" (Name.repr var))
     | LT_forall { param; return } ->
         let param = translate_ty_pat ctx param in
         let return =
@@ -360,7 +361,9 @@ let rec infer_term ctx term =
           Maybe a flag to make it even safer? *)
       match Context.lookup ~var ctx with
       | Some type_ -> type_
-      | None -> failwith "unknown variable")
+      | None ->
+          failwith
+          @@ Format.sprintf "unknown variable: %s" (Name.repr (Var.name var)))
   | TT_forall { param; return } ->
       let () = check_ty_pat ctx param in
       let () =
