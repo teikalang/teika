@@ -37,31 +37,6 @@ let[@inline always] error desc = { match_ = (fun ~ok:_ ~error -> error desc) }
 
 type var_info = Bound
 
-module Normalize_context = struct
-  type 'a normalize_context = vars:var_info list -> ('a, error) result
-  type 'a t = 'a normalize_context
-
-  let[@inline always] test ~vars f =
-    (f () ~vars).match_
-      ~ok:(fun value -> Ok value)
-      ~error:(fun desc -> Error desc)
-
-  let[@inline always] return value ~vars:_ = ok value
-
-  let[@inline always] bind context f ~vars =
-    (context ~vars).match_ ~ok:(fun value -> f value ~vars) ~error
-
-  let ( let* ) = bind
-
-  let[@inline always] ( let+ ) context f =
-    let* value = context in
-    return @@ f value
-
-  let[@inline always] with_var f ~vars =
-    let vars = Bound :: vars in
-    f () ~vars
-end
-
 module Unify_context = struct
   type 'a unify_context =
     expected_vars:var_info list ->
@@ -108,14 +83,6 @@ module Unify_context = struct
 
   let[@inline always] error_var_escape_scope ~var =
     fail @@ CError_unify_var_escape_scope { var }
-
-  let[@inline always] with_expected_normalize_context f ~expected_vars
-      ~received_vars:_ =
-    f () ~vars:expected_vars
-
-  let[@inline always] with_received_normalize_context f ~expected_vars:_
-      ~received_vars =
-    f () ~vars:received_vars
 end
 
 module Typer_context = struct
@@ -221,10 +188,6 @@ module Typer_context = struct
   let[@inline always] with_unify_context f ~type_of_types:_ ~level:_ ~names:_
       ~expected_vars ~received_vars =
     f () ~expected_vars ~received_vars
-
-  let[@inline always] with_received_normalize_context f ~type_of_types:_
-      ~level:_ ~names:_ ~expected_vars:_ ~received_vars =
-    f () ~vars:received_vars
 
   let[@inline always] with_loc ~loc f ~type_of_types ~level ~names
       ~expected_vars ~received_vars =
