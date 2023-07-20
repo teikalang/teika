@@ -16,7 +16,8 @@ type sugar = Sugar
 type _ term =
   | TT_loc : { term : _ term; loc : Location.t } -> loc term
   | TT_typed : { term : _ term; annot : _ term } -> typed term
-  | TT_var : { offset : Offset.t } -> core term
+  | TT_bound_var : { index : Index.t } -> core term
+  | TT_free_var : { level : Level.t } -> core term
   | TT_forall : { param : typed pat; return : _ term } -> core term
   | TT_lambda : { param : typed pat; return : _ term } -> core term
   | TT_apply : { lambda : _ term; arg : _ term } -> core term

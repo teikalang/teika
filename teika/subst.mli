@@ -1,3 +1,3 @@
 open Ttree
 
-val subst_term : from:Offset.t -> to_:_ term -> _ term -> ex_term
+val subst_bound : from:Index.t -> to_:_ term -> _ term -> ex_term

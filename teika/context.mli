@@ -4,7 +4,8 @@ type error = private
   (* metadata *)
   | CError_loc of { error : error; loc : Location.t [@opaque] }
   (* unify *)
-  | CError_unify_var_clash of { expected : Offset.t; received : Offset.t }
+  | CError_unify_bound_var_clash of { expected : Index.t; received : Index.t }
+  | CError_unify_free_var_clash of { expected : Level.t; received : Level.t }
   | CError_unify_type_clash of {
       expected : ex_term;
       expected_norm : core term;
@@ -12,18 +13,14 @@ type error = private
       received_norm : core term;
     }
   | CError_unify_pat_clash of { expected : ex_pat; received : ex_pat }
-  | CError_unify_var_escape_scope of { var : Offset.t }
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }
   | Cerror_typer_not_a_forall of { type_ : ex_term }
   | CError_typer_pat_not_annotated of { pat : Ltree.pat }
   | CError_typer_pairs_not_implemented
-  (* invariant *)
-  | CError_typer_term_var_not_annotated of { var : Offset.t }
-  | CError_typer_pat_var_not_annotated of { name : Name.t }
 [@@deriving show]
 
-type var_info = Bound
+type var_info = Free
 
 (* TODO: this is bad *)
 module Unify_context : sig
@@ -46,8 +43,11 @@ module Unify_context : sig
   val ( let+ ) : 'a unify_context -> ('a -> 'b) -> 'b unify_context
 
   (* errors *)
-  val error_var_clash :
-    expected:Offset.t -> received:Offset.t -> 'a unify_context
+  val error_bound_var_clash :
+    expected:Index.t -> received:Index.t -> 'a unify_context
+
+  val error_free_var_clash :
+    expected:Level.t -> received:Level.t -> 'a unify_context
 
   val error_type_clash :
     expected:_ term ->
@@ -57,7 +57,6 @@ module Unify_context : sig
     'a unify_context
 
   val error_pat_clash : expected:_ pat -> received:_ pat -> 'a unify_context
-  val error_var_escape_scope : var:Offset.t -> 'a unify_context
 end
 
 module Typer_context : sig
@@ -67,10 +66,10 @@ module Typer_context : sig
   (* monad *)
   val run : (unit -> 'a typer_context) -> ('a, error) result
 
+  (* TODO: next_var must be bigger than type_of_types *)
   val test :
-    type_of_types:Level.t ->
-    level:Level.t ->
-    names:(Level.t * ex_term) Name.Map.t ->
+    next_var:Level.t ->
+    vars:(Level.t * ex_term) Name.Map.t ->
     expected_vars:var_info list ->
     received_vars:var_info list ->
     (unit -> 'a typer_context) ->
@@ -86,13 +85,11 @@ module Typer_context : sig
 
   (* errors *)
   val error_pat_not_annotated : pat:Ltree.pat -> 'a typer_context
-  val error_term_var_not_annotated : var:Offset.t -> 'a typer_context
-  val error_pat_var_not_annotated : name:Name.t -> 'a typer_context
   val error_pairs_not_implemented : unit -> 'a typer_context
   val error_not_a_forall : type_:_ term -> 'a typer_context
 
   (* vars *)
-  val instance : name:Name.t -> (Offset.t * ex_term) typer_context
+  val lookup_var : name:Name.t -> (Level.t * ex_term) typer_context
   val with_expected_var : (unit -> 'a typer_context) -> 'a typer_context
 
   val with_received_var :
@@ -109,5 +106,5 @@ module Typer_context : sig
     loc:Location.t -> (unit -> 'a typer_context) -> 'a typer_context
 
   (* ttree *)
-  val tt_type : unit -> core term typer_context
+  val tt_type : core term
 end

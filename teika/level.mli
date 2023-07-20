@@ -1,7 +1,6 @@
 type level
-type t = level [@@deriving eq]
+type t = level [@@deriving show, eq]
 
 val zero : level
 val next : level -> level
-val offset : from:level -> to_:level -> Offset.t
 val ( < ) : level -> level -> bool

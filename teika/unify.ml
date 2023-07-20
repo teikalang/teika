@@ -2,6 +2,7 @@ open Ttree
 open Context
 open Unify_context
 open Expand_head
+
 (* TODO: ensure this is eliminated *)
 
 (* TODO: maybe some quality of life, guarantee that unification always
@@ -25,11 +26,15 @@ open Expand_head
 
 let rec unify_term : type e r. expected:e term -> received:r term -> _ =
  fun ~expected ~received ->
-  match (expand_head expected, expand_head received) with
-  | TT_var { offset = expected }, TT_var { offset = received } -> (
-      match Offset.equal expected received with
+  match (expand_head_term expected, expand_head_term received) with
+  | TT_bound_var { index = expected }, TT_bound_var { index = received } -> (
+      match Index.equal expected received with
       | true -> return ()
-      | false -> error_var_clash ~expected ~received)
+      | false -> error_bound_var_clash ~expected ~received)
+  | TT_free_var { level = expected }, TT_free_var { level = received } -> (
+      match Level.equal expected received with
+      | true -> return ()
+      | false -> error_free_var_clash ~expected ~received)
   (* TODO: track whenever it is unified and locations, visualizing inference *)
   | ( TT_forall { param = expected_param; return = expected_return },
       TT_forall { param = received_param; return = received_return } ) ->
@@ -47,9 +52,10 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
         unify_term ~expected:expected_lambda ~received:received_lambda
       in
       unify_term ~expected:expected_arg ~received:received_arg
-  | ( ((TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) as expected_norm),
-      ((TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _) as received_norm) )
-    ->
+  | ( ((TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _)
+      as expected_norm),
+      ((TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _)
+      as received_norm) ) ->
       error_type_clash ~expected ~expected_norm ~received ~received_norm
 
 and unify_param ~expected ~received =
