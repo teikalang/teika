@@ -12,7 +12,6 @@ type error = private
       received : ex_term;
       received_norm : core term;
     }
-  | CError_unify_pat_clash of { expected : ex_pat; received : ex_pat }
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }
   | Cerror_typer_not_a_forall of { type_ : ex_term }
@@ -55,8 +54,6 @@ module Unify_context : sig
     received:_ term ->
     received_norm:core term ->
     'a unify_context
-
-  val error_pat_clash : expected:_ pat -> received:_ pat -> 'a unify_context
 end
 
 module Typer_context : sig

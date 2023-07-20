@@ -11,10 +11,10 @@ module Ptree = struct
     | PT_var_name of { name : Name.t }
     | PT_var_index of { index : Index.t }
     | PT_var_level of { level : Level.t }
-    | PT_forall of { param : term; return : term }
-    | PT_lambda of { param : term; return : term }
+    | PT_forall of { var : Name.t; param : term; return : term }
+    | PT_lambda of { var : Name.t; param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
-    | PT_let of { pat : term; value : term; return : term }
+    | PT_let of { var : Name.t; value : term; return : term }
     | PT_annot of { term : term; annot : term }
 
   let pp_loc fmt loc =
@@ -36,14 +36,16 @@ module Ptree = struct
     | PT_var_name { name } -> fprintf fmt "%s" (Name.repr name)
     | PT_var_index { index } -> fprintf fmt "\\-%a" Index.pp index
     | PT_var_level { level } -> fprintf fmt "\\+%a" Level.pp level
-    | PT_forall { param; return } ->
-        fprintf fmt "%a -> %a" pp_atom param pp_funct return
-    | PT_lambda { param; return } ->
-        fprintf fmt "%a => %a" pp_atom param pp_funct return
+    | PT_forall { var; param; return } ->
+        fprintf fmt "(%s : %a) -> %a" (Name.repr var) pp_wrapped param pp_funct
+          return
+    | PT_lambda { var; param; return } ->
+        fprintf fmt "(%s : %a) => %a" (Name.repr var) pp_wrapped param pp_funct
+          return
     | PT_apply { lambda; arg } ->
         fprintf fmt "%a %a" pp_apply lambda pp_atom arg
-    | PT_let { pat; value; return } ->
-        fprintf fmt "%a = %a; %a" pp_atom pat pp_funct value pp_let return
+    | PT_let { var; value; return } ->
+        fprintf fmt "%s = %a; %a" (Name.repr var) pp_funct value pp_let return
     | PT_annot { term; annot } ->
         fprintf fmt "%a : %a" pp_funct term pp_wrapped annot
 
@@ -96,7 +98,6 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
  fun config (term : a term) ->
   let open Ptree in
   let ptree_of_term term = ptree_of_term config term in
-  let ptree_of_pat pat = ptree_of_pat config pat in
   match term with
   | TT_loc { term; loc } -> (
       let term = ptree_of_term term in
@@ -112,50 +113,26 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
       | false -> term)
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level } -> PT_var_level { level }
-  | TT_forall { param; return } ->
-      let param = ptree_of_pat param in
+  | TT_forall { var; param; return } ->
+      let param = ptree_of_term param in
       let return = ptree_of_term return in
-      PT_forall { param; return }
-  | TT_lambda { param; return } ->
-      let param = ptree_of_pat param in
+      PT_forall { var; param; return }
+  | TT_lambda { var; param; return } ->
+      let param = ptree_of_term param in
       let return = ptree_of_term return in
-      PT_lambda { param; return }
+      PT_lambda { var; param; return }
   | TT_apply { lambda; arg } ->
       let lambda = ptree_of_term lambda in
       let arg = ptree_of_term arg in
       PT_apply { lambda; arg }
-  | TT_let { pat; value; return } ->
-      let pat = ptree_of_pat pat in
+  | TT_let { var; value; return } ->
       let value = ptree_of_term value in
       let return = ptree_of_term return in
-      PT_let { pat; value; return }
+      PT_let { var; value; return }
   | TT_annot { term; annot } ->
       let term = ptree_of_term term in
       let annot = ptree_of_term annot in
       PT_annot { term; annot }
-
-and ptree_of_pat : type a. _ -> a pat -> _ =
- fun config pat ->
-  let open Ptree in
-  let ptree_of_term term = ptree_of_term config term in
-  let ptree_of_pat pat = ptree_of_pat config pat in
-  match pat with
-  | TP_loc { pat; loc } -> (
-      let pat = ptree_of_pat pat in
-      match should_print_loc config ~loc with
-      (* TODO: calling this term is weird *)
-      | true -> PT_loc { term = pat; loc }
-      | false -> pat)
-  | TP_typed { pat; annot } ->
-      let pat = ptree_of_pat pat in
-      let annot = ptree_of_term annot in
-      (* TODO: calling this term is weird *)
-      PT_typed { term = pat; annot }
-  | TP_var { var = name } -> PT_var_name { name }
-  | TP_annot { pat; annot } ->
-      let pat = ptree_of_pat pat in
-      let annot = ptree_of_term annot in
-      PT_annot { term = pat; annot }
 
 let config =
   { typed_mode = Typed_default; loc_mode = Loc_default; var_mode = Var_name }
@@ -164,9 +141,4 @@ let pp_term fmt term =
   let pterm = ptree_of_term config term in
   Ptree.pp_term fmt pterm
 
-let pp_pat fmt pat =
-  let pterm = ptree_of_pat config pat in
-  Ptree.pp_term fmt pterm
-
 let pp_ex_term fmt (Ex_term term) = pp_term fmt term
-let pp_ex_pat fmt (Ex_pat pat) = pp_pat fmt pat

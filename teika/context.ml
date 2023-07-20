@@ -13,10 +13,6 @@ type error =
       received : ex_term; [@printer Tprinter.pp_ex_term]
       received_norm : core term; [@printer Tprinter.pp_term]
     }
-  | CError_unify_pat_clash of {
-      expected : ex_pat; [@printer Tprinter.pp_ex_pat]
-      received : ex_pat; [@printer Tprinter.pp_ex_pat]
-    }
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }
   | Cerror_typer_not_a_forall of {
@@ -75,11 +71,6 @@ module Unify_context = struct
     fail
     @@ CError_unify_type_clash
          { expected; expected_norm; received; received_norm }
-
-  let[@inline always] error_pat_clash ~expected ~received =
-    let expected = Ex_pat expected in
-    let received = Ex_pat received in
-    fail @@ CError_unify_pat_clash { expected; received }
 end
 
 module Typer_context = struct
