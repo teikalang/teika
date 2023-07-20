@@ -8,9 +8,10 @@ let unify_term ~expected ~received =
   with_unify_context @@ fun () -> Unify.unify_term ~expected ~received
 
 let split_forall (type a) (type_ : a term) =
-  match expand_head type_ with
+  match expand_head_term type_ with
   | TT_forall { param; return } -> Typer_context.return (param, Ex_term return)
-  | TT_var _ | TT_lambda _ | TT_apply _ -> error_not_a_forall ~type_
+  | TT_bound_var _ | TT_free_var _ | TT_lambda _ | TT_apply _ ->
+      error_not_a_forall ~type_
 
 let typeof_term term =
   let (TT_typed { term = _; annot }) = term in
@@ -38,16 +39,13 @@ let with_tp_loc ~loc k =
 let rec infer_term term =
   match term with
   | LT_var { var = name } ->
-      let+ offset, Ex_term annot = instance ~name in
-      tt_typed ~annot @@ TT_var { offset }
+      let+ level, Ex_term annot = lookup_var ~name in
+      tt_typed ~annot @@ TT_free_var { level }
   | LT_forall { param; return } ->
-      let* annot = tt_type () in
       infer_pat param @@ fun param ->
-      let+ return =
-        let* expected = tt_type () in
-        check_term return ~expected
-      in
-      tt_typed ~annot @@ TT_forall { param; return }
+      let+ return = check_term return ~expected:tt_type in
+      (* *)
+      tt_typed ~annot:tt_type @@ TT_forall { param; return }
   | LT_lambda { param; return } ->
       infer_pat param @@ fun param ->
       let+ return = infer_term return in
@@ -64,10 +62,9 @@ let rec infer_term term =
         let (Ex_term param) = typeof_pat param in
         check_term arg ~expected:param
       in
-      let annot =
-        (* TODO: this is not ideal, generating core terms *)
-        let lambda = TT_lambda { param; return } in
-        TT_apply { lambda; arg }
+      let (Ex_term annot) =
+        (* TODO: this technically works here, but bad *)
+        Subst.subst_bound ~from:Index.zero ~to_:arg return
       in
       tt_typed ~annot @@ TT_apply { lambda; arg }
   | LT_exists _ -> error_pairs_not_implemented ()
@@ -88,10 +85,7 @@ let rec infer_term term =
       in
       tt_typed ~annot @@ TT_let { pat; value; return }
   | LT_annot { term; annot } ->
-      let* annot =
-        let* expected = tt_type () in
-        check_term annot ~expected
-      in
+      let* annot = check_term annot ~expected:tt_type in
       let+ term = check_term term ~expected:annot in
       tt_typed ~annot @@ TT_annot { term; annot }
   | LT_loc { term; loc } -> with_tt_loc ~loc @@ fun () -> infer_term term
@@ -99,11 +93,12 @@ let rec infer_term term =
 and check_term : type a. _ -> expected:a term -> _ =
  fun term ~expected ->
   (* TODO: repr function for term, maybe with_term? *)
-  match (term, expand_head expected) with
+  match (term, expand_head_term expected) with
   | LT_loc { term; loc }, expected ->
       with_tt_loc ~loc @@ fun () -> check_term term ~expected
   | ( LT_lambda { param; return },
       TT_forall { param = expected_param; return = expected_return } ) ->
+      (* TODO: alpha renaming is bad here *)
       let (Ex_term expected_param_type) = typeof_pat expected_param in
       check_pat param ~expected:expected_param_type @@ fun param ->
       let+ return = check_term return ~expected:expected_return in
@@ -122,10 +117,7 @@ and infer_pat : type a. _ -> (_ -> a typer_context) -> a typer_context =
  fun pat f ->
   match pat with
   | LP_annot { pat; annot } ->
-      let* annot =
-        let* expected = tt_type () in
-        check_term annot ~expected
-      in
+      let* annot = check_term annot ~expected:tt_type in
       check_pat pat ~expected:annot f
   | LP_loc { pat; loc } ->
       with_tp_loc ~loc @@ fun k ->
@@ -145,10 +137,7 @@ and check_pat :
       f @@ tp_typed ~annot:expected @@ TP_var { var = name }
   | LP_pair _, _ -> error_pairs_not_implemented ()
   | LP_annot { pat; annot }, _expected_desc ->
-      let* annot =
-        let* expected = tt_type () in
-        check_term annot ~expected
-      in
+      let* annot = check_term annot ~expected:tt_type in
       let* () = unify_term ~expected ~received:annot in
       check_pat pat ~expected:annot f
   | LP_loc { pat; loc }, _expected_desc ->

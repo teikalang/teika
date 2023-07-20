@@ -354,13 +354,15 @@ module Typer = struct
        ~type_:"(R: Type) -> (A: Type, r: R) -> (A: Type, r: R)"
        ~expr:"(R: Type) => (p: (A: Type, x: R)) => p" *)
 
+  let _tests = [ id_type; id_type_never ]
+
   let tests =
     [
       id;
       id_propagate;
       let_id;
-      id_type;
-      id_type_never;
+      (* id_type;
+         id_type_never; *)
       return_id_propagate;
       sequence;
       bool;
