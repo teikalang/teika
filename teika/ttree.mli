@@ -10,6 +10,8 @@ type _ term =
   | TT_bound_var : { index : Index.t } -> core term
   (* x/+n *)
   | TT_free_var : { level : Level.t } -> core term
+  (* _x/+n *)
+  | TT_hole : hole -> core term
   (* (x : A) -> B *)
   | TT_forall : { var : Name.t; param : _ term; return : _ term } -> core term
   (* (x : A) => e *)
@@ -21,4 +23,11 @@ type _ term =
   (* (v : T) *)
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 
+and hole = { mutable level : Level.t; mutable link : core term }
+
 type ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
+
+val nil_level : Level.t
+val type_level : Level.t
+val tt_nil : core term
+val tt_type : core term

@@ -1,5 +1,6 @@
 open Ttree
 
+(* TODO: preserve physical identity more often *)
 let rec subst_bound_term : type a. from:_ -> to_:_ -> a term -> ex_term =
  fun ~from ~to_ term ->
   let subst_bound_term ~from term = subst_bound_term ~from ~to_ term in
@@ -17,6 +18,11 @@ let rec subst_bound_term : type a. from:_ -> to_:_ -> a term -> ex_term =
       | true -> Ex_term to_
       | false -> Ex_term (TT_bound_var { index }))
   | TT_free_var { level } -> Ex_term (TT_free_var { level })
+  | TT_hole hole -> (
+      (* TODO: this should be in machinery *)
+      match hole.link == tt_nil with
+      | true -> Ex_term (TT_hole hole)
+      | false -> subst_bound_term ~from hole.link)
   | TT_forall { var; param; return } ->
       let from = Index.(from + one) in
       let (Ex_term param) = subst_bound_term ~from param in

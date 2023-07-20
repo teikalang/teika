@@ -11,6 +11,7 @@ module Ptree = struct
     | PT_var_name of { name : Name.t }
     | PT_var_index of { index : Index.t }
     | PT_var_level of { level : Level.t }
+    | PT_hole_var_full of { id : int; level : Level.t }
     | PT_forall of { var : Name.t; param : term; return : term }
     | PT_lambda of { var : Name.t; param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
@@ -36,6 +37,8 @@ module Ptree = struct
     | PT_var_name { name } -> fprintf fmt "%s" (Name.repr name)
     | PT_var_index { index } -> fprintf fmt "\\-%a" Index.pp index
     | PT_var_level { level } -> fprintf fmt "\\+%a" Level.pp level
+    | PT_hole_var_full { id; level } ->
+        fprintf fmt "_x%d\\+%a" id Level.pp level
     | PT_forall { var; param; return } ->
         fprintf fmt "(%s : %a) -> %a" (Name.repr var) pp_wrapped param pp_funct
           return
@@ -58,7 +61,8 @@ module Ptree = struct
     let pp_apply fmt term = pp_term Apply fmt term in
     let pp_atom fmt term = pp_term Atom fmt term in
     match (term, prec) with
-    | ( (PT_loc _ | PT_var_name _ | PT_var_index _ | PT_var_level _),
+    | ( ( PT_loc _ | PT_var_name _ | PT_var_index _ | PT_var_level _
+        | PT_hole_var_full _ ),
         (Wrapped | Let | Funct | Apply | Atom) )
     | PT_apply _, (Wrapped | Let | Funct | Apply)
     | (PT_forall _ | PT_lambda _), (Wrapped | Let | Funct)
@@ -94,10 +98,11 @@ let should_print_loc config ~loc =
   | Loc_force -> true
   | Loc_meaningful -> not (Location.is_none loc)
 
-let rec ptree_of_term : type a. _ -> a term -> _ =
- fun config (term : a term) ->
+let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
+ fun config next holes (term : a term) ->
   let open Ptree in
-  let ptree_of_term term = ptree_of_term config term in
+  let ptree_of_term term = ptree_of_term config next holes term in
+  let ptree_of_hole term = ptree_of_hole config next holes term in
   match term with
   | TT_loc { term; loc } -> (
       let term = ptree_of_term term in
@@ -113,6 +118,7 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
       | false -> term)
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level } -> PT_var_level { level }
+  | TT_hole hole -> ptree_of_hole hole
   | TT_forall { var; param; return } ->
       let param = ptree_of_term param in
       let return = ptree_of_term return in
@@ -134,11 +140,36 @@ let rec ptree_of_term : type a. _ -> a term -> _ =
       let annot = ptree_of_term annot in
       PT_annot { term; annot }
 
+and ptree_of_hole config next holes hole =
+  let open Ptree in
+  let ptree_of_term term = ptree_of_term config next holes term in
+  (* TODO: extract this into machinery tooling *)
+  (* TODO: allow to print link *)
+  match hole.link == tt_nil with
+  | true -> (
+      match Hashtbl.find_opt holes hole with
+      | Some term -> term
+      | None ->
+          let id = !next in
+          let term = PT_hole_var_full { id; level = hole.level } in
+          next := id + 1;
+          Hashtbl.add holes hole term;
+          term)
+  | false -> ptree_of_term hole.link
+
 let config =
   { typed_mode = Typed_default; loc_mode = Loc_default; var_mode = Var_name }
 
 let pp_term fmt term =
-  let pterm = ptree_of_term config term in
+  let next = ref 0 in
+  let holes = Hashtbl.create 8 in
+  let pterm = ptree_of_term config next holes term in
+  Ptree.pp_term fmt pterm
+
+let pp_hole fmt hole =
+  let next = ref 0 in
+  let holes = Hashtbl.create 8 in
+  let pterm = ptree_of_hole config next holes hole in
   Ptree.pp_term fmt pterm
 
 let pp_ex_term fmt (Ex_term term) = pp_term fmt term

@@ -13,6 +13,15 @@ type error =
       received : ex_term; [@printer Tprinter.pp_ex_term]
       received_norm : core term; [@printer Tprinter.pp_term]
     }
+    (* TODO: lazy names for errors *)
+  | CError_unify_var_occurs of {
+      hole : hole; [@printer Tprinter.pp_hole]
+      in_ : hole; [@printer Tprinter.pp_hole]
+    }
+  | CError_unify_var_escape of {
+      hole : hole; [@printer Tprinter.pp_hole]
+      var : Level.t;
+    }
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }
   | Cerror_typer_not_a_forall of {
@@ -71,6 +80,12 @@ module Unify_context = struct
     fail
     @@ CError_unify_type_clash
          { expected; expected_norm; received; received_norm }
+
+  let[@inline always] error_var_occurs ~hole ~in_ =
+    fail @@ CError_unify_var_occurs { hole; in_ }
+
+  let[@inline always] error_var_escape ~hole ~var =
+    fail @@ CError_unify_var_escape { hole; var }
 end
 
 module Typer_context = struct
@@ -84,16 +99,13 @@ module Typer_context = struct
 
   type 'a t = 'a typer_context
 
-  let type_of_types = Level.zero
-  let tt_type = TT_free_var { level = type_of_types }
-
   let[@inline always] run f =
-    let next_var = Level.next type_of_types in
+    let next_var = Level.next type_level in
     let names = Name.Map.empty in
     let type_name = Name.make "Type" in
     let vars =
       (* TODO: better place for constants *)
-      Name.Map.add type_name (type_of_types, Ex_term tt_type) names
+      Name.Map.add type_name (type_level, Ex_term tt_type) names
     in
     (* TODO: use proper stack *)
     let received_vars = [ Free ] in

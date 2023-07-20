@@ -7,6 +7,9 @@ let rec expand_head_term : type a. a term -> core term =
   | TT_typed { term; annot = _ } -> expand_head_term term
   | TT_bound_var _ as term -> term
   | TT_free_var _ as term -> term
+  | TT_hole { level = _; link } as term -> (
+      (* TODO: move this to machinery *)
+      match link == tt_nil with true -> term | false -> expand_head_term link)
   | TT_forall _ as term -> term
   | TT_lambda _ as term -> term
   | TT_apply { lambda; arg } -> (

@@ -11,7 +11,8 @@ let split_forall (type a) (type_ : a term) =
   match expand_head_term type_ with
   | TT_forall { var = _; param; return } ->
       Typer_context.return (Ex_term param, Ex_term return)
-  | TT_bound_var _ | TT_free_var _ | TT_lambda _ | TT_apply _ ->
+      (* TODO: hole should behave differently here *)
+  | TT_bound_var _ | TT_free_var _ | TT_hole _ | TT_lambda _ | TT_apply _ ->
       error_not_a_forall ~type_
 
 let typeof_term term =

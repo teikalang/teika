@@ -12,6 +12,9 @@ type error = private
       received : ex_term;
       received_norm : core term;
     }
+  (* TODO: lazy names for errors *)
+  | CError_unify_var_occurs of { hole : hole; in_ : hole }
+  | CError_unify_var_escape of { hole : hole; var : Level.t }
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }
   | Cerror_typer_not_a_forall of { type_ : ex_term }
@@ -54,6 +57,9 @@ module Unify_context : sig
     received:_ term ->
     received_norm:core term ->
     'a unify_context
+
+  val error_var_occurs : hole:hole -> in_:hole -> 'a unify_context
+  val error_var_escape : hole:hole -> var:Level.t -> 'a unify_context
 end
 
 module Typer_context : sig
@@ -101,7 +107,4 @@ module Typer_context : sig
   (* locs *)
   val with_loc :
     loc:Location.t -> (unit -> 'a typer_context) -> 'a typer_context
-
-  (* ttree *)
-  val tt_type : core term
 end
