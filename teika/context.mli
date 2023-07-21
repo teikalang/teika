@@ -18,7 +18,6 @@ type error = private
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }
   | Cerror_typer_not_a_forall of { type_ : ex_term }
-  | CError_typer_pat_not_annotated of { pat : Ltree.pat }
   | CError_typer_pairs_not_implemented
 [@@deriving show]
 
@@ -87,7 +86,6 @@ module Typer_context : sig
   val ( let+ ) : 'a typer_context -> ('a -> 'b) -> 'b typer_context
 
   (* errors *)
-  val error_pat_not_annotated : pat:Ltree.pat -> 'a typer_context
   val error_pairs_not_implemented : unit -> 'a typer_context
   val error_not_a_forall : type_:_ term -> 'a typer_context
 
@@ -100,6 +98,8 @@ module Typer_context : sig
     type_:_ term ->
     (unit -> 'a typer_context) ->
     'a typer_context
+
+  val tt_hole : unit -> core term typer_context
 
   (* unify *)
   val with_unify_context : (unit -> 'a Unify_context.t) -> 'a typer_context

@@ -27,7 +27,6 @@ type error =
   | Cerror_typer_not_a_forall of {
       type_ : ex_term; [@printer Tprinter.pp_ex_term]
     }
-  | CError_typer_pat_not_annotated of { pat : Ltree.pat }
   | CError_typer_pairs_not_implemented
 [@@deriving show { with_path = false }]
 
@@ -139,9 +138,6 @@ module Typer_context = struct
     let* value = context in
     return @@ f value
 
-  let[@inline always] error_pat_not_annotated ~pat =
-    fail @@ CError_typer_pat_not_annotated { pat }
-
   let[@inline always] error_pairs_not_implemented () =
     fail @@ CError_typer_pairs_not_implemented
 
@@ -167,6 +163,11 @@ module Typer_context = struct
     let next_var = Level.next next_var in
     let received_vars = Free :: received_vars in
     f () ~next_var ~vars ~expected_vars ~received_vars
+
+  let[@inline always] tt_hole () ~next_var ~vars:_ ~expected_vars:_
+      ~received_vars:_ =
+    (* TODO: probably Ttree *)
+    ok @@ TT_hole { level = next_var; link = tt_nil }
 
   let[@inline always] with_unify_context f ~next_var:_ ~vars:_ ~expected_vars
       ~received_vars =
