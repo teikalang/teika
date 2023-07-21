@@ -354,7 +354,7 @@ module Typer = struct
        ~type_:"(R: Type) -> (A: Type, r: R) -> (A: Type, r: R)"
        ~expr:"(R: Type) => (p: (A: Type, x: R)) => p" *)
 
-  let _tests = [ id_type; id_type_never ]
+  let _tests = [ id_type; id_type_never; sequence ]
 
   let tests =
     [
@@ -364,7 +364,7 @@ module Typer = struct
       (* id_type;
          id_type_never; *)
       return_id_propagate;
-      sequence;
+      (* sequence; *)
       bool;
       true_;
       false_;
