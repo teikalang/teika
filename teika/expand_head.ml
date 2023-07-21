@@ -14,7 +14,7 @@ let rec expand_head_term : type a. a term -> core term =
   | TT_lambda _ as term -> term
   | TT_apply { lambda; arg } -> (
       match expand_head_term lambda with
-      | TT_lambda { var = _name; param = _; return } ->
+      | TT_lambda { param = _; return } ->
           (* TODO: param is not used here,
               but it would be cool to check when in debug *)
           let (Ex_term return) =
@@ -24,7 +24,7 @@ let rec expand_head_term : type a. a term -> core term =
       | _lambda ->
           (* TODO: use expanded? *)
           TT_apply { lambda; arg })
-  | TT_let { var = _name; value; return } ->
+  | TT_let { value; return } ->
       (* TODO: this could be done in O(1) with context extending *)
       let (Ex_term return) =
         Subst.subst_bound ~from:Index.zero ~to_:value return
