@@ -119,11 +119,13 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level } -> PT_var_level { level }
   | TT_hole hole -> ptree_of_hole hole
-  | TT_forall { var; param; return } ->
+  | TT_forall { param; return } ->
+      let var = Name.make "_" in
       let param = ptree_of_term param in
       let return = ptree_of_term return in
       PT_forall { var; param; return }
-  | TT_lambda { var; param; return } ->
+  | TT_lambda { param; return } ->
+      let var = Name.make "_" in
       let param = ptree_of_term param in
       let return = ptree_of_term return in
       PT_lambda { var; param; return }
@@ -131,7 +133,8 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
       let lambda = ptree_of_term lambda in
       let arg = ptree_of_term arg in
       PT_apply { lambda; arg }
-  | TT_let { var; value; return } ->
+  | TT_let { value; return } ->
+      let var = Name.make "_" in
       let value = ptree_of_term value in
       let return = ptree_of_term return in
       PT_let { var; value; return }

@@ -45,10 +45,10 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
       | false ->
           in_.level <- min hole.level in_.level;
           return ())
-  | TT_forall { var = _; param; return } ->
+  | TT_forall { param; return } ->
       let* () = occurs_term ~in_:param in
       occurs_term ~in_:return
-  | TT_lambda { var = _; param; return } ->
+  | TT_lambda { param; return } ->
       let* () = occurs_term ~in_:param in
       occurs_term ~in_:return
   | TT_apply { lambda; arg } ->
@@ -72,15 +72,13 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       (* TODO: maybe unify against non expanded? *)
       unify_hole hole ~to_
   (* TODO: track whenever it is unified and locations, visualizing inference *)
-  | ( TT_forall { var = _; param = expected_param; return = expected_return },
-      TT_forall { var = _; param = received_param; return = received_return } )
-    ->
+  | ( TT_forall { param = expected_param; return = expected_return },
+      TT_forall { param = received_param; return = received_return } ) ->
       (* TODO: contravariance *)
       let* () = unify_term ~expected:expected_param ~received:received_param in
       unify_term ~expected:expected_return ~received:received_return
-  | ( TT_lambda { var = _; param = expected_param; return = expected_return },
-      TT_lambda { var = _; param = received_param; return = received_return } )
-    ->
+  | ( TT_lambda { param = expected_param; return = expected_return },
+      TT_lambda { param = received_param; return = received_return } ) ->
       (* TODO: contravariance *)
       let* () = unify_term ~expected:expected_param ~received:received_param in
       unify_term ~expected:expected_return ~received:received_return

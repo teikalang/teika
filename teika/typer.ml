@@ -10,9 +10,7 @@ let split_forall (type a) (type_ : a term) =
   let* param = tt_hole () in
   let* return = tt_hole () in
   let+ () =
-    (* TODO: name _ *)
-    let var = Name.make "_" in
-    let expected = TT_forall { var; param; return } in
+    let expected = TT_forall { param; return } in
     unify_term ~received:type_ ~expected
   in
   (param, return)
@@ -41,14 +39,14 @@ let rec check_term : type a. _ -> expected:a term -> _ =
       (* TODO: this could also be checked after the return *)
       let* () = unify_term ~received:tt_type ~expected in
       let* expected_param = tt_hole () in
-      check_pat param ~expected:expected_param @@ fun var (Ex_term param) ->
+      check_pat param ~expected:expected_param @@ fun (Ex_term param) ->
       let+ return = check_annot return in
-      wrapped @@ TT_forall { var; param; return }
+      wrapped @@ TT_forall { param; return }
   | LT_lambda { param; return } ->
       let* expected_param, return_type = split_forall expected in
-      check_pat param ~expected:expected_param @@ fun var (Ex_term param) ->
+      check_pat param ~expected:expected_param @@ fun (Ex_term param) ->
       let+ return = check_term return ~expected:return_type in
-      wrapped @@ TT_lambda { var; param; return }
+      wrapped @@ TT_lambda { param; return }
   | LT_apply { lambda; arg } ->
       let* lambda_type = tt_hole () in
       let* lambda = check_term lambda ~expected:lambda_type in
@@ -71,12 +69,11 @@ let rec check_term : type a. _ -> expected:a term -> _ =
       let* value_type = tt_hole () in
       let* return_type = tt_hole () in
       let* value = check_term value ~expected:value_type in
-      let* var, return =
+      let* return =
         (* TODO: type pattern first? *)
-        check_pat pat ~expected:value_type @@ fun var _annot ->
+        check_pat pat ~expected:value_type @@ fun _annot ->
         (* TODO: this annotation here is not used *)
-        let+ return = check_term return ~expected:return_type in
-        (var, return)
+        check_term return ~expected:return_type
       in
       let+ () =
         (* TODO: this technically works here, but bad *)
@@ -85,7 +82,7 @@ let rec check_term : type a. _ -> expected:a term -> _ =
         in
         unify_term ~received ~expected
       in
-      wrapped @@ TT_let { var; value; return }
+      wrapped @@ TT_let { value; return }
   | LT_annot { term; annot } ->
       let* annot = check_annot annot in
       let+ term = check_term term ~expected in
@@ -96,8 +93,7 @@ let rec check_term : type a. _ -> expected:a term -> _ =
 and check_annot term = check_term term ~expected:tt_type
 
 and check_pat :
-    type a k.
-    _ -> expected:k term -> (Name.t -> _ -> a typer_context) -> a typer_context
+    type a k. _ -> expected:k term -> (_ -> a typer_context) -> a typer_context
     =
  fun pat ~expected f ->
   (* TODO: expected should be a pattern, to achieve strictness *)
@@ -105,8 +101,7 @@ and check_pat :
   | LP_var { var = name }, expected ->
       (* TODO: add different names for left and right *)
       with_expected_var @@ fun () ->
-      with_received_var ~name ~type_:expected @@ fun () ->
-      f name (Ex_term expected)
+      with_received_var ~name ~type_:expected @@ fun () -> f (Ex_term expected)
   | LP_pair _, _ -> error_pairs_not_implemented ()
   | LP_annot { pat; annot }, _expected_desc ->
       let* annot = check_annot annot in

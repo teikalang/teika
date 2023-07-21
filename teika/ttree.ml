@@ -19,10 +19,10 @@ type _ term =
   | TT_bound_var : { index : Index.t } -> core term
   | TT_free_var : { level : Level.t } -> core term
   | TT_hole : hole -> core term
-  | TT_forall : { var : Name.t; param : _ term; return : _ term } -> core term
-  | TT_lambda : { var : Name.t; param : _ term; return : _ term } -> core term
+  | TT_forall : { param : _ term; return : _ term } -> core term
+  | TT_lambda : { param : _ term; return : _ term } -> core term
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
-  | TT_let : { var : Name.t; value : _ term; return : _ term } -> sugar term
+  | TT_let : { value : _ term; return : _ term } -> sugar term
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 
 and hole = { mutable level : Level.t; mutable link : core term }
