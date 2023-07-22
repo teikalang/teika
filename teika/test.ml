@@ -289,6 +289,10 @@ module Typer = struct
     check "id_propagate" ~wrapper:false
       {|((A => x => x) : (A : Type) -> (x : A) -> A)|}
 
+  let id_unify =
+    check "id_unify" ~wrapper:false
+      {|((A => (x : A) => x) : (A : Type) -> (x : A) -> A)|}
+
   let let_id =
     check "let_id" ~wrapper:false
       {|((id = (A : Type) => (x : A) => x; id) : (A : Type) -> (x : A) -> A)|}
@@ -315,12 +319,17 @@ module Typer = struct
 
   let bool =
     check "bool" ~wrapper:false
-      {|(((A : Type) => (x : A) => (y : A) => x)
-        : (A : Type) -> (x : A) -> (y : A) -> A)|}
+      {|(((A : Type) -> (x : A) -> (y : A) -> A)
+        : Type)|}
 
   let true_ =
     check "true" ~wrapper:false
       {|(((A : Type) => (x : A) => (y : A) => x)
+        : (A : Type) -> (x : A) -> (y : A) -> A)|}
+
+  let true_unify =
+    check "true_unify" ~wrapper:false
+      {|(((A : Type) => x => (y : A) => x)
         : (A : Type) -> (x : A) -> (y : A) -> A)|}
 
   let false_ =
@@ -355,19 +364,19 @@ module Typer = struct
        ~type_:"(R: Type) -> (A: Type, r: R) -> (A: Type, r: R)"
        ~expr:"(R: Type) => (p: (A: Type, x: R)) => p" *)
 
-  let _tests = [ id_type; id_type_never; sequence ]
-
   let tests =
     [
       id;
       id_propagate;
+      id_unify;
       let_id;
-      (* id_type;
-         id_type_never; *)
+      id_type;
+      id_type_never;
       return_id_propagate;
-      (* sequence; *)
+      sequence;
       bool;
       true_;
+      true_unify;
       false_;
       (*
           pair;

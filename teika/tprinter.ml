@@ -1,6 +1,7 @@
 [@@@ocaml.warning "-unused-constructor"]
 
 open Ttree
+open Expand_head
 
 module Ptree = struct
   open Format
@@ -88,10 +89,10 @@ type config = {
   var_mode : var_mode;
 }
 
-let should_print_typed config =
+let _should_print_typed config =
   match config.typed_mode with Typed_default -> false | Typed_force -> true
 
-let should_print_loc config ~loc =
+let _should_print_loc config ~loc =
   match config.loc_mode with
   | Loc_default -> false
   | Loc_force -> true
@@ -102,19 +103,8 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
   let open Ptree in
   let ptree_of_term term = ptree_of_term config next holes term in
   let ptree_of_hole term = ptree_of_hole config next holes term in
-  match term with
-  | TT_loc { term; loc } -> (
-      let term = ptree_of_term term in
-      match should_print_loc config ~loc with
-      | true -> PT_loc { term; loc }
-      | false -> term)
-  | TT_typed { term; annot } -> (
-      let term = ptree_of_term term in
-      match should_print_typed config with
-      | true ->
-          let annot = ptree_of_term annot in
-          PT_typed { term; annot }
-      | false -> term)
+  (* TODO: print details *)
+  match expand_head_term term with
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level } -> PT_var_level { level }
   | TT_hole hole -> ptree_of_hole hole
@@ -132,15 +122,6 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
       let lambda = ptree_of_term lambda in
       let arg = ptree_of_term arg in
       PT_apply { lambda; arg }
-  | TT_let { value; return } ->
-      let var = Name.make "_" in
-      let value = ptree_of_term value in
-      let return = ptree_of_term return in
-      PT_let { var; value; return }
-  | TT_annot { term; annot } ->
-      let term = ptree_of_term term in
-      let annot = ptree_of_term annot in
-      PT_annot { term; annot }
 
 and ptree_of_hole config next holes hole =
   let open Ptree in
