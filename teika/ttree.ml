@@ -25,7 +25,7 @@ type _ term =
   | TT_let : { value : _ term; return : _ term } -> sugar term
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 
-and hole = { mutable level : Level.t; mutable link : core term }
+and hole = { mutable link : core term }
 
 type ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
 
@@ -33,3 +33,4 @@ let nil_level = Level.zero
 let type_level = Level.next nil_level
 let tt_nil = TT_free_var { level = nil_level }
 let tt_type = TT_free_var { level = type_level }
+let tt_hole () = TT_hole { link = tt_nil }

@@ -34,17 +34,11 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
   let occurs_term ~in_ = occurs_term hole ~in_ in
   match expand_head_term in_ with
   | TT_bound_var { index = _ } -> return ()
-  | TT_free_var { level } -> (
-      (* TODO: what if hole.level == level *)
-      match hole.level >= level with
-      | true -> return ()
-      | false -> error_var_escape ~hole ~var:level)
+  | TT_free_var { level = _ } -> return ()
   | TT_hole in_ -> (
       match hole == in_ with
       | true -> error_var_occurs ~hole ~in_
-      | false ->
-          in_.level <- min hole.level in_.level;
-          return ())
+      | false -> return ())
   | TT_forall { param; return } ->
       let* () = occurs_term ~in_:param in
       occurs_term ~in_:return

@@ -11,7 +11,7 @@ module Ptree = struct
     | PT_var_name of { name : Name.t }
     | PT_var_index of { index : Index.t }
     | PT_var_level of { level : Level.t }
-    | PT_hole_var_full of { id : int; level : Level.t }
+    | PT_hole_var_full of { id : int }
     | PT_forall of { var : Name.t; param : term; return : term }
     | PT_lambda of { var : Name.t; param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
@@ -37,8 +37,7 @@ module Ptree = struct
     | PT_var_name { name } -> fprintf fmt "%s" (Name.repr name)
     | PT_var_index { index } -> fprintf fmt "\\-%a" Index.pp index
     | PT_var_level { level } -> fprintf fmt "\\+%a" Level.pp level
-    | PT_hole_var_full { id; level } ->
-        fprintf fmt "_x%d\\+%a" id Level.pp level
+    | PT_hole_var_full { id } -> fprintf fmt "_x%d" id
     | PT_forall { var; param; return } ->
         fprintf fmt "(%s : %a) -> %a" (Name.repr var) pp_wrapped param pp_funct
           return
@@ -154,7 +153,7 @@ and ptree_of_hole config next holes hole =
       | Some term -> term
       | None ->
           let id = !next in
-          let term = PT_hole_var_full { id; level = hole.level } in
+          let term = PT_hole_var_full { id } in
           next := id + 1;
           Hashtbl.add holes hole term;
           term)
