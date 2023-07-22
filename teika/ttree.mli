@@ -23,11 +23,14 @@ type _ term =
   (* (v : T) *)
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 
-and hole = { mutable level : Level.t; mutable link : core term }
+and hole = { mutable link : core term }
 
 type ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
 
 val nil_level : Level.t
 val type_level : Level.t
+
+(* constructors *)
 val tt_nil : core term
 val tt_type : core term
+val tt_hole : unit -> core term

@@ -279,6 +279,7 @@ module Typer = struct
     Check { name; annotated_term; wrapper }
 
   (* TODO: write tests for locations and names / offset *)
+  (* TODO: write tests for escape check *)
   let id =
     check "id" ~wrapper:false
       {|(((A : Type) => (x : A) => x)

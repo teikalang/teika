@@ -14,11 +14,11 @@ type error = private
     }
   (* TODO: lazy names for errors *)
   | CError_unify_var_occurs of { hole : hole; in_ : hole }
-  | CError_unify_var_escape of { hole : hole; var : Level.t }
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }
-  | Cerror_typer_not_a_forall of { type_ : ex_term }
+  | CError_typer_not_a_forall of { type_ : ex_term }
   | CError_typer_pairs_not_implemented
+  | CError_typer_var_escape of { var : Level.t }
 [@@deriving show]
 
 type var_info = Free
@@ -58,7 +58,6 @@ module Unify_context : sig
     'a unify_context
 
   val error_var_occurs : hole:hole -> in_:hole -> 'a unify_context
-  val error_var_escape : hole:hole -> var:Level.t -> 'a unify_context
 end
 
 module Typer_context : sig
@@ -88,6 +87,10 @@ module Typer_context : sig
   (* errors *)
   val error_pairs_not_implemented : unit -> 'a typer_context
   val error_not_a_forall : type_:_ term -> 'a typer_context
+  val error_var_escape : var:Level.t -> 'a typer_context
+
+  (* level *)
+  val level : unit -> Level.t typer_context
 
   (* vars *)
   val lookup_var : name:Name.t -> (Level.t * ex_term) typer_context
@@ -98,8 +101,6 @@ module Typer_context : sig
     type_:_ term ->
     (unit -> 'a typer_context) ->
     'a typer_context
-
-  val tt_hole : unit -> core term typer_context
 
   (* unify *)
   val with_unify_context : (unit -> 'a Unify_context.t) -> 'a typer_context

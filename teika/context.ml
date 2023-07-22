@@ -18,16 +18,13 @@ type error =
       hole : hole; [@printer Tprinter.pp_hole]
       in_ : hole; [@printer Tprinter.pp_hole]
     }
-  | CError_unify_var_escape of {
-      hole : hole; [@printer Tprinter.pp_hole]
-      var : Level.t;
-    }
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }
-  | Cerror_typer_not_a_forall of {
+  | CError_typer_not_a_forall of {
       type_ : ex_term; [@printer Tprinter.pp_ex_term]
     }
   | CError_typer_pairs_not_implemented
+  | CError_typer_var_escape of { var : Level.t }
 [@@deriving show { with_path = false }]
 
 type ('a, 'b) result = { match_ : 'k. ok:('a -> 'k) -> error:('b -> 'k) -> 'k }
@@ -82,9 +79,6 @@ module Unify_context = struct
 
   let[@inline always] error_var_occurs ~hole ~in_ =
     fail @@ CError_unify_var_occurs { hole; in_ }
-
-  let[@inline always] error_var_escape ~hole ~var =
-    fail @@ CError_unify_var_escape { hole; var }
 end
 
 module Typer_context = struct
@@ -143,7 +137,10 @@ module Typer_context = struct
 
   let[@inline always] error_not_a_forall ~type_ =
     let type_ = Ex_term type_ in
-    fail @@ Cerror_typer_not_a_forall { type_ }
+    fail @@ CError_typer_not_a_forall { type_ }
+
+  let[@inline always] error_var_escape ~var =
+    fail @@ CError_typer_var_escape { var }
 
   let[@inline always] lookup_var ~name ~next_var:_ ~vars ~expected_vars:_
       ~received_vars:_ =
@@ -164,10 +161,9 @@ module Typer_context = struct
     let received_vars = Free :: received_vars in
     f () ~next_var ~vars ~expected_vars ~received_vars
 
-  let[@inline always] tt_hole () ~next_var ~vars:_ ~expected_vars:_
+  let[@inline always] level () ~next_var ~vars:_ ~expected_vars:_
       ~received_vars:_ =
-    (* TODO: probably Ttree *)
-    ok @@ TT_hole { level = next_var; link = tt_nil }
+    ok next_var
 
   let[@inline always] with_unify_context f ~next_var:_ ~vars:_ ~expected_vars
       ~received_vars =
