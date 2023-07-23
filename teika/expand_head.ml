@@ -29,6 +29,10 @@ let rec expand_head_term : type a. a term -> core term =
       | _lambda ->
           (* TODO: use expanded? *)
           term)
+  | TT_self _ as term -> term
+  | TT_fix _ as term -> term
+  | TT_unroll _ as term -> term
+  | TT_unfold _ as term -> term
   | TT_let { value; return } ->
       expand_head_term @@ tt_subst_bound ~from:Index.zero ~to_:value return
   | TT_annot { term; annot = _ } -> expand_head_term term
@@ -69,6 +73,24 @@ and expand_subst_bound : type a t. from:_ -> to_:t term -> a term -> core term =
       let lambda = tt_subst_bound ~from lambda in
       let arg = tt_subst_bound ~from arg in
       TT_apply { lambda; arg }
+  | TT_self { body } ->
+      let body =
+        let from = Index.(from + one) in
+        tt_subst_bound ~from body
+      in
+      TT_self { body }
+  | TT_fix { body } ->
+      let body =
+        let from = Index.(from + one) in
+        tt_subst_bound ~from body
+      in
+      TT_fix { body }
+  | TT_unroll { term } ->
+      let term = tt_subst_bound ~from term in
+      TT_unroll { term }
+  | TT_unfold { term } ->
+      let term = tt_subst_bound ~from term in
+      TT_unfold { term }
 
 and expand_subst_free : type a t. from:_ -> to_:t term -> a term -> core term =
  fun ~from ~to_ term ->
@@ -92,6 +114,18 @@ and expand_subst_free : type a t. from:_ -> to_:t term -> a term -> core term =
       let lambda = tt_subst_free lambda in
       let arg = tt_subst_free arg in
       TT_apply { lambda; arg }
+  | TT_self { body } ->
+      let body = tt_subst_free body in
+      TT_self { body }
+  | TT_fix { body } ->
+      let body = tt_subst_free body in
+      TT_fix { body }
+  | TT_unroll { term } ->
+      let term = tt_subst_free term in
+      TT_unroll { term }
+  | TT_unfold { term } ->
+      let term = tt_subst_free term in
+      TT_unfold { term }
 
 and expand_open_bound : type a. from:_ -> to_:_ -> a term -> core term =
  fun ~from ~to_ term ->
@@ -121,6 +155,24 @@ and expand_open_bound : type a. from:_ -> to_:_ -> a term -> core term =
       let lambda = tt_open_bound ~from lambda in
       let arg = tt_open_bound ~from arg in
       TT_apply { lambda; arg }
+  | TT_self { body } ->
+      let body =
+        let from = Index.(from + one) in
+        tt_open_bound ~from body
+      in
+      TT_self { body }
+  | TT_fix { body } ->
+      let body =
+        let from = Index.(from + one) in
+        tt_open_bound ~from body
+      in
+      TT_fix { body }
+  | TT_unroll { term } ->
+      let term = tt_open_bound ~from term in
+      TT_unroll { term }
+  | TT_unfold { term } ->
+      let term = tt_open_bound ~from term in
+      TT_unfold { term }
 
 and expand_close_free : type a. from:_ -> to_:_ -> a term -> core term =
  fun ~from ~to_ term ->
@@ -150,3 +202,21 @@ and expand_close_free : type a. from:_ -> to_:_ -> a term -> core term =
       let lambda = tt_close_free ~to_ lambda in
       let arg = tt_close_free ~to_ arg in
       TT_apply { lambda; arg }
+  | TT_self { body } ->
+      let body =
+        let to_ = Index.(to_ + one) in
+        tt_close_free ~to_ body
+      in
+      TT_self { body }
+  | TT_fix { body } ->
+      let body =
+        let to_ = Index.(to_ + one) in
+        tt_close_free ~to_ body
+      in
+      TT_fix { body }
+  | TT_unroll { term } ->
+      let term = tt_close_free ~to_ term in
+      TT_unroll { term }
+  | TT_unfold { term } ->
+      let term = tt_close_free ~to_ term in
+      TT_unfold { term }
