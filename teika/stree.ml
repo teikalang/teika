@@ -2,6 +2,7 @@ type term = ST of { loc : Location.t; [@opaque] desc : term_desc }
 
 and term_desc =
   | ST_var of { var : Name.t }
+  | ST_extension of { extension : Name.t }
   | ST_forall of { param : term; return : term }
   | ST_lambda of { param : term; return : term }
   | ST_apply of { lambda : term; arg : term }
@@ -16,6 +17,7 @@ and term_desc =
 
 let st loc desc = ST { loc; desc }
 let st_var loc ~var = st loc (ST_var { var })
+let st_extension loc ~extension = st loc (ST_extension { extension })
 let st_forall loc ~param ~return = st loc (ST_forall { param; return })
 let st_lambda loc ~param ~return = st loc (ST_lambda { param; return })
 let st_apply loc ~lambda ~arg = st loc (ST_apply { lambda; arg })

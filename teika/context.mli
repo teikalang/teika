@@ -19,6 +19,10 @@ type error = private
   | CError_typer_not_a_forall of { type_ : ex_term }
   | CError_typer_pairs_not_implemented
   | CError_typer_var_escape of { var : Level.t }
+  | CError_typer_unknown_extension of {
+      extension : Name.t;
+      payload : Ltree.term;
+    }
 [@@deriving show]
 
 type var_info = Free
@@ -88,6 +92,9 @@ module Typer_context : sig
   val error_pairs_not_implemented : unit -> 'a typer_context
   val error_not_a_forall : type_:_ term -> 'a typer_context
   val error_var_escape : var:Level.t -> 'a typer_context
+
+  val error_typer_unknown_extension :
+    extension:Name.t -> payload:Ltree.term -> 'a typer_context
 
   (* level *)
   val level : unit -> Level.t typer_context

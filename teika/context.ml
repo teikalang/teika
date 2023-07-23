@@ -25,6 +25,10 @@ type error =
     }
   | CError_typer_pairs_not_implemented
   | CError_typer_var_escape of { var : Level.t }
+  | CError_typer_unknown_extension of {
+      extension : Name.t;
+      payload : Ltree.term;
+    }
 [@@deriving show { with_path = false }]
 
 type ('a, 'b) result = { match_ : 'k. ok:('a -> 'k) -> error:('b -> 'k) -> 'k }
@@ -141,6 +145,9 @@ module Typer_context = struct
 
   let[@inline always] error_var_escape ~var =
     fail @@ CError_typer_var_escape { var }
+
+  let[@inline always] error_typer_unknown_extension ~extension ~payload =
+    fail @@ CError_typer_unknown_extension { extension; payload }
 
   let[@inline always] lookup_var ~name ~next_var:_ ~vars ~expected_vars:_
       ~received_vars:_ =

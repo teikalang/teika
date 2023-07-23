@@ -51,6 +51,8 @@ let rec check_term : type a. _ -> expected:a term -> _ =
       let* level, Ex_term received = lookup_var ~name in
       let* () = unify_term ~received ~expected in
       wrapped @@ TT_free_var { level }
+  | LT_extension { extension; payload } ->
+      check_term_extension ~extension ~payload ~expected
   | LT_forall { param; return } ->
       (* TODO: this could in theory be improved by expected term *)
       (* TODO: this could also be checked after the return *)
@@ -111,6 +113,12 @@ let rec check_term : type a. _ -> expected:a term -> _ =
       wrapped @@ TT_annot { term; annot }
   | LT_loc { term; loc } ->
       with_tt_loc ~loc @@ fun () -> check_term term ~expected
+
+and check_term_extension :
+    type a. extension:_ -> payload:_ -> expected:a term -> _ =
+ fun ~extension ~payload ~expected:_ ->
+  match (Name.repr extension, payload) with
+  | _ -> error_typer_unknown_extension ~extension ~payload
 
 and check_annot term = check_term term ~expected:tt_type
 

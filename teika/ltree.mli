@@ -1,6 +1,8 @@
 type term =
   (* x *)
   | LT_var of { var : Name.t }
+  (* @x(e) *)
+  | LT_extension of { extension : Name.t; payload : term }
   (* (x : A) -> (z : B) *)
   | LT_forall of { param : pat; return : term }
   (* (x : A) => e *)
