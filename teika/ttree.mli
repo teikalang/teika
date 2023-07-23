@@ -13,7 +13,7 @@ type _ term =
   (* x/+n *)
   | TT_free_var : { level : Level.t } -> core term
   (* _x/+n *)
-  | TT_hole : { hole : hole; substs : subst list } -> core term
+  | TT_hole : { hole : hole } -> core term
   (* (x : A) -> B *)
   | TT_forall : { param : _ term; return : _ term } -> core term
   (* (x : A) => e *)

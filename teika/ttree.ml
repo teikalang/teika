@@ -19,7 +19,7 @@ type _ term =
   | TT_subst : { subst : subst; term : _ term } -> subst term
   | TT_bound_var : { index : Index.t } -> core term
   | TT_free_var : { level : Level.t } -> core term
-  | TT_hole : { hole : hole; substs : subst list } -> core term
+  | TT_hole : { hole : hole } -> core term
   | TT_forall : { param : _ term; return : _ term } -> core term
   | TT_lambda : { param : _ term; return : _ term } -> core term
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
@@ -56,7 +56,7 @@ let tt_type = TT_free_var { level = type_level }
 
 let tt_hole () =
   let hole = { link = Ex_term tt_nil } in
-  TT_hole { hole; substs = [] }
+  TT_hole { hole }
 
 let is_tt_nil (type a) (term : a term) =
   match term with

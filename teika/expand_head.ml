@@ -8,7 +8,7 @@ let rec expand_head_term : type a. a term -> core term =
   | TT_subst { subst; term } -> expand_subst ~subst term
   | TT_bound_var _ as term -> term
   | TT_free_var _ as term -> term
-  | TT_hole { hole; substs = _ } as term -> (
+  | TT_hole { hole } as term -> (
       (* TODO: path compression *)
       (* TODO: move this to machinery *)
       let (Ex_term link) = hole.link in
@@ -50,9 +50,7 @@ and expand_subst_bound : type a t. from:_ -> to_:t term -> a term -> core term =
       | true -> expand_head_term to_
       | false -> term)
   | TT_free_var { level = _ } as term -> term
-  | TT_hole { hole; substs } ->
-      let substs = TS_subst_bound { from; to_ } :: substs in
-      TT_hole { hole; substs }
+  | TT_hole { hole = _ } as term -> term
   | TT_forall { param; return } ->
       let param = tt_subst_bound ~from param in
       let return =
@@ -81,9 +79,7 @@ and expand_subst_free : type a t. from:_ -> to_:t term -> a term -> core term =
       match Level.equal from level with
       | true -> expand_head_term to_
       | false -> term)
-  | TT_hole { hole; substs } ->
-      let substs = TS_subst_free { from; to_ } :: substs in
-      TT_hole { hole; substs }
+  | TT_hole { hole = _ } as term -> term
   | TT_forall { param; return } ->
       let param = tt_subst_free param in
       let return = tt_subst_free return in
@@ -106,9 +102,7 @@ and expand_open_bound : type a. from:_ -> to_:_ -> a term -> core term =
       | true -> TT_free_var { level = to_ }
       | false -> term)
   | TT_free_var { level = _ } as term -> term
-  | TT_hole { hole; substs } ->
-      let substs = TS_open_bound { from; to_ } :: substs in
-      TT_hole { hole; substs }
+  | TT_hole { hole = _ } as term -> term
   | TT_forall { param; return } ->
       let param = tt_open_bound ~from param in
       let return =
@@ -137,9 +131,7 @@ and expand_close_free : type a. from:_ -> to_:_ -> a term -> core term =
       match Level.equal from level with
       | true -> TT_bound_var { index = to_ }
       | false -> term)
-  | TT_hole { hole; substs } ->
-      let substs = TS_close_free { from; to_ } :: substs in
-      TT_hole { hole; substs }
+  | TT_hole { hole = _ } as term -> term
   | TT_forall { param; return } ->
       let param = tt_close_free ~to_ param in
       let return =
