@@ -9,9 +9,8 @@ let unify_term ~expected ~received =
 
 let open_term term =
   (* TODO: this opening is weird *)
-  let+ level = level () in
-  let to_ = TT_free_var { level } in
-  tt_subst_bound ~from:Index.zero ~to_ term
+  let+ to_ = level () in
+  tt_open_bound ~from:Index.zero ~to_ term
 
 let close_term term =
   (* TODO: this closing is weird *)
@@ -77,9 +76,9 @@ let rec check_term : type a. _ -> expected:a term -> _ =
       let* arg_type, return_type = split_forall lambda_type in
       let* arg = check_term arg ~expected:arg_type in
       let* () =
-        (* TODO: this is clearly a hack *)
-        let* return_type = close_term return_type in
-        let received = tt_subst_bound ~from:Index.zero ~to_:arg return_type in
+        (* TODO: abstract this *)
+        let* from = level () in
+        let received = tt_subst_free ~from ~to_:arg return_type in
         unify_term ~received ~expected
       in
       wrapped @@ TT_apply { lambda; arg }
@@ -96,11 +95,10 @@ let rec check_term : type a. _ -> expected:a term -> _ =
         check_pat pat ~expected:value_type @@ fun () ->
         check_term return ~expected:return_type
       in
-      let* return_type = close_term return_type in
       let* () =
-        (* TODO: this technically works here, but bad *)
-        (* TODO: tt_subst_free *)
-        let received = tt_subst_bound ~from:Index.zero ~to_:value return_type in
+        (* TODO: abstract this *)
+        let* from = level () in
+        let received = tt_subst_free ~from ~to_:value return_type in
         unify_term ~received ~expected
       in
       wrapped @@ TT_let { value; return }

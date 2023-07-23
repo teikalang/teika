@@ -7,7 +7,11 @@ let rec escape_check : type a. current:_ -> a term -> _ =
   let escape_check term = escape_check ~current term in
   (* TODO: check without expand_head? *)
   match expand_head_term term with
-  | TT_bound_var { index = _ } -> (* TODO: also check bound var *) return ()
+  | TT_bound_var { index = _ } ->
+      (* TODO: also check bound var *)
+      (* TODO: very very important to check for bound vars, unification
+            may unify variables outside of their binders *)
+      return ()
   | TT_free_var { level } -> (
       match Level.(current < level) with
       | true -> error_var_escape ~var:level
