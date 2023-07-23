@@ -23,6 +23,18 @@ type _ term =
       term : _ term;
     }
       -> subst term
+  | TT_subst_free : {
+      from : Level.t;
+      to_ : _ term;
+      term : _ term;
+    }
+      -> subst term
+  | TT_open_bound : {
+      from : Index.t;
+      to_ : Level.t;
+      term : _ term;
+    }
+      -> subst term
   | TT_close_free : {
       from : Level.t;
       to_ : Index.t;
@@ -45,6 +57,8 @@ type ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
 let nil_level = Level.zero
 let type_level = Level.next nil_level
 let tt_subst_bound ~from ~to_ term = TT_subst_bound { from; to_; term }
+let tt_subst_free ~from ~to_ term = TT_subst_free { from; to_; term }
+let tt_open_bound ~from ~to_ term = TT_open_bound { from; to_; term }
 let tt_close_free ~from ~to_ term = TT_close_free { from; to_; term }
 let tt_nil = TT_free_var { level = nil_level }
 let tt_type = TT_free_var { level = type_level }

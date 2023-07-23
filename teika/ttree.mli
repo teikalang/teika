@@ -14,6 +14,20 @@ type _ term =
       term : _ term;
     }
       -> subst term
+  (* M[+f := N]*)
+  | TT_subst_free : {
+      from : Level.t;
+      to_ : _ term;
+      term : _ term;
+    }
+      -> subst term
+  (* M[-f `open` +t]*)
+  | TT_open_bound : {
+      from : Index.t;
+      to_ : Level.t;
+      term : _ term;
+    }
+      -> subst term
   (* M[+f `close` -t]*)
   | TT_close_free : {
       from : Level.t;
@@ -47,6 +61,8 @@ val type_level : Level.t
 
 (* constructors *)
 val tt_subst_bound : from:Index.t -> to_:_ term -> _ term -> subst term
+val tt_subst_free : from:Level.t -> to_:_ term -> _ term -> subst term
+val tt_open_bound : from:Index.t -> to_:Level.t -> _ term -> subst term
 val tt_close_free : from:Level.t -> to_:Index.t -> _ term -> subst term
 val tt_nil : core term
 val tt_type : core term
