@@ -17,6 +17,7 @@ let mk (loc_start, loc_end) =
 %token RIGHT_PARENS (* ) *)
 %token LEFT_BRACE (* { *)
 %token RIGHT_BRACE (* } *)
+%token <string> EXTENSION (* @x *)
 
 %token EOF
 
@@ -51,6 +52,7 @@ let term_rec_apply :=
 
 let term_atom :=
   | term_var
+  | term_extension
   | term_parens(term_wrapped)
   | term_braces(term_wrapped)
 
@@ -71,6 +73,9 @@ let term_rec_annot :=
 let term_var ==
   | var = VAR;
     { st_var (mk $loc) ~var:(Name.make var) }
+let term_extension ==
+  | extension = EXTENSION;
+    { st_extension (mk $loc) ~extension:(Name.make extension) }
 let term_forall(self, lower) ==
   | param = lower; ARROW; return = self;
     { st_forall (mk $loc) ~param ~return }

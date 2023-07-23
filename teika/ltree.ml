@@ -1,5 +1,6 @@
 type term =
   | LT_var of { var : Name.t }
+  | LT_extension of { extension : Name.t; payload : term }
   | LT_forall of { param : pat; return : term }
   | LT_lambda of { param : pat; return : term }
   | LT_apply of { lambda : term; arg : term }

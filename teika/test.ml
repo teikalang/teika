@@ -13,6 +13,7 @@ module Stree_utils = struct
 
   and term_desc = Stree.term_desc = private
     | ST_var of { var : Name.t }
+    | ST_extension of { extension : Name.t }
     | ST_forall of { param : term; return : term }
     | ST_lambda of { param : term; return : term }
     | ST_apply of { lambda : term; arg : term }
@@ -31,6 +32,10 @@ module Stree_utils = struct
   let var var =
     let var = Name.make var in
     st_var loc ~var
+
+  let extension extension =
+    let extension = Name.make extension in
+    st_extension loc ~extension
 
   let ( @-> ) param return = st_forall loc ~param ~return
   let ( @=> ) param return = st_lambda loc ~param ~return
@@ -56,6 +61,7 @@ module Sparser = struct
   let tests =
     [
       ("variable", works "x" (var "x"));
+      ("extension", works "@fix" (extension "@fix"));
       ("arrow", works "x -> x" (var "x" @-> var "x"));
       ("lambda", works "x => x" (var "x" @=> var "x"));
       ("apply", works "x y z" ((var "x" @@ var "y") @@ var "z"));
@@ -113,6 +119,9 @@ module Ltree_utils = struct
   let rec equal_term a b =
     match (a, b) with
     | LT_var { var = a }, LT_var { var = b } -> Name.equal a b
+    | ( LT_extension { extension = a_extension; payload = a_payload },
+        LT_extension { extension = b_extension; payload = b_payload } ) ->
+        Name.equal a_extension b_extension && equal_term a_payload b_payload
     | ( LT_forall { param = a_param; return = a_return },
         LT_forall { param = b_param; return = b_return } ) ->
         equal_pat a_param b_param && equal_term a_return b_return
@@ -137,10 +146,10 @@ module Ltree_utils = struct
     (* TODO: loc equality *)
     | LT_loc { term = a; loc = _ }, b | a, LT_loc { term = b; loc = _ } ->
         equal_term a b
-    | ( ( LT_var _ | LT_forall _ | LT_lambda _ | LT_apply _ | LT_exists _
-        | LT_pair _ | LT_let _ | LT_annot _ ),
-        ( LT_var _ | LT_forall _ | LT_lambda _ | LT_apply _ | LT_exists _
-        | LT_pair _ | LT_let _ | LT_annot _ ) ) ->
+    | ( ( LT_var _ | LT_extension _ | LT_forall _ | LT_lambda _ | LT_apply _
+        | LT_exists _ | LT_pair _ | LT_let _ | LT_annot _ ),
+        ( LT_var _ | LT_extension _ | LT_forall _ | LT_lambda _ | LT_apply _
+        | LT_exists _ | LT_pair _ | LT_let _ | LT_annot _ ) ) ->
         false
 
   and equal_pat a b =
@@ -173,6 +182,10 @@ module Ltree_utils = struct
     let var = Name.make var in
     LT_var { var }
 
+  let ( @ ) extension payload =
+    let extension = Name.make extension in
+    LT_extension { extension; payload }
+
   let pvar var =
     let var = Name.make var in
     LP_var { var }
@@ -203,6 +216,7 @@ module Lparser = struct
   let tests =
     [
       ("variable", works "x" (var "x"));
+      ("extension", works "@fix(x)" ("@fix" @ var "x"));
       ("arrow", works "(x : A) -> x" ((pvar "x" $: var "A") @-> var "x"));
       ("lambda", works "(x : A) => x" ((pvar "x" $: var "A") @=> var "x"));
       ("apply", works "x y z" ((var "x" @@ var "y") @@ var "z"));

@@ -2,6 +2,7 @@ type term = private ST of { loc : Location.t; desc : term_desc }
 
 and term_desc = private
   | ST_var of { var : Name.t }
+  | ST_extension of { extension : Name.t }
   | ST_forall of { param : term; return : term }
   | ST_lambda of { param : term; return : term }
   | ST_apply of { lambda : term; arg : term }
@@ -15,6 +16,7 @@ and term_desc = private
 [@@deriving show]
 
 val st_var : Location.t -> var:Name.t -> term
+val st_extension : Location.t -> extension:Name.t -> term
 val st_forall : Location.t -> param:term -> return:term -> term
 val st_lambda : Location.t -> param:term -> return:term -> term
 val st_apply : Location.t -> lambda:term -> arg:term -> term
