@@ -5,16 +5,18 @@ let rec expand_head_term : type a. a term -> core term =
   match term with
   | TT_loc { term; loc = _ } -> expand_head_term term
   | TT_typed { term; annot = _ } -> expand_head_term term
-  | TT_subst_bound { from; to_; term } -> expand_subst_bound ~from ~to_ term
-  | TT_subst_free { from; to_; term } -> expand_subst_free ~from ~to_ term
-  | TT_open_bound { from; to_; term } -> expand_open_bound ~from ~to_ term
-  | TT_close_free { from; to_; term } -> expand_close_free ~from ~to_ term
+  | TT_subst { subst; term } -> expand_subst ~subst term
   | TT_bound_var _ as term -> term
   | TT_free_var _ as term -> term
-  | TT_hole { link } as term -> (
+  | TT_hole { hole; substs = _ } as term -> (
       (* TODO: path compression *)
       (* TODO: move this to machinery *)
-      match link == tt_nil with true -> term | false -> expand_head_term link)
+      let (Ex_term link) = hole.link in
+      match is_tt_nil link with
+      | true -> term
+      | false ->
+          (* TODO: path compression *)
+          expand_head_term link)
   | TT_forall _ as term -> term
   | TT_lambda _ as term -> term
   | TT_apply { lambda; arg } as term -> (
@@ -31,6 +33,14 @@ let rec expand_head_term : type a. a term -> core term =
       expand_head_term @@ tt_subst_bound ~from:Index.zero ~to_:value return
   | TT_annot { term; annot = _ } -> expand_head_term term
 
+and expand_subst : type a. subst:subst -> a term -> core term =
+ fun ~subst term ->
+  match subst with
+  | TS_subst_bound { from; to_ } -> expand_subst_bound ~from ~to_ term
+  | TS_subst_free { from; to_ } -> expand_subst_free ~from ~to_ term
+  | TS_open_bound { from; to_ } -> expand_open_bound ~from ~to_ term
+  | TS_close_free { from; to_ } -> expand_close_free ~from ~to_ term
+
 and expand_subst_bound : type a t. from:_ -> to_:t term -> a term -> core term =
  fun ~from ~to_ term ->
   let tt_subst_bound ~from term = tt_subst_bound ~from ~to_ term in
@@ -40,8 +50,9 @@ and expand_subst_bound : type a t. from:_ -> to_:t term -> a term -> core term =
       | true -> expand_head_term to_
       | false -> term)
   | TT_free_var { level = _ } as term -> term
-  (* TODO: expand subst into hole, magic could be done here *)
-  | TT_hole _hole as term -> term
+  | TT_hole { hole; substs } ->
+      let substs = TS_subst_bound { from; to_ } :: substs in
+      TT_hole { hole; substs }
   | TT_forall { param; return } ->
       let param = tt_subst_bound ~from param in
       let return =
@@ -70,8 +81,9 @@ and expand_subst_free : type a t. from:_ -> to_:t term -> a term -> core term =
       match Level.equal from level with
       | true -> expand_head_term to_
       | false -> term)
-  (* TODO: expand subst into hole, magic could be done here *)
-  | TT_hole _hole as term -> term
+  | TT_hole { hole; substs } ->
+      let substs = TS_subst_free { from; to_ } :: substs in
+      TT_hole { hole; substs }
   | TT_forall { param; return } ->
       let param = tt_subst_free param in
       let return = tt_subst_free return in
@@ -94,8 +106,9 @@ and expand_open_bound : type a. from:_ -> to_:_ -> a term -> core term =
       | true -> TT_free_var { level = to_ }
       | false -> term)
   | TT_free_var { level = _ } as term -> term
-  (* TODO: expand subst into hole, magic could be done here *)
-  | TT_hole _hole as term -> term
+  | TT_hole { hole; substs } ->
+      let substs = TS_open_bound { from; to_ } :: substs in
+      TT_hole { hole; substs }
   | TT_forall { param; return } ->
       let param = tt_open_bound ~from param in
       let return =
@@ -124,8 +137,9 @@ and expand_close_free : type a. from:_ -> to_:_ -> a term -> core term =
       match Level.equal from level with
       | true -> TT_bound_var { index = to_ }
       | false -> term)
-  (* TODO: expand subst into hole, magic could be done here *)
-  | TT_hole _hole as term -> term
+  | TT_hole { hole; substs } ->
+      let substs = TS_close_free { from; to_ } :: substs in
+      TT_hole { hole; substs }
   | TT_forall { param; return } ->
       let param = tt_close_free ~to_ param in
       let return =
