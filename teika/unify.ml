@@ -36,7 +36,7 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
   | TT_bound_var { index = _ } -> return ()
   | TT_free_var { level = _ } -> return ()
   (* TODO: use this substs? *)
-  | TT_hole { hole = in_; substs = _ } -> (
+  | TT_hole { hole = in_ } -> (
       match hole == in_ with
       | true -> error_var_occurs ~hole ~in_
       | false -> return ())
@@ -50,17 +50,6 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
       let* () = occurs_term ~in_:lambda in
       occurs_term ~in_:arg
 
-(* TODO: better place for this *)
-let inverse_subst subst =
-  match subst with
-  (* TODO: subst of this could definitely be inversed *)
-  | TS_subst_bound _ -> None
-  | TS_subst_free _ -> None
-  | TS_open_bound { from; to_ } ->
-      Some (TS_close_free { from = to_; to_ = from })
-  | TS_close_free { from; to_ } ->
-      Some (TS_open_bound { from = to_; to_ = from })
-
 let rec unify_term : type e r. expected:e term -> received:r term -> _ =
  fun ~expected ~received ->
   (* TODO: short circuit physical equality *)
@@ -73,9 +62,9 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       match Level.equal expected received with
       | true -> return ()
       | false -> error_free_var_clash ~expected ~received)
-  | TT_hole { hole; substs }, to_ | to_, TT_hole { hole; substs } ->
+  | TT_hole { hole }, to_ | to_, TT_hole { hole } ->
       (* TODO: maybe unify against non expanded? *)
-      unify_hole hole ~substs ~to_
+      unify_hole hole ~to_
   (* TODO: track whenever it is unified and locations, visualizing inference *)
   | ( TT_forall { param = expected_param; return = expected_return },
       TT_forall { param = received_param; return = received_return } ) ->
@@ -99,19 +88,11 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       as received_norm) ) ->
       error_type_clash ~expected ~expected_norm ~received ~received_norm
 
-and unify_hole hole ~substs ~to_ =
-  let to_ =
-    List.fold_right
-      (fun subst (Ex_term to_) ->
-        match inverse_subst subst with
-        | Some subst -> Ex_term (TT_subst { subst; term = to_ })
-        | None -> Ex_term to_)
-      substs (Ex_term to_)
-  in
-  (* TODO: prefer a direction when both are holes? *)
-  let* () =
-    let (Ex_term to_) = to_ in
-    occurs_term hole ~in_:to_
-  in
-  hole.link <- to_;
-  return ()
+and unify_hole hole ~to_ =
+  match to_ with
+  | TT_hole { hole = to_ } when hole == to_ -> return ()
+  | _ ->
+      (* TODO: prefer a direction when both are holes? *)
+      let* () = occurs_term hole ~in_:to_ in
+      hole.link <- Ex_term to_;
+      return ()
