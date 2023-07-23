@@ -12,12 +12,18 @@ module Ptree = struct
     | PT_var_name of { name : Name.t }
     | PT_var_index of { index : Index.t }
     | PT_var_level of { level : Level.t }
-    | PT_hole_var_full of { id : int }
+    | PT_hole_var_full of { id : int; substs : subst list }
     | PT_forall of { var : Name.t; param : term; return : term }
     | PT_lambda of { var : Name.t; param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
     | PT_let of { var : Name.t; value : term; return : term }
     | PT_annot of { term : term; annot : term }
+
+  and subst =
+    | PS_subst_bound : { from : Index.t; to_ : term } -> subst
+    | PS_subst_free : { from : Level.t; to_ : term } -> subst
+    | PS_open_bound : { from : Index.t; to_ : Level.t } -> subst
+    | PS_close_free : { from : Level.t; to_ : Index.t } -> subst
 
   let pp_loc fmt loc =
     let pp_pos fmt pos =
@@ -30,6 +36,17 @@ module Ptree = struct
     | true -> fprintf fmt "[%a .. %a]" pp_pos loc_start pp_pos loc_end
     | false -> fprintf fmt "[__NONE__]"
 
+  let pp_subst_syntax ~pp_wrapped fmt subst =
+    match subst with
+    | PS_subst_bound { from; to_ } ->
+        fprintf fmt "\\-%a := %a" Index.pp from pp_wrapped to_
+    | PS_subst_free { from; to_ } ->
+        fprintf fmt "\\+%a := %a" Level.pp from pp_wrapped to_
+    | PS_open_bound { from; to_ } ->
+        fprintf fmt "\\-%a `open` \\+%a" Index.pp from Level.pp to_
+    | PS_close_free { from; to_ } ->
+        fprintf fmt "\\+%a `close` \\-%a" Level.pp from Index.pp to_
+
   let pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term =
     match term with
     | PT_loc { term; loc } -> fprintf fmt "%a#%a" pp_atom term pp_loc loc
@@ -38,7 +55,10 @@ module Ptree = struct
     | PT_var_name { name } -> fprintf fmt "%s" (Name.repr name)
     | PT_var_index { index } -> fprintf fmt "\\-%a" Index.pp index
     | PT_var_level { level } -> fprintf fmt "\\+%a" Level.pp level
-    | PT_hole_var_full { id } -> fprintf fmt "_x%d" id
+    | PT_hole_var_full { id; substs } ->
+        fprintf fmt "_x%d" id;
+        List.iter (fun subst -> pp_subst_syntax ~pp_wrapped fmt subst)
+        @@ List.rev substs
     | PT_forall { var; param; return } ->
         fprintf fmt "(%s : %a) -> %a" (Name.repr var) pp_wrapped param pp_funct
           return
@@ -102,12 +122,14 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
  fun config next holes (term : a term) ->
   let open Ptree in
   let ptree_of_term term = ptree_of_term config next holes term in
-  let ptree_of_hole term = ptree_of_hole config next holes term in
+  let ptree_of_hole ~hole ~substs =
+    ptree_of_hole config next holes ~hole ~substs
+  in
   (* TODO: print details *)
   match expand_head_term term with
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level } -> PT_var_level { level }
-  | TT_hole hole -> ptree_of_hole hole
+  | TT_hole { hole; substs } -> ptree_of_hole ~hole ~substs
   | TT_forall { param; return } ->
       let var = Name.make "_" in
       let param = ptree_of_term param in
@@ -123,22 +145,33 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
       let arg = ptree_of_term arg in
       PT_apply { lambda; arg }
 
-and ptree_of_hole config next holes hole =
+and ptree_of_hole config next holes ~hole ~substs =
   let open Ptree in
-  let ptree_of_term term = ptree_of_term config next holes term in
+  let ptree_of_subst subst = ptree_of_subst config next holes subst in
   (* TODO: extract this into machinery tooling *)
   (* TODO: allow to print link *)
-  match hole.link == tt_nil with
-  | true -> (
-      match Hashtbl.find_opt holes hole with
-      | Some term -> term
-      | None ->
-          let id = !next in
-          let term = PT_hole_var_full { id } in
-          next := id + 1;
-          Hashtbl.add holes hole term;
-          term)
-  | false -> ptree_of_term hole.link
+  match Hashtbl.find_opt holes hole with
+  | Some term -> term
+  | None ->
+      let id = !next in
+      let substs = List.map ptree_of_subst substs in
+      let term = PT_hole_var_full { id; substs } in
+      next := id + 1;
+      Hashtbl.add holes hole term;
+      term
+
+and ptree_of_subst config next holes subst =
+  let open Ptree in
+  let ptree_of_term term = ptree_of_term config next holes term in
+  match subst with
+  | TS_subst_bound { from; to_ } ->
+      let to_ = ptree_of_term to_ in
+      PS_subst_bound { from; to_ }
+  | TS_subst_free { from; to_ } ->
+      let to_ = ptree_of_term to_ in
+      PS_subst_free { from; to_ }
+  | TS_open_bound { from; to_ } -> PS_open_bound { from; to_ }
+  | TS_close_free { from; to_ } -> PS_close_free { from; to_ }
 
 let config =
   { typed_mode = Typed_default; loc_mode = Loc_default; var_mode = Var_name }
@@ -152,7 +185,9 @@ let pp_term fmt term =
 let pp_hole fmt hole =
   let next = ref 0 in
   let holes = Hashtbl.create 8 in
-  let pterm = ptree_of_hole config next holes hole in
+  (* TODO: this is really bad *)
+  let substs = [] in
+  let pterm = ptree_of_hole config next holes ~hole ~substs in
   Ptree.pp_term fmt pterm
 
 let pp_ex_term fmt (Ex_term term) = pp_term fmt term

@@ -9,7 +9,6 @@
 
 (* TODO: try parametric hoas *)
 type loc = Loc
-type subst = Subst
 type typed = Typed
 type core = Core
 type sugar = Sugar
@@ -17,49 +16,49 @@ type sugar = Sugar
 type _ term =
   | TT_loc : { term : _ term; loc : Location.t } -> loc term
   | TT_typed : { term : _ term; annot : _ term } -> typed term
-  | TT_subst_bound : {
-      from : Index.t;
-      to_ : _ term;
-      term : _ term;
-    }
-      -> subst term
-  | TT_subst_free : {
-      from : Level.t;
-      to_ : _ term;
-      term : _ term;
-    }
-      -> subst term
-  | TT_open_bound : {
-      from : Index.t;
-      to_ : Level.t;
-      term : _ term;
-    }
-      -> subst term
-  | TT_close_free : {
-      from : Level.t;
-      to_ : Index.t;
-      term : _ term;
-    }
-      -> subst term
+  | TT_subst : { subst : subst; term : _ term } -> subst term
   | TT_bound_var : { index : Index.t } -> core term
   | TT_free_var : { level : Level.t } -> core term
-  | TT_hole : hole -> core term
+  | TT_hole : { hole : hole; substs : subst list } -> core term
   | TT_forall : { param : _ term; return : _ term } -> core term
   | TT_lambda : { param : _ term; return : _ term } -> core term
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
   | TT_let : { value : _ term; return : _ term } -> sugar term
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 
-and hole = { mutable link : core term }
+and hole = { mutable link : ex_term }
 
-type ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
+and subst =
+  | TS_subst_bound : { from : Index.t; to_ : _ term } -> subst
+  | TS_subst_free : { from : Level.t; to_ : _ term } -> subst
+  | TS_open_bound : { from : Index.t; to_ : Level.t } -> subst
+  | TS_close_free : { from : Level.t; to_ : Index.t } -> subst
+
+and ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
 
 let nil_level = Level.zero
 let type_level = Level.next nil_level
-let tt_subst_bound ~from ~to_ term = TT_subst_bound { from; to_; term }
-let tt_subst_free ~from ~to_ term = TT_subst_free { from; to_; term }
-let tt_open_bound ~from ~to_ term = TT_open_bound { from; to_; term }
-let tt_close_free ~from ~to_ term = TT_close_free { from; to_; term }
+
+let tt_subst_bound ~from ~to_ term =
+  TT_subst { subst = TS_subst_bound { from; to_ }; term }
+
+let tt_subst_free ~from ~to_ term =
+  TT_subst { subst = TS_subst_free { from; to_ }; term }
+
+let tt_open_bound ~from ~to_ term =
+  TT_subst { subst = TS_open_bound { from; to_ }; term }
+
+let tt_close_free ~from ~to_ term =
+  TT_subst { subst = TS_close_free { from; to_ }; term }
+
 let tt_nil = TT_free_var { level = nil_level }
 let tt_type = TT_free_var { level = type_level }
-let tt_hole () = TT_hole { link = tt_nil }
+
+let tt_hole () =
+  let hole = { link = Ex_term tt_nil } in
+  TT_hole { hole; substs = [] }
+
+let is_tt_nil (type a) (term : a term) =
+  match term with
+  | TT_free_var { level } -> Level.equal nil_level level
+  | _ -> false

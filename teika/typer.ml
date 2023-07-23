@@ -7,11 +7,6 @@ open Escape_check
 let unify_term ~expected ~received =
   with_unify_context @@ fun () -> Unify.unify_term ~expected ~received
 
-let open_term term =
-  (* TODO: this opening is weird *)
-  let+ to_ = level () in
-  tt_open_bound ~from:Index.zero ~to_ term
-
 let close_term term =
   (* TODO: this closing is weird *)
   let+ from = level () in
@@ -20,7 +15,7 @@ let close_term term =
 let split_forall (type a) (type_ : a term) =
   let param = tt_hole () in
   (* TODO: this is needed because unification is monomorphic *)
-  let* return = open_term (tt_hole ()) in
+  let return = tt_hole () in
   let* expected =
     let+ return = close_term return in
     TT_forall { param; return }
