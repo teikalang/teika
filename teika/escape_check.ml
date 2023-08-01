@@ -29,7 +29,6 @@ let rec escape_check : type a. current:_ -> a term -> _ =
   | TT_self { body } -> escape_check body
   | TT_fix { body } -> escape_check body
   | TT_unroll { term } -> escape_check term
-  | TT_unfold { term } -> escape_check term
 
 let escape_check term =
   let* current = level () in

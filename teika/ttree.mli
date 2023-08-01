@@ -27,7 +27,8 @@ type _ term =
   (* @unroll(e)*)
   | TT_unroll : { term : _ term } -> core term
   (* @unfold(e)*)
-  | TT_unfold : { term : _ term } -> core term
+  (* TODO: technically not sugar *)
+  | TT_unfold : { term : _ term } -> sugar term
   (* x = t; u *)
   | TT_let : { value : _ term; return : _ term } -> sugar term
   (* (v : T) *)

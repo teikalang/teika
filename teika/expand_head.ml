@@ -32,7 +32,7 @@ let rec expand_head_term : type a. a term -> core term =
   | TT_self _ as term -> term
   | TT_fix _ as term -> term
   | TT_unroll _ as term -> term
-  | TT_unfold _ as term -> term
+  | TT_unfold { term } -> expand_head_term term
   | TT_let { value; return } ->
       expand_head_term @@ tt_subst_bound ~from:Index.zero ~to_:value return
   | TT_annot { term; annot = _ } -> expand_head_term term
@@ -88,9 +88,6 @@ and expand_subst_bound : type a t. from:_ -> to_:t term -> a term -> core term =
   | TT_unroll { term } ->
       let term = tt_subst_bound ~from term in
       TT_unroll { term }
-  | TT_unfold { term } ->
-      let term = tt_subst_bound ~from term in
-      TT_unfold { term }
 
 and expand_subst_free : type a t. from:_ -> to_:t term -> a term -> core term =
  fun ~from ~to_ term ->
@@ -123,9 +120,6 @@ and expand_subst_free : type a t. from:_ -> to_:t term -> a term -> core term =
   | TT_unroll { term } ->
       let term = tt_subst_free term in
       TT_unroll { term }
-  | TT_unfold { term } ->
-      let term = tt_subst_free term in
-      TT_unfold { term }
 
 and expand_open_bound : type a. from:_ -> to_:_ -> a term -> core term =
  fun ~from ~to_ term ->
@@ -170,9 +164,6 @@ and expand_open_bound : type a. from:_ -> to_:_ -> a term -> core term =
   | TT_unroll { term } ->
       let term = tt_open_bound ~from term in
       TT_unroll { term }
-  | TT_unfold { term } ->
-      let term = tt_open_bound ~from term in
-      TT_unfold { term }
 
 and expand_close_free : type a. from:_ -> to_:_ -> a term -> core term =
  fun ~from ~to_ term ->
@@ -217,6 +208,3 @@ and expand_close_free : type a. from:_ -> to_:_ -> a term -> core term =
   | TT_unroll { term } ->
       let term = tt_close_free ~to_ term in
       TT_unroll { term }
-  | TT_unfold { term } ->
-      let term = tt_close_free ~to_ term in
-      TT_unfold { term }

@@ -19,7 +19,6 @@ module Ptree = struct
     | PT_self of { var : Name.t; body : term }
     | PT_fix of { var : Name.t; body : term }
     | PT_unroll of { term : term }
-    | PT_unfold of { term : term }
     | PT_let of { var : Name.t; value : term; return : term }
     | PT_annot of { term : term; annot : term }
 
@@ -73,7 +72,6 @@ module Ptree = struct
     | PT_fix { var; body } ->
         fprintf fmt "@fix(%s => %a)" (Name.repr var) pp_wrapped body
     | PT_unroll { term } -> fprintf fmt "@unroll(%a)" pp_wrapped term
-    | PT_unfold { term } -> fprintf fmt "@unfold(%a)" pp_wrapped term
     | PT_let { var; value; return } ->
         fprintf fmt "%s = %a; %a" (Name.repr var) pp_funct value pp_let return
     | PT_annot { term; annot } ->
@@ -91,13 +89,13 @@ module Ptree = struct
     | ( ( PT_loc _ | PT_var_name _ | PT_var_index _ | PT_var_level _
         | PT_hole_var_full _ ),
         (Wrapped | Let | Funct | Apply | Atom) )
-    | ( (PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _ | PT_unfold _),
+    | ( (PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _),
         (Wrapped | Let | Funct | Apply) )
     | (PT_forall _ | PT_lambda _), (Wrapped | Let | Funct)
     | PT_let _, (Wrapped | Let)
     | (PT_typed _ | PT_annot _), Wrapped ->
         pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term
-    | (PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _ | PT_unfold _), Atom
+    | (PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _), Atom
     | (PT_forall _ | PT_lambda _), (Apply | Atom)
     | PT_let _, (Funct | Apply | Atom)
     | (PT_typed _ | PT_annot _), (Let | Funct | Apply | Atom) ->
@@ -161,9 +159,6 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
   | TT_unroll { term } ->
       let term = ptree_of_term term in
       PT_unroll { term }
-  | TT_unfold { term } ->
-      let term = ptree_of_term term in
-      PT_unfold { term }
 
 and ptree_of_hole _config next holes ~hole =
   let open Ptree in

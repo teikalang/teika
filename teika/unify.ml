@@ -52,7 +52,6 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
   | TT_self { body } -> occurs_term ~in_:body
   | TT_fix { body } -> occurs_term ~in_:body
   | TT_unroll { term } -> occurs_term ~in_:term
-  | TT_unfold { term } -> occurs_term ~in_:term
 
 let rec unify_term : type e r. expected:e term -> received:r term -> _ =
  fun ~expected ~received ->
@@ -92,13 +91,10 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       unify_term ~expected:expected_body ~received:received_body
   | TT_unroll { term = expected }, TT_unroll { term = received } ->
       unify_term ~expected ~received
-  | TT_unfold { term = expected }, TT_unfold { term = received } ->
-      unify_term ~expected ~received
   | ( (( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-       | TT_self _ | TT_fix _ | TT_unroll _ | TT_unfold _ ) as expected_norm),
+       | TT_self _ | TT_fix _ | TT_unroll _ ) as expected_norm),
       (( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-       | TT_self _ | TT_fix _ | TT_unroll _ | TT_unfold _ ) as received_norm) )
-    ->
+       | TT_self _ | TT_fix _ | TT_unroll _ ) as received_norm) ) ->
       error_type_clash ~expected ~expected_norm ~received ~received_norm
 
 and unify_hole hole ~to_ =
