@@ -23,6 +23,10 @@ type _ term =
   | TT_forall : { param : _ term; return : _ term } -> core term
   | TT_lambda : { param : _ term; return : _ term } -> core term
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
+  | TT_self : { body : _ term } -> core term
+  | TT_fix : { body : _ term } -> core term
+  | TT_unroll : { term : _ term } -> core term
+  | TT_unfold : { term : _ term } -> sugar term
   | TT_let : { value : _ term; return : _ term } -> sugar term
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 

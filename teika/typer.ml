@@ -28,6 +28,39 @@ let split_forall (type a) (type_ : a term) =
   let+ () = unify_term ~received:type_ ~expected in
   (param, return)
 
+let split_self (type a) (type_ : a term) =
+  (* TODO: this is needed because unification is monomorphic *)
+  let* body = open_term @@ tt_hole () in
+  let* expected =
+    let+ body = close_term body in
+    TT_self { body }
+  in
+  let+ () = unify_term ~received:type_ ~expected in
+  body
+
+(* TODO: better place for this *)
+let rec unfold_fix : type a. a term -> core term =
+ fun term ->
+  let open Expand_head in
+  (* TODO: not ideal to expand head *)
+  match expand_head_term term with
+  | TT_bound_var _ as term -> term
+  | TT_free_var _ as term -> term
+  | TT_hole _ as term -> term
+  | TT_forall _ as term -> term
+  | TT_lambda _ as term -> term
+  | TT_apply { lambda; arg } ->
+      let lambda = unfold_fix lambda in
+      let arg = unfold_fix arg in
+      TT_apply { lambda; arg }
+  | TT_self _ as term -> term
+  | TT_fix _ as term -> term
+  | TT_unroll { term = fix } as term -> (
+      match expand_head_term fix with
+      | TT_fix { body } as term ->
+          expand_head_term @@ tt_subst_bound ~from:Index.zero ~to_:term body
+      | _ -> term)
+
 let tt_typed ~annot term = TT_typed { term; annot }
 
 let with_tt_loc ~loc f =
@@ -116,8 +149,56 @@ let rec check_term : type a. _ -> expected:a term -> _ =
 
 and check_term_extension :
     type a. extension:_ -> payload:_ -> expected:a term -> _ =
- fun ~extension ~payload ~expected:_ ->
+ fun ~extension ~payload ~expected ->
+  let wrapped term =
+    let+ () = escape_check expected in
+    tt_typed ~annot:expected term
+  in
   match (Name.repr extension, payload) with
+  | _, LT_loc { term = payload; loc } ->
+      with_tt_loc ~loc @@ fun () ->
+      check_term_extension ~extension ~payload ~expected
+  | "@self", LT_forall { param = self; return = body } ->
+      (* TODO: this could in theory be improved by expected term *)
+      (* TODO: this could also be checked after the return *)
+      let* () = unify_term ~received:tt_type ~expected in
+      let self_type = tt_hole () in
+      let* expected_body = split_self self_type in
+      let* body =
+        check_pat self ~expected:self_type @@ fun () -> check_annot body
+      in
+      let* () = unify_term ~received:body ~expected:expected_body in
+      let* body = close_term body in
+      wrapped @@ TT_self { body }
+  | "@fix", LT_lambda { param = self; return = body } ->
+      let* expected_body_type = split_self expected in
+      let* body =
+        check_pat self ~expected @@ fun () ->
+        check_term body ~expected:expected_body_type
+      in
+      let* body = close_term body in
+      wrapped @@ TT_fix { body }
+  | "@unroll", fix ->
+      let fix_type = tt_hole () in
+      let* fix = check_term fix ~expected:fix_type in
+      (* TODO: this could be better? avoiding split self? *)
+      let* body_type = split_self fix_type in
+      let* () =
+        (* TODO: abstract this *)
+        let* from = level () in
+        let received = tt_subst_free ~from ~to_:fix body_type in
+        unify_term ~received ~expected
+      in
+      wrapped @@ TT_unroll { term = fix }
+  | "@unfold", term ->
+      (* TODO: breaks propagation *)
+      let term_type = tt_hole () in
+      let* term = check_term term ~expected:term_type in
+      let* () =
+        let received = unfold_fix term_type in
+        unify_term ~received ~expected
+      in
+      wrapped @@ TT_unfold { term }
   | _ -> error_typer_unknown_extension ~extension ~payload
 
 and check_annot term = check_term term ~expected:tt_type

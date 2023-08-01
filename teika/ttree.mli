@@ -20,6 +20,15 @@ type _ term =
   | TT_lambda : { param : _ term; return : _ term } -> core term
   (* l a *)
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
+  (* @self(x -> e)*)
+  | TT_self : { body : _ term } -> core term
+  (* @fix(x => e)*)
+  | TT_fix : { body : _ term } -> core term
+  (* @unroll(e)*)
+  | TT_unroll : { term : _ term } -> core term
+  (* @unfold(e)*)
+  (* TODO: technically not sugar *)
+  | TT_unfold : { term : _ term } -> sugar term
   (* x = t; u *)
   | TT_let : { value : _ term; return : _ term } -> sugar term
   (* (v : T) *)

@@ -309,11 +309,11 @@ module Typer = struct
 
   let let_id =
     check "let_id" ~wrapper:false
-      {|((id = (A : Type) => (x : A) => x; id) : (A : Type) -> (x : A) -> A)|}
+      {|((id = A => (x : A) => x; id) : (A : Type) -> (x : A) -> A)|}
 
   let id_type =
     check "id_type" ~wrapper:false
-      {|(((A : Type) => (x : A) => x) Type
+      {|((A => (x : A) => x) Type
         : (x : Type) -> Type)|}
 
   let id_type_never =
@@ -328,7 +328,7 @@ module Typer = struct
 
   let sequence =
     check "sequence" ~wrapper:false
-      {|(((A : Type) => (x : A) => (B : Type) => (y : B) => y)
+      {|((A => (x : A) => B => (y : B) => y)
         : (A : Type) -> (x : A) -> (B : Type) -> (y : B) -> B)|}
 
   let bool =
@@ -348,35 +348,43 @@ module Typer = struct
 
   let false_ =
     check "false" ~wrapper:false
-      {|(((A : Type) => (x : A) => (y : A) => y)
+      {|((A => (x : A) => (y : A) => y)
         : (A : Type) -> (x : A) -> (y : A) -> A)|}
 
-  (* let pair =
-     check "pair" ~wrapper:false
-       {|(((A : Type) => (B : Type) => (x : A) => (y : B) => (x = x, y = y))
-         : (A : Type) -> (B : Type) -> (x : A) -> (y : B) -> (x  : A, y : B))|} *)
+  let ind_false_T =
+    check "False_T" ~wrapper:false
+      {|
+        (@self(False -> (f : @self(f -> @unroll False f)) -> Type) : Type)
+      |}
 
-  (* let left_unpair =
-       check "left_unpair" ~wrapper:false
-         {|(((A : Type) => (B : Type) => (x : A) => (y : B) => (
-             p = (x = x, y = y);
-             (y, x) = p;
-             y
-           )) : (A : Type) -> (B : Type) -> (x : A) -> (y : B) -> A)|}
+  let ind_false =
+    check "False" ~wrapper:false
+      {|
+        (@fix(False => f =>
+          (P : (f : @self(f -> @unroll False f)) -> Type) -> P f
+        ) : @self(False -> (f : @self(f -> @unroll False f)) -> Type))
+      |}
 
-     let right_unpair =
-       check "right_unpair" ~wrapper:false
-         {|(A : Type) => (B : Type) => (x : A) => (y : B) => (
-             p = (x = x, y = y);
-             (y, x) = p;
-             x
-           )) : (A : Type) -> (B : Type) -> (x : A) -> (y : B) -> B)|} *)
-
-  (* TODO: something like pack *)
-  (* let pack =
-     type_expr "pack" ~wrapper:false
-       ~type_:"(R: Type) -> (A: Type, r: R) -> (A: Type, r: R)"
-       ~expr:"(R: Type) => (p: (A: Type, x: R)) => p" *)
+  let unfold_false =
+    let ind_false =
+      {|
+        (@fix(False => f =>
+          (P : (f : @self(f -> @unroll False f)) -> Type) -> P f
+        ) : @self(False -> (f : @self(f -> @unroll False f)) -> Type))
+      |}
+    in
+    let code =
+      Format.sprintf
+        {|((P => x => @unfold x) : 
+          (P : (False : (f : @self(f -> @unroll (%s) f)) -> Type) -> Type) ->
+          (x : P (@unroll (%s))) -> P (
+              (f : @self(f -> @unroll (%s) f)) =>
+                (P : (f : @self(f -> @unroll (%s) f)) -> Type) -> P f
+            ))
+        |}
+        ind_false ind_false ind_false ind_false
+    in
+    check "unfold False" ~wrapper:false code
 
   let tests =
     [
@@ -392,6 +400,9 @@ module Typer = struct
       true_;
       true_unify;
       false_;
+      ind_false_T;
+      ind_false;
+      unfold_false;
       (*
           pair;
           left_unpair;

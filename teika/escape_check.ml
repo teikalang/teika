@@ -26,6 +26,9 @@ let rec escape_check : type a. current:_ -> a term -> _ =
   | TT_apply { lambda; arg } ->
       let* () = escape_check lambda in
       escape_check arg
+  | TT_self { body } -> escape_check body
+  | TT_fix { body } -> escape_check body
+  | TT_unroll { term } -> escape_check term
 
 let escape_check term =
   let* current = level () in
