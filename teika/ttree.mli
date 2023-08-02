@@ -13,7 +13,8 @@ type _ term =
   (* x/+n *)
   | TT_free_var : { level : Level.t } -> core term
   (* _x/+n *)
-  | TT_hole : { hole : hole } -> core term
+  (* TODO: I really don't like this ex_term *)
+  | TT_hole : { hole : ex_term hole } -> core term
   (* (x : A) -> B *)
   | TT_forall : { param : _ term; return : _ term } -> core term
   (* (x : A) => e *)
@@ -34,8 +35,7 @@ type _ term =
   (* (v : T) *)
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 
-(* TODO: I really don't like this ex_term *)
-and hole = { mutable link : ex_term }
+and 'a hole = { mutable link : 'a }
 
 and subst =
   (* -f := N *)

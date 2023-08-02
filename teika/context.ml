@@ -15,8 +15,8 @@ type error =
     }
     (* TODO: lazy names for errors *)
   | CError_unify_var_occurs of {
-      hole : hole; [@printer Tprinter.pp_hole]
-      in_ : hole; [@printer Tprinter.pp_hole]
+      hole : ex_term hole; [@printer Tprinter.pp_ex_term_hole]
+      in_ : ex_term hole; [@printer Tprinter.pp_ex_term_hole]
     }
   (* typer *)
   | CError_typer_unknown_var of { name : Name.t }

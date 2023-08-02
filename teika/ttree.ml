@@ -19,7 +19,7 @@ type _ term =
   | TT_subst : { subst : subst; term : _ term } -> subst term
   | TT_bound_var : { index : Index.t } -> core term
   | TT_free_var : { level : Level.t } -> core term
-  | TT_hole : { hole : hole } -> core term
+  | TT_hole : { hole : ex_term hole } -> core term
   | TT_forall : { param : _ term; return : _ term } -> core term
   | TT_lambda : { param : _ term; return : _ term } -> core term
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
@@ -30,7 +30,7 @@ type _ term =
   | TT_let : { value : _ term; return : _ term } -> sugar term
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 
-and hole = { mutable link : ex_term }
+and 'a hole = { mutable link : 'a }
 
 and subst =
   | TS_subst_bound : { from : Index.t; to_ : _ term } -> subst

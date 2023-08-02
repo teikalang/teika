@@ -195,7 +195,7 @@ let pp_term fmt term =
   let pterm = ptree_of_term config next holes term in
   Ptree.pp_term fmt pterm
 
-let pp_hole fmt hole =
+let pp_ex_term_hole fmt hole =
   let next = ref 0 in
   let holes = Hashtbl.create 8 in
   let pterm = ptree_of_hole config next holes ~hole in
