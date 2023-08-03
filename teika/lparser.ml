@@ -63,6 +63,7 @@ let rec parse_term term =
 and parse_apply lambda arg =
   let (ST { loc; desc }) = lambda in
   match desc with
+  (* TODO: ST_parens? *)
   | ST_extension { extension } ->
       let payload = parse_term arg in
       let term = LT_extension { extension; payload } in

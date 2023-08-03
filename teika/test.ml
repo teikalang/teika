@@ -377,11 +377,8 @@ module Typer = struct
       Format.sprintf
         {|((P => x => @unfold x) : 
           (P : (False : (f : @self(f -> @unroll (%s) f)) -> Type) -> Type) ->
-          (x : P (@unroll (%s))) -> P (
-              (f : @self(f -> @unroll (%s) f)) =>
-                (P : (f : @self(f -> @unroll (%s) f)) -> Type) -> P f
-            ))
-        |}
+          (x : P (@unroll (%s))) -> P ((f : @self(f -> @unroll (%s) f)) =>
+              (P : (f : @self(f -> @unroll (%s) f)) -> Type) -> P f))|}
         ind_false ind_false ind_false ind_false
     in
     check "unfold False" ~wrapper:false code
@@ -418,7 +415,9 @@ module Typer = struct
       | Some stree -> (
           let ltree = Lparser.from_stree stree in
           match infer_term ltree with
-          | Ok _ttree -> ()
+          | Ok _ttree ->
+              Format.eprintf "%a\n%!" Tprinter.pp_term _ttree;
+              ()
           | Error error ->
               failwith @@ Format.asprintf "error: %a\n%!" Context.pp_error error
           )

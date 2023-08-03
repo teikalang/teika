@@ -12,30 +12,38 @@ type _ term =
   | TT_bound_var : { index : Index.t } -> core term
   (* x/+n *)
   | TT_free_var : { level : Level.t } -> core term
+  (* TODO: I really don't like this ex_term *)
   (* _x/+n *)
-  | TT_hole : { hole : hole } -> core term
+  | TT_hole : { hole : ex_term hole } -> core term
   (* (x : A) -> B *)
-  | TT_forall : { param : _ term; return : _ term } -> core term
+  | TT_forall : { param : typed pat; return : _ term } -> core term
   (* (x : A) => e *)
-  | TT_lambda : { param : _ term; return : _ term } -> core term
+  | TT_lambda : { param : typed pat; return : _ term } -> core term
   (* l a *)
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
   (* @self(x -> e)*)
-  | TT_self : { body : _ term } -> core term
+  (* TODO: why core pat? *)
+  | TT_self : { var : core pat; body : _ term } -> core term
   (* @fix(x => e)*)
-  | TT_fix : { body : _ term } -> core term
+  (* TODO: why core pat? *)
+  | TT_fix : { var : core pat; body : _ term } -> core term
   (* @unroll(e)*)
   | TT_unroll : { term : _ term } -> core term
   (* @unfold(e)*)
   (* TODO: technically not sugar *)
   | TT_unfold : { term : _ term } -> sugar term
   (* x = t; u *)
-  | TT_let : { value : _ term; return : _ term } -> sugar term
+  | TT_let : { bound : _ pat; value : _ term; return : _ term } -> sugar term
   (* (v : T) *)
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
 
-(* TODO: I really don't like this ex_term *)
-and hole = { mutable link : ex_term }
+and _ pat =
+  | TP_typed : { pat : _ pat; annot : _ term } -> typed pat
+  | TP_hole : { hole : core pat hole } -> core pat
+  (* x *)
+  | TP_var : { name : Name.t } -> core pat
+
+and 'a hole = { mutable link : 'a }
 
 and subst =
   (* -f := N *)
@@ -48,6 +56,8 @@ and subst =
   | TS_close_free : { from : Level.t; to_ : Index.t } -> subst
 
 and ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
+and ex_pat = Ex_pat : _ term -> ex_pat [@@ocaml.unboxed]
+and ex_hole = Ex_hole : _ hole -> ex_hole [@@ocaml.unboxed]
 
 val nil_level : Level.t
 val type_level : Level.t
@@ -61,3 +71,6 @@ val tt_nil : core term
 val tt_type : core term
 val tt_hole : unit -> core term
 val is_tt_nil : _ term -> bool
+val tp_nil : core pat
+val tp_hole : unit -> core pat
+val is_tp_nil : _ pat -> bool

@@ -13,11 +13,11 @@ module Ptree = struct
     | PT_var_index of { index : Index.t }
     | PT_var_level of { level : Level.t }
     | PT_hole_var_full of { id : int }
-    | PT_forall of { var : Name.t; param : term; return : term }
-    | PT_lambda of { var : Name.t; param : term; return : term }
+    | PT_forall of { param : term; return : term }
+    | PT_lambda of { param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
-    | PT_self of { var : Name.t; body : term }
-    | PT_fix of { var : Name.t; body : term }
+    | PT_self of { bound : term; body : term }
+    | PT_fix of { bound : term; body : term }
     | PT_unroll of { term : term }
     | PT_let of { var : Name.t; value : term; return : term }
     | PT_annot of { term : term; annot : term }
@@ -59,18 +59,16 @@ module Ptree = struct
     | PT_var_index { index } -> fprintf fmt "\\-%a" Index.pp index
     | PT_var_level { level } -> fprintf fmt "\\+%a" Level.pp level
     | PT_hole_var_full { id } -> fprintf fmt "_x%d" id
-    | PT_forall { var; param; return } ->
-        fprintf fmt "(%s : %a) -> %a" (Name.repr var) pp_wrapped param pp_funct
-          return
-    | PT_lambda { var; param; return } ->
-        fprintf fmt "(%s : %a) => %a" (Name.repr var) pp_wrapped param pp_funct
-          return
+    | PT_forall { param; return } ->
+        fprintf fmt "%a -> %a" pp_atom param pp_funct return
+    | PT_lambda { param; return } ->
+        fprintf fmt "%a => %a" pp_atom param pp_funct return
     | PT_apply { lambda; arg } ->
         fprintf fmt "%a %a" pp_apply lambda pp_atom arg
-    | PT_self { var; body } ->
-        fprintf fmt "@self(%s -> %a)" (Name.repr var) pp_wrapped body
-    | PT_fix { var; body } ->
-        fprintf fmt "@fix(%s => %a)" (Name.repr var) pp_wrapped body
+    | PT_self { bound; body } ->
+        fprintf fmt "@self(%a -> %a)" pp_atom bound pp_wrapped body
+    | PT_fix { bound; body } ->
+        fprintf fmt "@fix(%a => %a)" pp_atom bound pp_wrapped body
     | PT_unroll { term } -> fprintf fmt "@unroll(%a)" pp_wrapped term
     | PT_let { var; value; return } ->
         fprintf fmt "%s = %a; %a" (Name.repr var) pp_funct value pp_let return
@@ -128,39 +126,58 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
  fun config next holes (term : a term) ->
   let open Ptree in
   let ptree_of_term term = ptree_of_term config next holes term in
-  let ptree_of_hole ~hole = ptree_of_hole config next holes ~hole in
+  let ptree_of_pat pat = ptree_of_pat config next holes pat in
+  let ptree_of_param pat = ptree_of_param config next holes pat in
+  let ptree_of_hole hole = ptree_of_hole config next holes hole in
   (* TODO: print details *)
   match expand_head_term term with
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level } -> PT_var_level { level }
-  | TT_hole { hole } -> ptree_of_hole ~hole
+  | TT_hole { hole } -> ptree_of_hole @@ Ex_hole hole
   | TT_forall { param; return } ->
-      let var = Name.make "_" in
-      let param = ptree_of_term param in
+      let param = ptree_of_param param in
       let return = ptree_of_term return in
-      PT_forall { var; param; return }
+      PT_forall { param; return }
   | TT_lambda { param; return } ->
-      let var = Name.make "_" in
-      let param = ptree_of_term param in
+      let param = ptree_of_param param in
       let return = ptree_of_term return in
-      PT_lambda { var; param; return }
+      PT_lambda { param; return }
   | TT_apply { lambda; arg } ->
       let lambda = ptree_of_term lambda in
       let arg = ptree_of_term arg in
       PT_apply { lambda; arg }
-  | TT_self { body } ->
-      let var = Name.make "_" in
+  | TT_self { var; body } ->
+      let bound = ptree_of_pat var in
       let body = ptree_of_term body in
-      PT_self { var; body }
-  | TT_fix { body } ->
-      let var = Name.make "_" in
+      PT_self { bound; body }
+  | TT_fix { var; body } ->
+      let bound = ptree_of_pat var in
       let body = ptree_of_term body in
-      PT_fix { var; body }
+      PT_fix { bound; body }
   | TT_unroll { term } ->
       let term = ptree_of_term term in
       PT_unroll { term }
 
-and ptree_of_hole _config next holes ~hole =
+and ptree_of_param config next holes pat =
+  let open Ptree in
+  let ptree_of_term term = ptree_of_term config next holes term in
+  let ptree_of_pat term = ptree_of_pat config next holes term in
+  let (TP_typed { pat; annot }) = pat in
+  (* TODO: calling this term is weird *)
+  let term = ptree_of_pat pat in
+  let annot = ptree_of_term annot in
+  PT_annot { term; annot }
+
+and ptree_of_pat : type a. _ -> _ -> _ -> a pat -> _ =
+ fun config next holes pat ->
+  let open Ptree in
+  let ptree_of_hole hole = ptree_of_hole config next holes hole in
+  (* TODO: expand head here? *)
+  match expand_head_pat pat with
+  | TP_hole { hole } -> ptree_of_hole @@ Ex_hole hole
+  | TP_var { name } -> PT_var_name { name }
+
+and ptree_of_hole _config next holes hole =
   let open Ptree in
   (* TODO: extract this into machinery tooling *)
   (* TODO: allow to print link *)
@@ -195,10 +212,10 @@ let pp_term fmt term =
   let pterm = ptree_of_term config next holes term in
   Ptree.pp_term fmt pterm
 
-let pp_hole fmt hole =
+let pp_ex_term_hole fmt hole =
   let next = ref 0 in
   let holes = Hashtbl.create 8 in
-  let pterm = ptree_of_hole config next holes ~hole in
+  let pterm = ptree_of_hole config next holes @@ Ex_hole hole in
   Ptree.pp_term fmt pterm
 
 let pp_ex_term fmt (Ex_term term) = pp_term fmt term
