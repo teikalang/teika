@@ -74,7 +74,7 @@ module Typer_context : sig
 
   (* TODO: next_var must be bigger than type_of_types *)
   val test :
-    next_var:Level.t ->
+    level:Level.t ->
     vars:(Level.t * ex_term) Name.Map.t ->
     expected_vars:var_info list ->
     received_vars:var_info list ->
@@ -99,6 +99,7 @@ module Typer_context : sig
 
   (* level *)
   val level : unit -> Level.t typer_context
+  val enter_level : (unit -> 'a typer_context) -> 'a typer_context
 
   (* vars *)
   val lookup_var : name:Name.t -> (Level.t * ex_term) typer_context
