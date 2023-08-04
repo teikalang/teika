@@ -1,29 +1,5 @@
 open Ttree
-
-type error = private
-  (* metadata *)
-  | CError_loc of { error : error; loc : Location.t [@opaque] }
-  (* unify *)
-  | CError_unify_bound_var_clash of { expected : Index.t; received : Index.t }
-  | CError_unify_free_var_clash of { expected : Level.t; received : Level.t }
-  | CError_unify_type_clash of {
-      expected : ex_term;
-      expected_norm : core term;
-      received : ex_term;
-      received_norm : core term;
-    }
-  (* TODO: lazy names for errors *)
-  | CError_unify_var_occurs of { hole : ex_term hole; in_ : ex_term hole }
-  (* typer *)
-  | CError_typer_unknown_var of { name : Name.t }
-  | CError_typer_not_a_forall of { type_ : ex_term }
-  | CError_typer_pairs_not_implemented
-  | CError_typer_var_escape of { var : Level.t }
-  | CError_typer_unknown_extension of {
-      extension : Name.t;
-      payload : Ltree.term;
-    }
-[@@deriving show]
+open Terror
 
 type var_info = Free
 

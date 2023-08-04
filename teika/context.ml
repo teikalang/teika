@@ -1,35 +1,5 @@
 open Ttree
-
-type error =
-  (* TODO: why track nested locations?
-       Probably because things like macros exists *)
-  | CError_loc of { error : error; loc : Location.t [@opaque] }
-  (* unify *)
-  | CError_unify_bound_var_clash of { expected : Index.t; received : Index.t }
-  | CError_unify_free_var_clash of { expected : Level.t; received : Level.t }
-  | CError_unify_type_clash of {
-      expected : ex_term; [@printer Tprinter.pp_ex_term]
-      expected_norm : core term; [@printer Tprinter.pp_term]
-      received : ex_term; [@printer Tprinter.pp_ex_term]
-      received_norm : core term; [@printer Tprinter.pp_term]
-    }
-    (* TODO: lazy names for errors *)
-  | CError_unify_var_occurs of {
-      hole : ex_term hole; [@printer Tprinter.pp_ex_term_hole]
-      in_ : ex_term hole; [@printer Tprinter.pp_ex_term_hole]
-    }
-  (* typer *)
-  | CError_typer_unknown_var of { name : Name.t }
-  | CError_typer_not_a_forall of {
-      type_ : ex_term; [@printer Tprinter.pp_ex_term]
-    }
-  | CError_typer_pairs_not_implemented
-  | CError_typer_var_escape of { var : Level.t }
-  | CError_typer_unknown_extension of {
-      extension : Name.t;
-      payload : Ltree.term;
-    }
-[@@deriving show { with_path = false }]
+open Terror
 
 type ('a, 'b) result = { match_ : 'k. ok:('a -> 'k) -> error:('b -> 'k) -> 'k }
 [@@ocaml.unboxed]
@@ -68,21 +38,21 @@ module Unify_context = struct
     return @@ f value
 
   let[@inline always] error_bound_var_clash ~expected ~received =
-    fail @@ CError_unify_bound_var_clash { expected; received }
+    fail @@ TError_unify_bound_var_clash { expected; received }
 
   let[@inline always] error_free_var_clash ~expected ~received =
-    fail @@ CError_unify_free_var_clash { expected; received }
+    fail @@ TError_unify_free_var_clash { expected; received }
 
   let[@inline always] error_type_clash ~expected ~expected_norm ~received
       ~received_norm =
     let expected = Ex_term expected in
     let received = Ex_term received in
     fail
-    @@ CError_unify_type_clash
+    @@ TError_unify_type_clash
          { expected; expected_norm; received; received_norm }
 
   let[@inline always] error_var_occurs ~hole ~in_ =
-    fail @@ CError_unify_var_occurs { hole; in_ }
+    fail @@ TError_unify_var_occurs { hole; in_ }
 end
 
 module Typer_context = struct
@@ -137,23 +107,23 @@ module Typer_context = struct
     return @@ f value
 
   let[@inline always] error_pairs_not_implemented () =
-    fail @@ CError_typer_pairs_not_implemented
+    fail @@ TError_typer_pairs_not_implemented
 
   let[@inline always] error_not_a_forall ~type_ =
     let type_ = Ex_term type_ in
-    fail @@ CError_typer_not_a_forall { type_ }
+    fail @@ TError_typer_not_a_forall { type_ }
 
   let[@inline always] error_var_escape ~var =
-    fail @@ CError_typer_var_escape { var }
+    fail @@ TError_typer_var_escape { var }
 
   let[@inline always] error_typer_unknown_extension ~extension ~payload =
-    fail @@ CError_typer_unknown_extension { extension; payload }
+    fail @@ TError_typer_unknown_extension { extension; payload }
 
   let[@inline always] lookup_var ~name ~level:_ ~vars ~expected_vars:_
       ~received_vars:_ =
     match Name.Map.find_opt name vars with
     | Some (var, type_) -> ok @@ (var, type_)
-    | None -> error @@ CError_typer_unknown_var { name }
+    | None -> error @@ TError_typer_unknown_var { name }
 
   let[@inline always] with_expected_var f ~level ~vars ~expected_vars
       ~received_vars =
@@ -182,5 +152,5 @@ module Typer_context = struct
   let[@inline always] with_loc ~loc f ~level ~vars ~expected_vars ~received_vars
       =
     (f () ~level ~vars ~expected_vars ~received_vars).match_ ~ok
-      ~error:(fun desc -> error @@ CError_loc { error = desc; loc })
+      ~error:(fun desc -> error @@ TError_loc { error = desc; loc })
 end

@@ -419,8 +419,7 @@ module Typer = struct
               Format.eprintf "%a\n%!" Tprinter.pp_term _ttree;
               ()
           | Error error ->
-              failwith @@ Format.asprintf "error: %a\n%!" Context.pp_error error
-          )
+              failwith @@ Format.asprintf "error: %a\n%!" Terror.pp error)
       | None -> failwith "failed to parse"
     in
     Alcotest.test_case name `Quick check
