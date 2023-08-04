@@ -87,7 +87,7 @@ end
 
 module Typer_context = struct
   type 'a typer_context =
-    next_var:Level.t ->
+    level:Level.t ->
     (* TODO: Hashtbl *)
     vars:(Level.t * ex_term) Name.Map.t ->
     expected_vars:var_info list ->
@@ -97,7 +97,7 @@ module Typer_context = struct
   type 'a t = 'a typer_context
 
   let[@inline always] run f =
-    let next_var = Level.next type_level in
+    let level = type_level in
     let names = Name.Map.empty in
     let type_name = Name.make "Type" in
     let vars =
@@ -108,26 +108,26 @@ module Typer_context = struct
     let received_vars = [ Free ] in
     let expected_vars = received_vars in
     (* TODO: should Type be here? *)
-    (f () ~next_var ~vars ~expected_vars ~received_vars).match_
+    (f () ~level ~vars ~expected_vars ~received_vars).match_
       ~ok:(fun value -> Ok value)
       ~error:(fun desc -> Error desc)
 
-  let[@inline always] test ~next_var ~vars ~expected_vars ~received_vars f =
-    (f () ~next_var ~vars ~expected_vars ~received_vars).match_
+  let[@inline always] test ~level ~vars ~expected_vars ~received_vars f =
+    (f () ~level ~vars ~expected_vars ~received_vars).match_
       ~ok:(fun value -> Ok value)
       ~error:(fun desc -> Error desc)
 
-  let[@inline always] return_raw value ~next_var:_ ~vars:_ ~expected_vars:_
+  let[@inline always] return_raw value ~level:_ ~vars:_ ~expected_vars:_
       ~received_vars:_ =
     value
 
   let[@inline always] return value = return_raw @@ ok value
   let[@inline always] fail desc = return_raw @@ error desc
 
-  let[@inline always] bind context f ~next_var ~vars ~expected_vars
-      ~received_vars =
-    (context ~next_var ~vars ~expected_vars ~received_vars).match_
-      ~ok:(fun value -> f value ~next_var ~vars ~expected_vars ~received_vars)
+  let[@inline always] bind context f ~level ~vars ~expected_vars ~received_vars
+      =
+    (context ~level ~vars ~expected_vars ~received_vars).match_
+      ~ok:(fun value -> f value ~level ~vars ~expected_vars ~received_vars)
       ~error
 
   let ( let* ) = bind
@@ -149,35 +149,38 @@ module Typer_context = struct
   let[@inline always] error_typer_unknown_extension ~extension ~payload =
     fail @@ CError_typer_unknown_extension { extension; payload }
 
-  let[@inline always] lookup_var ~name ~next_var:_ ~vars ~expected_vars:_
+  let[@inline always] lookup_var ~name ~level:_ ~vars ~expected_vars:_
       ~received_vars:_ =
     match Name.Map.find_opt name vars with
     | Some (var, type_) -> ok @@ (var, type_)
     | None -> error @@ CError_typer_unknown_var { name }
 
-  let[@inline always] with_expected_var f ~next_var ~vars ~expected_vars
+  let[@inline always] with_expected_var f ~level ~vars ~expected_vars
       ~received_vars =
     let expected_vars = Free :: expected_vars in
-    f () ~next_var ~vars ~expected_vars ~received_vars
+    f () ~level ~vars ~expected_vars ~received_vars
 
-  let[@inline always] with_received_var ~name ~type_ f ~next_var ~vars
+  let[@inline always] with_received_var ~name ~type_ f ~level ~vars
       ~expected_vars ~received_vars =
-    let var = next_var in
-    let vars = Name.Map.add name (var, Ex_term type_) vars in
-    let next_var = Level.next next_var in
+    let level = Level.next level in
+    let vars = Name.Map.add name (level, Ex_term type_) vars in
     let received_vars = Free :: received_vars in
-    f () ~next_var ~vars ~expected_vars ~received_vars
+    f () ~level ~vars ~expected_vars ~received_vars
 
-  let[@inline always] level () ~next_var ~vars:_ ~expected_vars:_
-      ~received_vars:_ =
-    ok next_var
+  let[@inline always] level () ~level ~vars:_ ~expected_vars:_ ~received_vars:_
+      =
+    ok level
 
-  let[@inline always] with_unify_context f ~next_var:_ ~vars:_ ~expected_vars
+  let[@inline always] enter_level f ~level ~vars ~expected_vars ~received_vars =
+    let level = Level.next level in
+    f () ~level ~vars ~expected_vars ~received_vars
+
+  let[@inline always] with_unify_context f ~level:_ ~vars:_ ~expected_vars
       ~received_vars =
     f () ~expected_vars ~received_vars
 
-  let[@inline always] with_loc ~loc f ~next_var ~vars ~expected_vars
-      ~received_vars =
-    (f () ~next_var ~vars ~expected_vars ~received_vars).match_ ~ok
+  let[@inline always] with_loc ~loc f ~level ~vars ~expected_vars ~received_vars
+      =
+    (f () ~level ~vars ~expected_vars ~received_vars).match_ ~ok
       ~error:(fun desc -> error @@ CError_loc { error = desc; loc })
 end
