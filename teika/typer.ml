@@ -68,6 +68,7 @@ let rec unfold_fix : type a. a term -> core term =
           expand_head_term @@ tt_subst_bound ~from:Index.zero ~to_:term body
       | _ -> term)
   | TT_string _ as term -> term
+  | TT_native _ as term -> term
 
 let with_tt_loc ~loc f =
   with_loc ~loc @@ fun () ->
@@ -208,7 +209,22 @@ and check_term_extension :
         unify_term ~received ~expected
       in
       wrapped @@ TT_unfold { term }
+  | "@native", LT_string { literal = native } ->
+      check_term_native ~native ~expected
   | _ -> error_typer_unknown_extension ~extension ~payload
+
+and check_term_native : type e. native:_ -> expected:e term -> _ =
+ fun ~native ~expected ->
+  let wrapped term =
+    let+ () = escape_check_term expected in
+    tt_typed ~annot:expected term
+  in
+  match native with
+  | "debug" ->
+      (* TODO: use this types? *)
+      let* _param_type, _return = split_forall expected in
+      wrapped @@ TT_native { native = TN_debug }
+  | native -> error_typer_unknown_native ~native
 
 and check_annot term = check_term term ~expected:tt_type
 

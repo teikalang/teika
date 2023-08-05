@@ -27,6 +27,7 @@ let rec expand_head_term : type a. a term -> core term =
              but it would be cool to check when in debug *)
           (* TODO: this could be done in O(1) with context extending *)
           expand_head_term @@ tt_subst_bound ~from:Index.zero ~to_:arg return
+      | TT_native { native } -> expand_head_native native ~arg
       | _lambda ->
           (* TODO: use expanded? *)
           term)
@@ -38,6 +39,10 @@ let rec expand_head_term : type a. a term -> core term =
       expand_head_term @@ tt_subst_bound ~from:Index.zero ~to_:value return
   | TT_annot { term; annot = _ } -> expand_head_term term
   | TT_string _ as term -> term
+  | TT_native _ as term -> term
+
+and expand_head_native : type a. _ -> arg:a term -> core term =
+ fun native ~arg -> match native with TN_debug -> expand_head_term arg
 
 and expand_subst : type a. subst:subst -> a term -> core term =
  fun ~subst term ->
@@ -95,6 +100,7 @@ and expand_subst_bound_term :
       let term = tt_subst_bound ~from term in
       TT_unroll { term }
   | TT_string _ as term -> term
+  | TT_native _ as term -> term
 
 and expand_subst_bound_param : type t. from:_ -> to_:t term -> _ -> _ =
  fun ~from ~to_ pat ->
@@ -136,6 +142,7 @@ and expand_subst_free_term :
       let term = tt_subst_free term in
       TT_unroll { term }
   | TT_string _ as term -> term
+  | TT_native _ as term -> term
 
 and expand_subst_free_param : type t. from:_ -> to_:t term -> _ -> _ =
  fun ~from ~to_ pat ->
@@ -190,6 +197,7 @@ and expand_open_bound_term : type a. from:_ -> to_:_ -> a term -> core term =
       let term = tt_open_bound ~from term in
       TT_unroll { term }
   | TT_string _ as term -> term
+  | TT_native _ as term -> term
 
 and expand_open_bound_param ~from ~to_ pat =
   let (TP_typed { pat; annot }) = pat in
@@ -243,6 +251,7 @@ and expand_close_free_term : type a. from:_ -> to_:_ -> a term -> core term =
       let term = tt_close_free ~to_ term in
       TT_unroll { term }
   | TT_string _ as term -> term
+  | TT_native _ as term -> term
 
 and expand_close_free_param : from:_ -> to_:_ -> _ -> _ =
  fun ~from ~to_ pat ->

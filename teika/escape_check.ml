@@ -31,6 +31,7 @@ let rec escape_check_term : type a. current:_ -> a term -> _ =
   | TT_fix { var = _; body } -> escape_check_term body
   | TT_unroll { term } -> escape_check_term term
   | TT_string { literal = _ } -> return ()
+  | TT_native { native = _ } -> return ()
 
 and escape_check_param ~current term =
   (* TODO: check pat? *)

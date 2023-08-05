@@ -23,5 +23,6 @@ type error =
       extension : Name.t;
       payload : Ltree.term;
     }
+  | TError_typer_unknown_native of { native : string }
 
 type t = error [@@deriving show]
