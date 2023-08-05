@@ -7,6 +7,7 @@ let rec expand_head_term : type a. a term -> core term =
   | TT_typed { term; annot = _ } -> expand_head_term term
   | TT_subst { subst; term } -> expand_subst ~subst term
   | TT_bound_var _ as term -> term
+  | TT_free_var { level = _; alias = Some alias } -> expand_head_term alias
   | TT_free_var _ as term -> term
   | TT_hole { hole } as term -> (
       (* TODO: path compression *)
@@ -57,7 +58,7 @@ and expand_subst_bound_term :
       match Index.equal from index with
       | true -> expand_head_term to_
       | false -> term)
-  | TT_free_var { level = _ } as term -> term
+  | TT_free_var { level = _; alias = _ } as term -> term
   | TT_hole { hole = _ } as term -> term
   | TT_forall { param; return } ->
       let param = expand_subst_bound_param ~from param in
@@ -106,7 +107,7 @@ and expand_subst_free_term :
   let tt_subst_free term = tt_subst_free ~from ~to_ term in
   match expand_head_term term with
   | TT_bound_var { index = _ } as term -> term
-  | TT_free_var { level } as term -> (
+  | TT_free_var { level; alias = _ } as term -> (
       match Level.equal from level with
       | true -> expand_head_term to_
       | false -> term)
@@ -148,9 +149,9 @@ and expand_open_bound_term : type a. from:_ -> to_:_ -> a term -> core term =
   match expand_head_term term with
   | TT_bound_var { index } as term -> (
       match Index.equal from index with
-      | true -> TT_free_var { level = to_ }
+      | true -> TT_free_var { level = to_; alias = None }
       | false -> term)
-  | TT_free_var { level = _ } as term -> term
+  | TT_free_var { level = _; alias = _ } as term -> term
   | TT_hole { hole = _ } as term -> term
   | TT_forall { param; return } ->
       let param = expand_open_bound_param ~from param in
@@ -199,7 +200,7 @@ and expand_close_free_term : type a. from:_ -> to_:_ -> a term -> core term =
   let tt_close_free ~to_ term = tt_close_free ~from ~to_ term in
   match expand_head_term term with
   | TT_bound_var { index = _ } as term -> term
-  | TT_free_var { level } as term -> (
+  | TT_free_var { level; alias = _ } as term -> (
       match Level.equal from level with
       | true -> TT_bound_var { index = to_ }
       | false -> term)

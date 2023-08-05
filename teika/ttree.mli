@@ -11,7 +11,8 @@ type _ term =
   (* x/-n *)
   | TT_bound_var : { index : Index.t } -> core term
   (* x/+n *)
-  | TT_free_var : { level : Level.t } -> core term
+  (* TODO: this alias is a hack *)
+  | TT_free_var : { level : Level.t; alias : _ term option } -> core term
   (* TODO: I really don't like this ex_term *)
   (* _x/+n *)
   | TT_hole : { hole : ex_term hole } -> core term

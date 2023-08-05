@@ -35,7 +35,7 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
   let occurs_param ~in_ = occurs_param hole ~in_ in
   match expand_head_term in_ with
   | TT_bound_var { index = _ } -> return ()
-  | TT_free_var { level = _ } -> return ()
+  | TT_free_var { level = _; alias = _ } -> return ()
   (* TODO: use this substs? *)
   | TT_hole { hole = in_ } -> (
       match hole == in_ with
@@ -67,7 +67,8 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       match Index.equal expected received with
       | true -> return ()
       | false -> error_bound_var_clash ~expected ~received)
-  | TT_free_var { level = expected }, TT_free_var { level = received } -> (
+  | ( TT_free_var { level = expected; alias = _ },
+      TT_free_var { level = received; alias = _ } ) -> (
       match Level.equal expected received with
       | true -> return ()
       | false -> error_free_var_clash ~expected ~received)

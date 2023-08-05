@@ -13,7 +13,7 @@ let rec escape_check_term : type a. current:_ -> a term -> _ =
       (* TODO: very very important to check for bound vars, unification
             may unify variables outside of their binders *)
       return ()
-  | TT_free_var { level } -> (
+  | TT_free_var { level; alias = _ } -> (
       match Level.(current < level) with
       | true -> error_var_escape ~var:level
       | false -> return ())
