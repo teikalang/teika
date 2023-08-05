@@ -13,6 +13,7 @@ let mk (loc_start, loc_end) =
 %token COMMA (* , *)
 %token AMPERSAND (* & *)
 %token SEMICOLON (* ; *)
+%token <string> STRING (* ".." *)
 %token LEFT_PARENS (* ( *)
 %token RIGHT_PARENS (* ) *)
 %token LEFT_BRACE (* { *)
@@ -53,6 +54,7 @@ let term_rec_apply :=
 let term_atom :=
   | term_var
   | term_extension
+  | term_string
   | term_parens(term_wrapped)
   | term_braces(term_wrapped)
 
@@ -100,6 +102,9 @@ let term_semi(self, lower) ==
 let term_annot(self, lower) ==
   | value = lower; COLON; annot = self;
     { st_annot (mk $loc) ~value ~annot }
+let term_string ==
+  | literal = STRING;
+    { st_string (mk $loc) ~literal }
 let term_parens(content) ==
   | LEFT_PARENS; content = content; RIGHT_PARENS;
     { st_parens (mk $loc) ~content }

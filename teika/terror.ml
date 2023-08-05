@@ -24,6 +24,7 @@ type error =
       type_ : ex_term; [@printer Tprinter.pp_ex_term]
     }
   | TError_typer_pairs_not_implemented
+  | TError_typer_strings_not_implemented
   | TError_typer_var_escape of { var : Level.t }
   | TError_typer_unknown_extension of {
       extension : Name.t;

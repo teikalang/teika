@@ -17,6 +17,8 @@ type term =
   | LT_let of { bound : bind; return : term }
   (* (v : T) *)
   | LT_annot of { term : term; annot : term }
+  (* ".." *)
+  | LT_string of { literal : string }
   | LT_loc of { term : term; loc : Location.t }
 
 and pat =

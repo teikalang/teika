@@ -109,6 +109,9 @@ module Typer_context = struct
   let[@inline always] error_pairs_not_implemented () =
     fail @@ TError_typer_pairs_not_implemented
 
+  let[@inline always] error_strings_not_implemented () =
+    fail @@ TError_typer_strings_not_implemented
+
   let[@inline always] error_not_a_forall ~type_ =
     let type_ = Ex_term type_ in
     fail @@ TError_typer_not_a_forall { type_ }

@@ -149,6 +149,7 @@ let rec check_term : type a. _ -> expected:a term -> _ =
       (* TODO: unify annot before or after check term *)
       let* term = check_term term ~expected:annot in
       wrapped @@ TT_annot { term; annot }
+  | LT_string _ -> error_strings_not_implemented ()
   | LT_loc { term; loc } ->
       with_tt_loc ~loc @@ fun () -> check_term term ~expected
 

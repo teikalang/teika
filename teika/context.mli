@@ -67,6 +67,7 @@ module Typer_context : sig
 
   (* errors *)
   val error_pairs_not_implemented : unit -> 'a typer_context
+  val error_strings_not_implemented : unit -> 'a typer_context
   val error_not_a_forall : type_:_ term -> 'a typer_context
   val error_var_escape : var:Level.t -> 'a typer_context
 
