@@ -21,6 +21,7 @@ module Ptree = struct
     | PT_unroll of { term : term }
     | PT_let of { var : Name.t; value : term; return : term }
     | PT_annot of { term : term; annot : term }
+    | PT_string of { literal : string }
 
   and subst =
     | PS_subst_bound : { from : Index.t; to_ : term } -> subst
@@ -74,6 +75,9 @@ module Ptree = struct
         fprintf fmt "%s = %a; %a" (Name.repr var) pp_funct value pp_let return
     | PT_annot { term; annot } ->
         fprintf fmt "%a : %a" pp_funct term pp_wrapped annot
+    | PT_string { literal } ->
+        (* TODO: is this correct *)
+        fprintf fmt {|"%S"|} literal
 
   type prec = Wrapped | Let | Funct | Apply | Atom
 
@@ -85,7 +89,7 @@ module Ptree = struct
     let pp_atom fmt term = pp_term Atom fmt term in
     match (term, prec) with
     | ( ( PT_loc _ | PT_var_name _ | PT_var_index _ | PT_var_level _
-        | PT_hole_var_full _ ),
+        | PT_hole_var_full _ | PT_string _ ),
         (Wrapped | Let | Funct | Apply | Atom) )
     | ( (PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _),
         (Wrapped | Let | Funct | Apply) )
@@ -157,6 +161,7 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
   | TT_unroll { term } ->
       let term = ptree_of_term term in
       PT_unroll { term }
+  | TT_string { literal } -> PT_string { literal }
 
 and ptree_of_param config next holes pat =
   let open Ptree in

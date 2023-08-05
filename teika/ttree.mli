@@ -37,6 +37,8 @@ type _ term =
   | TT_let : { bound : _ pat; value : _ term; return : _ term } -> sugar term
   (* (v : T) *)
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
+  (* ".." *)
+  | TT_string : { literal : string } -> core term
 
 and _ pat =
   | TP_typed : { pat : _ pat; annot : _ term } -> typed pat
@@ -62,6 +64,7 @@ and ex_hole = Ex_hole : _ hole -> ex_hole [@@ocaml.unboxed]
 
 val nil_level : Level.t
 val type_level : Level.t
+val string_level : Level.t
 
 (* constructors *)
 val tt_subst_bound : from:Index.t -> to_:_ term -> _ term -> subst term
@@ -70,6 +73,7 @@ val tt_open_bound : from:Index.t -> to_:Level.t -> _ term -> subst term
 val tt_close_free : from:Level.t -> to_:Index.t -> _ term -> subst term
 val tt_nil : core term
 val tt_type : core term
+val string_type : core term
 val tt_hole : unit -> core term
 val is_tt_nil : _ term -> bool
 val tp_nil : core pat

@@ -67,6 +67,7 @@ let rec unfold_fix : type a. a term -> core term =
       | TT_fix { var = _; body } as term ->
           expand_head_term @@ tt_subst_bound ~from:Index.zero ~to_:term body
       | _ -> term)
+  | TT_string _ as term -> term
 
 let with_tt_loc ~loc f =
   with_loc ~loc @@ fun () ->
@@ -149,7 +150,9 @@ let rec check_term : type a. _ -> expected:a term -> _ =
       (* TODO: unify annot before or after check term *)
       let* term = check_term term ~expected:annot in
       wrapped @@ TT_annot { term; annot }
-  | LT_string _ -> error_strings_not_implemented ()
+  | LT_string { literal } ->
+      let* () = unify_term ~expected ~received:string_type in
+      wrapped @@ TT_string { literal }
   | LT_loc { term; loc } ->
       with_tt_loc ~loc @@ fun () -> check_term term ~expected
 

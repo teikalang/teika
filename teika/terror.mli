@@ -13,11 +13,11 @@ type error =
       received_norm : core term;
     }
   | TError_unify_var_occurs of { hole : ex_term hole; in_ : ex_term hole }
+  | TError_unify_string_clash of { expected : string; received : string }
   (* typer *)
   | TError_typer_unknown_var of { name : Name.t }
   | TError_typer_not_a_forall of { type_ : ex_term }
   | TError_typer_pairs_not_implemented
-  | TError_typer_strings_not_implemented
   | TError_typer_var_escape of { var : Level.t }
   | TError_typer_unknown_extension of {
       extension : Name.t;

@@ -396,6 +396,9 @@ module Typer = struct
         (A => (x : A) => (x : Id A))
       |}
 
+  let simple_string =
+    check "simple_string" ~wrapper:false {|("simple string" : String)|}
+
   let tests =
     [
       id;
@@ -414,6 +417,7 @@ module Typer = struct
       ind_false;
       unfold_false;
       let_alias;
+      simple_string;
       (*
           pair;
           left_unpair;

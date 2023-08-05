@@ -29,6 +29,7 @@ type _ term =
   | TT_unfold : { term : _ term } -> sugar term
   | TT_let : { bound : _ pat; value : _ term; return : _ term } -> sugar term
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
+  | TT_string : { literal : string } -> core term
 
 and _ pat =
   (* TODO: TP_loc *)
@@ -50,6 +51,7 @@ and ex_hole = Ex_hole : _ hole -> ex_hole [@@ocaml.unboxed]
 
 let nil_level = Level.zero
 let type_level = Level.next nil_level
+let string_level = Level.next type_level
 
 let tt_subst_bound ~from ~to_ term =
   TT_subst { subst = TS_subst_bound { from; to_ }; term }
@@ -65,6 +67,7 @@ let tt_close_free ~from ~to_ term =
 
 let tt_nil = TT_free_var { level = nil_level; alias = None }
 let tt_type = TT_free_var { level = type_level; alias = None }
+let string_type = TT_free_var { level = string_level; alias = None }
 
 let tt_hole () =
   let hole = { link = Ex_term tt_nil } in

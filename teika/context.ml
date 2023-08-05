@@ -53,6 +53,9 @@ module Unify_context = struct
 
   let[@inline always] error_var_occurs ~hole ~in_ =
     fail @@ TError_unify_var_occurs { hole; in_ }
+
+  let[@inline always] error_string_clash ~expected ~received =
+    fail @@ TError_unify_string_clash { expected; received }
 end
 
 module Typer_context = struct
@@ -67,12 +70,13 @@ module Typer_context = struct
   type 'a t = 'a typer_context
 
   let[@inline always] run f =
-    let level = type_level in
+    let level = string_level in
     let names = Name.Map.empty in
-    let type_name = Name.make "Type" in
     let vars =
       (* TODO: better place for constants *)
-      Name.Map.add type_name (type_level, Ex_term tt_type, None) names
+      names
+      |> Name.Map.add (Name.make "Type") (type_level, Ex_term tt_type, None)
+      |> Name.Map.add (Name.make "String") (string_level, Ex_term tt_type, None)
     in
     (* TODO: use proper stack *)
     let received_vars = [ Free ] in
@@ -108,9 +112,6 @@ module Typer_context = struct
 
   let[@inline always] error_pairs_not_implemented () =
     fail @@ TError_typer_pairs_not_implemented
-
-  let[@inline always] error_strings_not_implemented () =
-    fail @@ TError_typer_strings_not_implemented
 
   let[@inline always] error_not_a_forall ~type_ =
     let type_ = Ex_term type_ in

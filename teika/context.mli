@@ -39,6 +39,9 @@ module Unify_context : sig
 
   val error_var_occurs :
     hole:ex_term hole -> in_:ex_term hole -> 'a unify_context
+
+  val error_string_clash :
+    expected:string -> received:string -> 'a unify_context
 end
 
 module Typer_context : sig
@@ -67,7 +70,6 @@ module Typer_context : sig
 
   (* errors *)
   val error_pairs_not_implemented : unit -> 'a typer_context
-  val error_strings_not_implemented : unit -> 'a typer_context
   val error_not_a_forall : type_:_ term -> 'a typer_context
   val error_var_escape : var:Level.t -> 'a typer_context
 
