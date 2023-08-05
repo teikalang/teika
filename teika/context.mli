@@ -39,6 +39,9 @@ module Unify_context : sig
 
   val error_var_occurs :
     hole:ex_term hole -> in_:ex_term hole -> 'a unify_context
+
+  val error_string_clash :
+    expected:string -> received:string -> 'a unify_context
 end
 
 module Typer_context : sig

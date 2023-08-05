@@ -18,6 +18,7 @@ type error =
       hole : ex_term hole; [@printer Tprinter.pp_ex_term_hole]
       in_ : ex_term hole; [@printer Tprinter.pp_ex_term_hole]
     }
+  | TError_unify_string_clash of { expected : string; received : string }
   (* typer *)
   | TError_typer_unknown_var of { name : Name.t }
   | TError_typer_not_a_forall of {

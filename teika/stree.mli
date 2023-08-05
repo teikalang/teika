@@ -11,6 +11,7 @@ and term_desc = private
   | ST_bind of { bound : term; value : term }
   | ST_semi of { left : term; right : term }
   | ST_annot of { value : term; annot : term }
+  | ST_string of { literal : string }
   | ST_parens of { content : term }
   | ST_braces of { content : term }
 [@@deriving show]
@@ -25,5 +26,6 @@ val st_both : Location.t -> left:term -> right:term -> term
 val st_bind : Location.t -> bound:term -> value:term -> term
 val st_semi : Location.t -> left:term -> right:term -> term
 val st_annot : Location.t -> value:term -> annot:term -> term
+val st_string : Location.t -> literal:string -> term
 val st_parens : Location.t -> content:term -> term
 val st_braces : Location.t -> content:term -> term

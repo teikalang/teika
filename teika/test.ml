@@ -22,6 +22,7 @@ module Stree_utils = struct
     | ST_bind of { bound : term; value : term }
     | ST_semi of { left : term; right : term }
     | ST_annot of { value : term; annot : term }
+    | ST_string of { literal : string }
     | ST_parens of { content : term }
     | ST_braces of { content : term }
   [@@deriving eq]
@@ -45,6 +46,7 @@ module Stree_utils = struct
   let ( = ) bound value = st_bind loc ~bound ~value
   let ( * ) left right = st_semi loc ~left ~right
   let ( @: ) value annot = st_annot loc ~value ~annot
+  let string literal = st_string loc ~literal
   let parens content = st_parens loc ~content
   let braces content = st_braces loc ~content
 end
@@ -89,6 +91,7 @@ module Sparser = struct
       ("annot", works "(x : y)" (parens (var "x" @: var "y")));
       ( "nested annot",
         works "(x : A : B)" (parens (var "x" @: var "A" @: var "B")) );
+      ("string", works {|"hello"|} (string "hello"));
       ("parens", works "(x)" (parens (var "x")));
       ("braces", works "{x}" (braces (var "x")));
       ( "let",
@@ -143,13 +146,14 @@ module Ltree_utils = struct
     | ( LT_annot { term = a_term; annot = a_annot },
         LT_annot { term = b_term; annot = b_annot } ) ->
         equal_term a_term b_term && equal_term a_annot b_annot
+    | LT_string { literal = a }, LT_string { literal = b } -> String.equal a b
     (* TODO: loc equality *)
     | LT_loc { term = a; loc = _ }, b | a, LT_loc { term = b; loc = _ } ->
         equal_term a b
     | ( ( LT_var _ | LT_extension _ | LT_forall _ | LT_lambda _ | LT_apply _
-        | LT_exists _ | LT_pair _ | LT_let _ | LT_annot _ ),
+        | LT_exists _ | LT_pair _ | LT_let _ | LT_annot _ | LT_string _ ),
         ( LT_var _ | LT_extension _ | LT_forall _ | LT_lambda _ | LT_apply _
-        | LT_exists _ | LT_pair _ | LT_let _ | LT_annot _ ) ) ->
+        | LT_exists _ | LT_pair _ | LT_let _ | LT_annot _ | LT_string _ ) ) ->
         false
 
   and equal_pat a b =
@@ -200,6 +204,7 @@ module Ltree_utils = struct
   let let_ bound return = LT_let { bound; return }
   let ( $ ) left right = left right
   let annot term annot = LT_annot { term; annot }
+  let string literal = LT_string { literal }
   let ( @: ) pat annot = LAnnot { loc = Location.none; pat; annot }
   let ( @= ) pat value = LBind { loc = Location.none; pat; value }
 end
@@ -234,6 +239,7 @@ module Lparser = struct
           (let_ (pvar "x" @= var "y") $ (let_ (pvar "z" @= var "x") $ var "z"))
       );
       ("annot", works "(x : y)" (annot (var "x") (var "y")));
+      ("string", works {|"tuturu"|} (string "tuturu"));
     ]
 
   (* alcotest *)
@@ -390,6 +396,9 @@ module Typer = struct
         (A => (x : A) => (x : Id A))
       |}
 
+  let simple_string =
+    check "simple_string" ~wrapper:false {|("simple string" : String)|}
+
   let tests =
     [
       id;
@@ -408,6 +417,7 @@ module Typer = struct
       ind_false;
       unfold_false;
       let_alias;
+      simple_string;
       (*
           pair;
           left_unpair;

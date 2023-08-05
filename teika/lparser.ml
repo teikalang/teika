@@ -33,7 +33,8 @@ let rec parse_term term =
             let right = parse_annot right in
             LT_exists { left; right }
         | ST_var _ | ST_extension _ | ST_forall _ | ST_lambda _ | ST_apply _
-        | ST_pair _ | ST_both _ | ST_semi _ | ST_parens _ | ST_braces _ ->
+        | ST_pair _ | ST_both _ | ST_semi _ | ST_string _ | ST_parens _
+        | ST_braces _ ->
             invalid_notation loc)
     | ST_both _ -> invalid_notation loc
     | ST_bind _ -> invalid_notation loc
@@ -49,13 +50,14 @@ let rec parse_term term =
             let return = parse_term right in
             LT_let { bound; return }
         | ST_var _ | ST_extension _ | ST_forall _ | ST_lambda _ | ST_apply _
-        | ST_pair _ | ST_both _ | ST_semi _ | ST_annot _ | ST_parens _
-        | ST_braces _ ->
+        | ST_pair _ | ST_both _ | ST_semi _ | ST_annot _ | ST_string _
+        | ST_parens _ | ST_braces _ ->
             invalid_notation left_loc)
     | ST_annot { value; annot } ->
         let term = parse_term value in
         let annot = parse_term annot in
         LT_annot { term; annot }
+    | ST_string { literal } -> LT_string { literal }
     | ST_braces _ -> invalid_notation loc
   in
   LT_loc { term; loc }
@@ -89,7 +91,7 @@ and parse_pat term =
         let annot = parse_term annot in
         LP_annot { pat; annot }
     | ST_extension _ | ST_forall _ | ST_lambda _ | ST_apply _ | ST_both _
-    | ST_bind _ | ST_semi _ | ST_braces _ ->
+    | ST_bind _ | ST_semi _ | ST_string _ | ST_braces _ ->
         invalid_notation loc
   in
   LP_loc { pat; loc }
@@ -103,7 +105,7 @@ and parse_annot annot =
       let annot = parse_term annot in
       LAnnot { loc; pat; annot }
   | ST_var _ | ST_extension _ | ST_forall _ | ST_lambda _ | ST_apply _
-  | ST_pair _ | ST_both _ | ST_bind _ | ST_semi _ | ST_braces _ ->
+  | ST_pair _ | ST_both _ | ST_bind _ | ST_semi _ | ST_string _ | ST_braces _ ->
       invalid_notation loc
 
 and parse_bind bind =
@@ -115,7 +117,8 @@ and parse_bind bind =
       let value = parse_term value in
       LBind { loc; pat; value }
   | ST_var _ | ST_extension _ | ST_forall _ | ST_lambda _ | ST_apply _
-  | ST_pair _ | ST_both _ | ST_semi _ | ST_annot _ | ST_braces _ ->
+  | ST_pair _ | ST_both _ | ST_semi _ | ST_annot _ | ST_string _ | ST_braces _
+    ->
       invalid_notation loc
 
 (* TODO: rename this*)

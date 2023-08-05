@@ -8,6 +8,7 @@ type term =
   | LT_pair of { left : bind; right : bind }
   | LT_let of { bound : bind; return : term }
   | LT_annot of { term : term; annot : term }
+  | LT_string of { literal : string }
   | LT_loc of { term : term; loc : Location.t [@opaque] }
 
 and pat =

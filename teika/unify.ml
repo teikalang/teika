@@ -53,6 +53,7 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
   | TT_self { var = _; body } -> occurs_term ~in_:body
   | TT_fix { var = _; body } -> occurs_term ~in_:body
   | TT_unroll { term } -> occurs_term ~in_:term
+  | TT_string { literal = _ } -> return ()
 
 and occurs_param hole ~in_ =
   (* TODO: occurs inside of TP_hole *)
@@ -100,10 +101,15 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       unify_term ~expected:expected_body ~received:received_body
   | TT_unroll { term = expected }, TT_unroll { term = received } ->
       unify_term ~expected ~received
+  | TT_string { literal = expected }, TT_string { literal = received } -> (
+      match String.equal expected received with
+      | true -> return ()
+      | false -> error_string_clash ~expected ~received)
   | ( (( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-       | TT_self _ | TT_fix _ | TT_unroll _ ) as expected_norm),
+       | TT_self _ | TT_fix _ | TT_unroll _ | TT_string _ ) as expected_norm),
       (( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-       | TT_self _ | TT_fix _ | TT_unroll _ ) as received_norm) ) ->
+       | TT_self _ | TT_fix _ | TT_unroll _ | TT_string _ ) as received_norm) )
+    ->
       error_type_clash ~expected ~expected_norm ~received ~received_norm
 
 and unify_term_hole hole ~to_ =
