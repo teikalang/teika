@@ -383,6 +383,13 @@ module Typer = struct
     in
     check "unfold False" ~wrapper:false code
 
+  let let_alias =
+    check "let_alias" ~wrapper:false
+      {|
+        Id = (A : Type) => A;
+        (A => (x : A) => (x : Id A))
+      |}
+
   let tests =
     [
       id;
@@ -400,6 +407,7 @@ module Typer = struct
       ind_false_T;
       ind_false;
       unfold_false;
+      let_alias;
       (*
           pair;
           left_unpair;

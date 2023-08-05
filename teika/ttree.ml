@@ -18,7 +18,7 @@ type _ term =
   | TT_typed : { term : _ term; annot : _ term } -> typed term
   | TT_subst : { subst : subst; term : _ term } -> subst term
   | TT_bound_var : { index : Index.t } -> core term
-  | TT_free_var : { level : Level.t } -> core term
+  | TT_free_var : { level : Level.t; alias : _ term option } -> core term
   | TT_hole : { hole : ex_term hole } -> core term
   | TT_forall : { param : typed pat; return : _ term } -> core term
   | TT_lambda : { param : typed pat; return : _ term } -> core term
@@ -63,8 +63,8 @@ let tt_open_bound ~from ~to_ term =
 let tt_close_free ~from ~to_ term =
   TT_subst { subst = TS_close_free { from; to_ }; term }
 
-let tt_nil = TT_free_var { level = nil_level }
-let tt_type = TT_free_var { level = type_level }
+let tt_nil = TT_free_var { level = nil_level; alias = None }
+let tt_type = TT_free_var { level = type_level; alias = None }
 
 let tt_hole () =
   let hole = { link = Ex_term tt_nil } in
@@ -74,7 +74,7 @@ let is_tt_nil (type a) (term : a term) =
   (* TODO: why not physical equality?
       Because TT_free_var is rebuilt in a couple places *)
   match term with
-  | TT_free_var { level } -> Level.equal nil_level level
+  | TT_free_var { level; alias = None } -> Level.equal nil_level level
   | _ -> false
 
 (* TODO: ugly hack *)

@@ -132,7 +132,7 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
   (* TODO: print details *)
   match expand_head_term term with
   | TT_bound_var { index } -> PT_var_index { index }
-  | TT_free_var { level } -> PT_var_level { level }
+  | TT_free_var { level; alias = _ } -> PT_var_level { level }
   | TT_hole { hole } -> ptree_of_hole @@ Ex_hole hole
   | TT_forall { param; return } ->
       let param = ptree_of_param param in

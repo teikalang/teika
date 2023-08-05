@@ -59,7 +59,7 @@ module Typer_context = struct
   type 'a typer_context =
     level:Level.t ->
     (* TODO: Hashtbl *)
-    vars:(Level.t * ex_term) Name.Map.t ->
+    vars:(Level.t * ex_term * ex_term option) Name.Map.t ->
     expected_vars:var_info list ->
     received_vars:var_info list ->
     ('a, error) result
@@ -72,7 +72,7 @@ module Typer_context = struct
     let type_name = Name.make "Type" in
     let vars =
       (* TODO: better place for constants *)
-      Name.Map.add type_name (type_level, Ex_term tt_type) names
+      Name.Map.add type_name (type_level, Ex_term tt_type, None) names
     in
     (* TODO: use proper stack *)
     let received_vars = [ Free ] in
@@ -122,7 +122,7 @@ module Typer_context = struct
   let[@inline always] lookup_var ~name ~level:_ ~vars ~expected_vars:_
       ~received_vars:_ =
     match Name.Map.find_opt name vars with
-    | Some (var, type_) -> ok @@ (var, type_)
+    | Some (var, type_, alias) -> ok @@ (var, type_, alias)
     | None -> error @@ TError_typer_unknown_var { name }
 
   let[@inline always] with_expected_var f ~level ~vars ~expected_vars
@@ -130,10 +130,13 @@ module Typer_context = struct
     let expected_vars = Free :: expected_vars in
     f () ~level ~vars ~expected_vars ~received_vars
 
-  let[@inline always] with_received_var ~name ~type_ f ~level ~vars
+  let[@inline always] with_received_var ~name ~type_ ~alias f ~level ~vars
       ~expected_vars ~received_vars =
     let level = Level.next level in
-    let vars = Name.Map.add name (level, Ex_term type_) vars in
+    let alias =
+      match alias with Some alias -> Some (Ex_term alias) | None -> None
+    in
+    let vars = Name.Map.add name (level, Ex_term type_, alias) vars in
     let received_vars = Free :: received_vars in
     f () ~level ~vars ~expected_vars ~received_vars
 
