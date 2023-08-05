@@ -123,6 +123,9 @@ module Typer_context = struct
   let[@inline always] error_typer_unknown_extension ~extension ~payload =
     fail @@ TError_typer_unknown_extension { extension; payload }
 
+  let[@inline always] error_typer_unknown_native ~native =
+    fail @@ TError_typer_unknown_native { native }
+
   let[@inline always] lookup_var ~name ~level:_ ~vars ~expected_vars:_
       ~received_vars:_ =
     match Name.Map.find_opt name vars with

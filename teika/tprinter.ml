@@ -22,6 +22,8 @@ module Ptree = struct
     | PT_let of { var : Name.t; value : term; return : term }
     | PT_annot of { term : term; annot : term }
     | PT_string of { literal : string }
+    (* TODO: very weird for native to be a string *)
+    | PT_native of { native : string }
 
   and subst =
     | PS_subst_bound : { from : Index.t; to_ : term } -> subst
@@ -78,6 +80,9 @@ module Ptree = struct
     | PT_string { literal } ->
         (* TODO: is this correct *)
         fprintf fmt {|"%S"|} literal
+    | PT_native { native } ->
+        (* TODO: this is clearly not the best way*)
+        fprintf fmt {|@native("%S")|} native
 
   type prec = Wrapped | Let | Funct | Apply | Atom
 
@@ -91,13 +96,13 @@ module Ptree = struct
     | ( ( PT_loc _ | PT_var_name _ | PT_var_index _ | PT_var_level _
         | PT_hole_var_full _ | PT_string _ ),
         (Wrapped | Let | Funct | Apply | Atom) )
-    | ( (PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _),
+    | ( (PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _ | PT_native _),
         (Wrapped | Let | Funct | Apply) )
     | (PT_forall _ | PT_lambda _), (Wrapped | Let | Funct)
     | PT_let _, (Wrapped | Let)
     | (PT_typed _ | PT_annot _), Wrapped ->
         pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term
-    | (PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _), Atom
+    | (PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _ | PT_native _), Atom
     | (PT_forall _ | PT_lambda _), (Apply | Atom)
     | PT_let _, (Funct | Apply | Atom)
     | (PT_typed _ | PT_annot _), (Let | Funct | Apply | Atom) ->
@@ -162,6 +167,9 @@ let rec ptree_of_term : type a. _ -> _ -> _ -> a term -> _ =
       let term = ptree_of_term term in
       PT_unroll { term }
   | TT_string { literal } -> PT_string { literal }
+  | TT_native { native } ->
+      let native = match native with TN_debug -> "debug" in
+      PT_native { native }
 
 and ptree_of_param config next holes pat =
   let open Ptree in

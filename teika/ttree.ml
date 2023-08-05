@@ -30,6 +30,7 @@ type _ term =
   | TT_let : { bound : _ pat; value : _ term; return : _ term } -> sugar term
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
   | TT_string : { literal : string } -> core term
+  | TT_native : { native : native } -> core term
 
 and _ pat =
   (* TODO: TP_loc *)
@@ -45,6 +46,7 @@ and subst =
   | TS_open_bound : { from : Index.t; to_ : Level.t } -> subst
   | TS_close_free : { from : Level.t; to_ : Index.t } -> subst
 
+and native = TN_debug
 and ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
 and ex_pat = Ex_pat : _ term -> ex_pat [@@ocaml.unboxed]
 and ex_hole = Ex_hole : _ hole -> ex_hole [@@ocaml.unboxed]

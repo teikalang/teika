@@ -76,6 +76,8 @@ module Typer_context : sig
   val error_typer_unknown_extension :
     extension:Name.t -> payload:Ltree.term -> 'a typer_context
 
+  val error_typer_unknown_native : native:string -> 'a typer_context
+
   (* level *)
   val level : unit -> Level.t typer_context
   val enter_level : (unit -> 'a typer_context) -> 'a typer_context

@@ -39,6 +39,8 @@ type _ term =
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
   (* ".." *)
   | TT_string : { literal : string } -> core term
+  (* @native("debug") *)
+  | TT_native : { native : native } -> core term
 
 and _ pat =
   | TP_typed : { pat : _ pat; annot : _ term } -> typed pat
@@ -58,6 +60,7 @@ and subst =
   (* +f `open` -t *)
   | TS_close_free : { from : Level.t; to_ : Index.t } -> subst
 
+and native = TN_debug
 and ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
 and ex_pat = Ex_pat : _ term -> ex_pat [@@ocaml.unboxed]
 and ex_hole = Ex_hole : _ hole -> ex_hole [@@ocaml.unboxed]

@@ -54,6 +54,7 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
   | TT_fix { var = _; body } -> occurs_term ~in_:body
   | TT_unroll { term } -> occurs_term ~in_:term
   | TT_string { literal = _ } -> return ()
+  | TT_native { native = _ } -> return ()
 
 and occurs_param hole ~in_ =
   (* TODO: occurs inside of TP_hole *)
@@ -105,11 +106,14 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       match String.equal expected received with
       | true -> return ()
       | false -> error_string_clash ~expected ~received)
+  | TT_native { native = expected }, TT_native { native = received } ->
+      unify_native ~expected ~received
   | ( (( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-       | TT_self _ | TT_fix _ | TT_unroll _ | TT_string _ ) as expected_norm),
+       | TT_self _ | TT_fix _ | TT_unroll _ | TT_string _ | TT_native _ ) as
+      expected_norm),
       (( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-       | TT_self _ | TT_fix _ | TT_unroll _ | TT_string _ ) as received_norm) )
-    ->
+       | TT_self _ | TT_fix _ | TT_unroll _ | TT_string _ | TT_native _ ) as
+      received_norm) ) ->
       error_type_clash ~expected ~expected_norm ~received ~received_norm
 
 and unify_term_hole hole ~to_ =
@@ -143,3 +147,6 @@ and unify_pat_hole hole ~to_ =
       (* TODO: occurs_pat? *)
       hole.link <- to_;
       return ()
+
+and unify_native ~expected ~received =
+  match (expected, received) with TN_debug, TN_debug -> return ()
