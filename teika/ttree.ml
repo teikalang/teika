@@ -27,6 +27,9 @@ type _ term =
   | TT_fix : { var : core pat; body : _ term } -> core term
   | TT_unroll : { term : _ term } -> core term
   | TT_unfold : { term : _ term } -> sugar term
+  | TT_frozen : { term : _ term } -> core term
+  | TT_freeze : { term : _ term } -> core term
+  | TT_unfreeze : { term : _ term } -> core term
   | TT_let : { bound : _ pat; value : _ term; return : _ term } -> sugar term
   | TT_annot : { term : _ term; annot : _ term } -> sugar term
   | TT_string : { literal : string } -> core term

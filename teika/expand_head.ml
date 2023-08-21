@@ -35,6 +35,12 @@ let rec expand_head_term : type a. a term -> core term =
   | TT_fix _ as term -> term
   | TT_unroll _ as term -> term
   | TT_unfold { term } -> expand_head_term term
+  | TT_frozen _ as term -> term
+  | TT_freeze _ as term -> term
+  | TT_unfreeze { term } -> (
+      match expand_head_term term with
+      | TT_freeze { term } -> expand_head_term term
+      | term -> TT_unfreeze { term })
   | TT_let { bound = _; value; return } ->
       expand_head_term @@ tt_subst_bound ~from:Index.zero ~to_:value return
   | TT_annot { term; annot = _ } -> expand_head_term term
@@ -99,6 +105,15 @@ and expand_subst_bound_term :
   | TT_unroll { term } ->
       let term = tt_subst_bound ~from term in
       TT_unroll { term }
+  | TT_frozen { term } ->
+      let term = tt_subst_bound ~from term in
+      TT_frozen { term }
+  | TT_freeze { term } ->
+      let term = tt_subst_bound ~from term in
+      TT_frozen { term }
+  | TT_unfreeze { term } ->
+      let term = tt_subst_bound ~from term in
+      TT_unfreeze { term }
   | TT_string _ as term -> term
   | TT_native _ as term -> term
 
@@ -141,6 +156,15 @@ and expand_subst_free_term :
   | TT_unroll { term } ->
       let term = tt_subst_free term in
       TT_unroll { term }
+  | TT_frozen { term } ->
+      let term = tt_subst_free term in
+      TT_frozen { term }
+  | TT_freeze { term } ->
+      let term = tt_subst_free term in
+      TT_frozen { term }
+  | TT_unfreeze { term } ->
+      let term = tt_subst_free term in
+      TT_unfreeze { term }
   | TT_string _ as term -> term
   | TT_native _ as term -> term
 
@@ -196,6 +220,15 @@ and expand_open_bound_term : type a. from:_ -> to_:_ -> a term -> core term =
   | TT_unroll { term } ->
       let term = tt_open_bound ~from term in
       TT_unroll { term }
+  | TT_frozen { term } ->
+      let term = tt_open_bound ~from term in
+      TT_frozen { term }
+  | TT_freeze { term } ->
+      let term = tt_open_bound ~from term in
+      TT_frozen { term }
+  | TT_unfreeze { term } ->
+      let term = tt_open_bound ~from term in
+      TT_unfreeze { term }
   | TT_string _ as term -> term
   | TT_native _ as term -> term
 
@@ -250,6 +283,15 @@ and expand_close_free_term : type a. from:_ -> to_:_ -> a term -> core term =
   | TT_unroll { term } ->
       let term = tt_close_free ~to_ term in
       TT_unroll { term }
+  | TT_frozen { term } ->
+      let term = tt_close_free ~to_ term in
+      TT_frozen { term }
+  | TT_freeze { term } ->
+      let term = tt_close_free ~to_ term in
+      TT_frozen { term }
+  | TT_unfreeze { term } ->
+      let term = tt_close_free ~to_ term in
+      TT_unfreeze { term }
   | TT_string _ as term -> term
   | TT_native _ as term -> term
 

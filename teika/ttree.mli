@@ -22,17 +22,23 @@ type _ term =
   | TT_lambda : { param : typed pat; return : _ term } -> core term
   (* l a *)
   | TT_apply : { lambda : _ term; arg : _ term } -> core term
-  (* @self(x -> e)*)
+  (* @self(x -> e) *)
   (* TODO: why core pat? *)
   | TT_self : { var : core pat; body : _ term } -> core term
-  (* @fix(x => e)*)
+  (* @fix(x => e) *)
   (* TODO: why core pat? *)
   | TT_fix : { var : core pat; body : _ term } -> core term
-  (* @unroll(e)*)
+  (* @unroll(e) *)
   | TT_unroll : { term : _ term } -> core term
-  (* @unfold(e)*)
+  (* @unfold(e) *)
   (* TODO: technically not sugar *)
   | TT_unfold : { term : _ term } -> sugar term
+  (* @frozen(A) *)
+  | TT_frozen : { term : _ term } -> core term
+  (* @freeze(x) *)
+  | TT_freeze : { term : _ term } -> core term
+  (* @unfreeze(x) *)
+  | TT_unfreeze : { term : _ term } -> core term
   (* x = t; u *)
   | TT_let : { bound : _ pat; value : _ term; return : _ term } -> sugar term
   (* (v : T) *)
