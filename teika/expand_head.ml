@@ -1,11 +1,14 @@
 open Ttree
 
+(* TODO: better place than here  *)
+let tt_subst term subst = TT_subst { subst; term }
+
 let rec expand_head_term : type a. a term -> core term =
  fun term ->
   match term with
   | TT_loc { term; loc = _ } -> expand_head_term term
   | TT_typed { term; annot = _ } -> expand_head_term term
-  | TT_subst { subst; term } -> expand_subst ~subst term
+  | TT_subst { subst; term } -> expand_subst_term ~subst term
   | TT_bound_var _ as term -> term
   | TT_free_var { level = _; alias = Some alias } -> expand_head_term alias
   | TT_free_var _ as term -> term
@@ -44,219 +47,83 @@ let rec expand_head_term : type a. a term -> core term =
 and expand_head_native : type a. _ -> arg:a term -> core term =
  fun native ~arg -> match native with TN_debug -> expand_head_term arg
 
-and expand_subst : type a. subst:subst -> a term -> core term =
+and expand_subst_term : type a. subst:subst -> a term -> core term =
  fun ~subst term ->
-  match subst with
-  | TS_subst_bound { from; to_ } -> expand_subst_bound_term ~from ~to_ term
-  | TS_subst_free { from; to_ } -> expand_subst_free_term ~from ~to_ term
-  | TS_open_bound { from; to_ } -> expand_open_bound_term ~from ~to_ term
-  | TS_close_free { from; to_ } -> expand_close_free_term ~from ~to_ term
-
-and expand_subst_bound_term :
-    type a t. from:_ -> to_:t term -> a term -> core term =
- fun ~from ~to_ term ->
-  let expand_subst_bound_param ~from pat =
-    expand_subst_bound_param ~from ~to_ pat
+  let expand_subst_param term = expand_subst_param ~subst term in
+  let when_bound_var index =
+    match subst with
+    | TS_subst_bound { from; to_ } -> (
+        match Index.equal from index with
+        | true -> expand_head_term to_
+        | false -> TT_bound_var { index })
+    | TS_subst_free { from = _; to_ = _ } -> TT_bound_var { index }
+    | TS_open_bound { from; to_ } -> (
+        match Index.equal from index with
+        | true -> TT_free_var { level = to_; alias = None }
+        | false -> TT_bound_var { index })
+    | TS_close_free { from = _; to_ = _ } -> TT_bound_var { index }
   in
-  let tt_subst_bound ~from term = tt_subst_bound ~from ~to_ term in
-  match expand_head_term term with
-  | TT_bound_var { index } as term -> (
-      match Index.equal from index with
-      | true -> expand_head_term to_
-      | false -> term)
-  | TT_free_var { level = _; alias = _ } as term -> term
-  | TT_hole { hole = _ } as term -> term
-  | TT_forall { param; return } ->
-      let param = expand_subst_bound_param ~from param in
-      let return =
-        let from = Index.(from + one) in
-        tt_subst_bound ~from return
-      in
-      TT_forall { param; return }
-  | TT_lambda { param; return } ->
-      let param = expand_subst_bound_param ~from param in
-      let return =
-        let from = Index.(from + one) in
-        tt_subst_bound ~from return
-      in
-      TT_lambda { param; return }
-  | TT_apply { lambda; arg } ->
-      let lambda = tt_subst_bound ~from lambda in
-      let arg = tt_subst_bound ~from arg in
-      TT_apply { lambda; arg }
-  | TT_self { var; body } ->
-      let body =
-        let from = Index.(from + one) in
-        tt_subst_bound ~from body
-      in
-      TT_self { var; body }
-  | TT_fix { var; body } ->
-      let body =
-        let from = Index.(from + one) in
-        tt_subst_bound ~from body
-      in
-      TT_fix { var; body }
-  | TT_unroll { term } ->
-      let term = tt_subst_bound ~from term in
-      TT_unroll { term }
-  | TT_string _ as term -> term
-  | TT_native _ as term -> term
-
-and expand_subst_bound_param : type t. from:_ -> to_:t term -> _ -> _ =
- fun ~from ~to_ pat ->
-  let (TP_typed { pat; annot }) = pat in
-  let annot = tt_subst_bound ~from ~to_ annot in
-  TP_typed { pat; annot }
-
-and expand_subst_free_term :
-    type a t. from:_ -> to_:t term -> a term -> core term =
- fun ~from ~to_ term ->
-  let expand_subst_free_param pat = expand_subst_free_param ~from ~to_ pat in
-  let tt_subst_free term = tt_subst_free ~from ~to_ term in
-  match expand_head_term term with
-  | TT_bound_var { index = _ } as term -> term
-  | TT_free_var { level; alias = _ } as term -> (
-      match Level.equal from level with
-      | true -> expand_head_term to_
-      | false -> term)
-  | TT_hole { hole = _ } as term -> term
-  | TT_forall { param; return } ->
-      let param = expand_subst_free_param param in
-      let return = tt_subst_free return in
-      TT_forall { param; return }
-  | TT_lambda { param; return } ->
-      let param = expand_subst_free_param param in
-      let return = tt_subst_free return in
-      TT_lambda { param; return }
-  | TT_apply { lambda; arg } ->
-      let lambda = tt_subst_free lambda in
-      let arg = tt_subst_free arg in
-      TT_apply { lambda; arg }
-  | TT_self { var; body } ->
-      let body = tt_subst_free body in
-      TT_self { var; body }
-  | TT_fix { var; body } ->
-      let body = tt_subst_free body in
-      TT_fix { var; body }
-  | TT_unroll { term } ->
-      let term = tt_subst_free term in
-      TT_unroll { term }
-  | TT_string _ as term -> term
-  | TT_native _ as term -> term
-
-and expand_subst_free_param : type t. from:_ -> to_:t term -> _ -> _ =
- fun ~from ~to_ pat ->
-  let (TP_typed { pat; annot }) = pat in
-  let annot = tt_subst_free ~from ~to_ annot in
-  TP_typed { pat; annot }
-
-and expand_open_bound_term : type a. from:_ -> to_:_ -> a term -> core term =
- fun ~from ~to_ term ->
-  let expand_open_bound_param ~from pat =
-    expand_open_bound_param ~from ~to_ pat
+  let when_free_var level =
+    match subst with
+    | TS_subst_bound { from = _; to_ = _ } ->
+        TT_free_var { level; alias = None }
+    | TS_subst_free { from; to_ } -> (
+        match Level.equal from level with
+        | true -> expand_head_term to_
+        | false -> TT_free_var { level; alias = None })
+    | TS_open_bound { from = _; to_ = _ } -> TT_free_var { level; alias = None }
+    | TS_close_free { from; to_ } -> (
+        match Level.equal from level with
+        | true -> TT_bound_var { index = to_ }
+        | false -> TT_free_var { level; alias = None })
   in
-  let tt_open_bound ~from term = tt_open_bound ~from ~to_ term in
-  match expand_head_term term with
-  | TT_bound_var { index } as term -> (
-      match Index.equal from index with
-      | true -> TT_free_var { level = to_; alias = None }
-      | false -> term)
-  | TT_free_var { level = _; alias = _ } as term -> term
-  | TT_hole { hole = _ } as term -> term
-  | TT_forall { param; return } ->
-      let param = expand_open_bound_param ~from param in
-      let return =
+  let with_var subst =
+    match subst with
+    | TS_subst_bound { from; to_ } ->
         let from = Index.(from + one) in
-        tt_open_bound ~from return
-      in
-      TT_forall { param; return }
-  | TT_lambda { param; return } ->
-      let param = expand_open_bound_param ~from param in
-      let return =
+        TS_subst_bound { from; to_ }
+    | TS_subst_free { from; to_ } ->
+        (* TODO: shifting here? *)
+        TS_subst_free { from; to_ }
+    | TS_open_bound { from; to_ } ->
         let from = Index.(from + one) in
-        tt_open_bound ~from return
-      in
-      TT_lambda { param; return }
-  | TT_apply { lambda; arg } ->
-      let lambda = tt_open_bound ~from lambda in
-      let arg = tt_open_bound ~from arg in
-      TT_apply { lambda; arg }
-  | TT_self { var; body } ->
-      let body =
-        let from = Index.(from + one) in
-        tt_open_bound ~from body
-      in
-      TT_self { var; body }
-  | TT_fix { var; body } ->
-      let body =
-        let from = Index.(from + one) in
-        tt_open_bound ~from body
-      in
-      TT_fix { var; body }
-  | TT_unroll { term } ->
-      let term = tt_open_bound ~from term in
-      TT_unroll { term }
-  | TT_string _ as term -> term
-  | TT_native _ as term -> term
-
-and expand_open_bound_param ~from ~to_ pat =
-  let (TP_typed { pat; annot }) = pat in
-  let annot = tt_open_bound ~from ~to_ annot in
-  TP_typed { pat; annot }
-
-and expand_close_free_term : type a. from:_ -> to_:_ -> a term -> core term =
- fun ~from ~to_ term ->
-  let expand_close_free_param ~to_ pat =
-    expand_close_free_param ~from ~to_ pat
+        TS_open_bound { from; to_ }
+    | TS_close_free { from; to_ } ->
+        let to_ = Index.(to_ + one) in
+        TS_close_free { from; to_ }
   in
-  let tt_close_free ~to_ term = tt_close_free ~from ~to_ term in
   match expand_head_term term with
-  | TT_bound_var { index = _ } as term -> term
-  | TT_free_var { level; alias = _ } as term -> (
-      match Level.equal from level with
-      | true -> TT_bound_var { index = to_ }
-      | false -> term)
+  | TT_bound_var { index } -> when_bound_var index
+  | TT_free_var { level; alias = _ } -> when_free_var level
   | TT_hole { hole = _ } as term -> term
   | TT_forall { param; return } ->
-      let param = expand_close_free_param ~to_ param in
-      let return =
-        let to_ = Index.(to_ + one) in
-        tt_close_free ~to_ return
-      in
+      let param = expand_subst_param param in
+      let return = tt_subst return @@ with_var subst in
       TT_forall { param; return }
   | TT_lambda { param; return } ->
-      let param = expand_close_free_param ~to_ param in
-      let return =
-        let to_ = Index.(to_ + one) in
-        tt_close_free ~to_ return
-      in
+      let param = expand_subst_param param in
+      let return = tt_subst return @@ with_var subst in
       TT_lambda { param; return }
   | TT_apply { lambda; arg } ->
-      let lambda = tt_close_free ~to_ lambda in
-      let arg = tt_close_free ~to_ arg in
+      let lambda = tt_subst lambda subst in
+      let arg = tt_subst arg subst in
       TT_apply { lambda; arg }
   | TT_self { var; body } ->
-      let body =
-        let to_ = Index.(to_ + one) in
-        tt_close_free ~to_ body
-      in
+      let body = tt_subst body @@ with_var subst in
       TT_self { var; body }
   | TT_fix { var; body } ->
-      let body =
-        let to_ = Index.(to_ + one) in
-        tt_close_free ~to_ body
-      in
+      let body = tt_subst body @@ with_var subst in
       TT_fix { var; body }
   | TT_unroll { term } ->
-      let term = tt_close_free ~to_ term in
+      let term = tt_subst term subst in
       TT_unroll { term }
   | TT_string _ as term -> term
   | TT_native _ as term -> term
 
-and expand_close_free_param : from:_ -> to_:_ -> _ -> _ =
- fun ~from ~to_ pat ->
+and expand_subst_param : subst:subst -> _ -> _ =
+ fun ~subst pat ->
   let (TP_typed { pat; annot }) = pat in
-  let annot = tt_close_free ~from ~to_ annot in
+  let annot = tt_subst annot subst in
   TP_typed { pat; annot }
 
 and expand_head_pat : type a. a pat -> _ =
