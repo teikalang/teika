@@ -1,0 +1,21 @@
+(library
+ (name jsend)
+ (libraries teika)
+ (modules
+  (:standard \ Test))
+ (preprocess
+  (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord)))
+
+(executable
+ (name test)
+ (modules Test)
+ (libraries alcotest jsend)
+ (preprocess
+  (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord)))
+
+(rule
+ (alias runtest)
+ (deps
+  (:exe ./test.exe))
+ (action
+  (run %{exe})))
