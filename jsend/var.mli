@@ -1,3 +1,5 @@
+open Teika
+
 type var
 type t = var [@@deriving show]
 
@@ -7,7 +9,9 @@ val compare : var -> var -> int
 val name : var -> Name.t
 
 (* predefined *)
-(* Type *)
 val type_ : var
+val fix : var
+val unit : var
+val debug : var
 
 module Map : Map.S with type key = t
