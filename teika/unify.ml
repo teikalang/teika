@@ -24,16 +24,16 @@ open Expand_head
 
 (* TODO: diff is a bad name *)
 
-let rec occurs_term : type a. _ -> in_:a term -> _ =
- fun hole ~in_ ->
+let rec occurs_term hole ~in_ =
   (* TODO: this is needed because of non injective functions
        the unification could succeed only if expand_head happened
 
      maybe should fail anyway ?
   *)
   let occurs_term ~in_ = occurs_term hole ~in_ in
-  let occurs_param ~in_ = occurs_param hole ~in_ in
-  match expand_head_term in_ with
+  let occurs_typed_pat ~in_ = occurs_typed_pat hole ~in_ in
+  match tt_match @@ expand_head_term in_ with
+  | TT_subst { term; subst } -> occurs_term ~in_:(expand_subst_term ~subst term)
   | TT_bound_var { index = _ } -> return ()
   | TT_free_var { level = _; alias = _ } -> return ()
   (* TODO: use this substs? *)
@@ -42,10 +42,10 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
       | true -> error_var_occurs ~hole ~in_
       | false -> return ())
   | TT_forall { param; return } ->
-      let* () = occurs_param ~in_:param in
+      let* () = occurs_typed_pat ~in_:param in
       occurs_term ~in_:return
   | TT_lambda { param; return } ->
-      let* () = occurs_param ~in_:param in
+      let* () = occurs_typed_pat ~in_:param in
       occurs_term ~in_:return
   | TT_apply { lambda; arg } ->
       let* () = occurs_term ~in_:lambda in
@@ -53,18 +53,32 @@ let rec occurs_term : type a. _ -> in_:a term -> _ =
   | TT_self { var = _; body } -> occurs_term ~in_:body
   | TT_fix { var = _; body } -> occurs_term ~in_:body
   | TT_unroll { term } -> occurs_term ~in_:term
+  | TT_unfold { term } -> occurs_term ~in_:term
+  | TT_let { bound; value; return } ->
+      let* () = occurs_typed_pat ~in_:bound in
+      let* () = occurs_term ~in_:value in
+      occurs_term ~in_:return
+  | TT_annot { term; annot } ->
+      let* () = occurs_term ~in_:term in
+      occurs_term ~in_:annot
   | TT_string { literal = _ } -> return ()
   | TT_native { native = _ } -> return ()
 
-and occurs_param hole ~in_ =
+and occurs_typed_pat hole ~in_ =
   (* TODO: occurs inside of TP_hole *)
-  let (TP_typed { pat = _; annot }) = in_ in
-  occurs_term hole ~in_:annot
+  let (TPat { pat = _; type_ }) = in_ in
+  occurs_term hole ~in_:type_
 
-let rec unify_term : type e r. expected:e term -> received:r term -> _ =
- fun ~expected ~received ->
+let rec unify_term ~expected ~received =
   (* TODO: short circuit physical equality *)
-  match (expand_head_term expected, expand_head_term received) with
+  match
+    ( tt_match @@ expand_head_term expected,
+      tt_match @@ expand_head_term received )
+  with
+  (* TODO: annot and subst equality?  *)
+  | TT_subst _, _ | _, TT_subst _ -> error_subst_found ~expected ~received
+  | TT_annot _, _ | _, TT_annot _ -> error_annot_found ~expected ~received
+  (* TODO: frozen and subst? *)
   | TT_bound_var { index = expected }, TT_bound_var { index = received } -> (
       match Index.equal expected received with
       | true -> return ()
@@ -74,19 +88,22 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       match Level.equal expected received with
       | true -> return ()
       | false -> error_free_var_clash ~expected ~received)
-  | TT_hole { hole }, to_ | to_, TT_hole { hole } ->
-      (* TODO: maybe unify against non expanded? *)
-      unify_term_hole hole ~to_
+  | TT_hole { hole }, _ -> unify_term_hole hole ~to_:received
+  | _, TT_hole { hole } -> unify_term_hole hole ~to_:expected
   (* TODO: track whenever it is unified and locations, visualizing inference *)
   | ( TT_forall { param = expected_param; return = expected_return },
       TT_forall { param = received_param; return = received_return } ) ->
       (* TODO: contravariance *)
-      let* () = unify_param ~expected:expected_param ~received:received_param in
+      let* () =
+        unify_typed_pat ~expected:expected_param ~received:received_param
+      in
       unify_term ~expected:expected_return ~received:received_return
   | ( TT_lambda { param = expected_param; return = expected_return },
       TT_lambda { param = received_param; return = received_return } ) ->
       (* TODO: contravariance *)
-      let* () = unify_param ~expected:expected_param ~received:received_param in
+      let* () =
+        unify_typed_pat ~expected:expected_param ~received:received_param
+      in
       unify_term ~expected:expected_return ~received:received_return
   | ( TT_apply { lambda = expected_lambda; arg = expected_arg },
       TT_apply { lambda = received_lambda; arg = received_arg } ) ->
@@ -102,39 +119,59 @@ let rec unify_term : type e r. expected:e term -> received:r term -> _ =
       unify_term ~expected:expected_body ~received:received_body
   | TT_unroll { term = expected }, TT_unroll { term = received } ->
       unify_term ~expected ~received
+  | TT_unfold { term = expected }, TT_unfold { term = received } ->
+      (* TODO: does unfold equality makes sense? *)
+      unify_term ~expected ~received
+  | ( TT_let
+        {
+          bound = expected_bound;
+          value = expected_value;
+          return = expected_return;
+        },
+      TT_let
+        {
+          bound = received_bound;
+          value = received_value;
+          return = received_return;
+        } ) ->
+      (* TODO: contravariance *)
+      let* () =
+        unify_typed_pat ~expected:expected_bound ~received:received_bound
+      in
+      let* () = unify_term ~expected:expected_value ~received:received_value in
+      unify_term ~expected:expected_return ~received:received_return
   | TT_string { literal = expected }, TT_string { literal = received } -> (
       match String.equal expected received with
       | true -> return ()
       | false -> error_string_clash ~expected ~received)
   | TT_native { native = expected }, TT_native { native = received } ->
       unify_native ~expected ~received
-  | ( (( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-       | TT_self _ | TT_fix _ | TT_unroll _ | TT_string _ | TT_native _ ) as
-      expected_norm),
-      (( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-       | TT_self _ | TT_fix _ | TT_unroll _ | TT_string _ | TT_native _ ) as
-      received_norm) ) ->
-      error_type_clash ~expected ~expected_norm ~received ~received_norm
+  | ( ( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
+      | TT_self _ | TT_fix _ | TT_unroll _ | TT_unfold _ | TT_let _
+      | TT_string _ | TT_native _ ),
+      ( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
+      | TT_self _ | TT_fix _ | TT_unroll _ | TT_unfold _ | TT_let _
+      | TT_string _ | TT_native _ ) ) ->
+      error_type_clash ~expected ~received
 
 and unify_term_hole hole ~to_ =
-  match to_ with
+  match tt_match to_ with
   | TT_hole { hole = to_ } when hole == to_ -> return ()
   | _ ->
       (* TODO: prefer a direction when both are holes? *)
       let* () = occurs_term hole ~in_:to_ in
-      hole.link <- Ex_term to_;
+      hole.link <- Some to_;
       return ()
 
-and unify_param ~expected ~received =
+and unify_typed_pat ~expected ~received =
   (* TODO: pat? *)
-  let (TP_typed { pat = expected_pat; annot = expected_annot }) = expected in
-  let (TP_typed { pat = received_pat; annot = received_annot }) = received in
-  let* () = unify_pat ~expected:expected_pat ~received:received_pat in
-  unify_term ~expected:expected_annot ~received:received_annot
+  let (TPat { pat = expected_pat; type_ = expected_type }) = expected in
+  let (TPat { pat = received_pat; type_ = received_type }) = received in
+  let* () = unify_core_pat ~expected:expected_pat ~received:received_pat in
+  unify_term ~expected:expected_type ~received:received_type
 
-and unify_pat : type e r. expected:e pat -> received:r pat -> _ =
- fun ~expected ~received ->
-  match (expand_head_pat expected, expand_head_pat received) with
+and unify_core_pat ~expected ~received =
+  match (tp_repr expected, tp_repr received) with
   | TP_hole { hole }, pat | pat, TP_hole { hole } ->
       unify_pat_hole hole ~to_:pat
   | TP_var _, TP_var _ -> return ()
@@ -145,7 +182,7 @@ and unify_pat_hole hole ~to_ =
   | _ ->
       (* TODO: prefer a direction when both are holes? *)
       (* TODO: occurs_pat? *)
-      hole.link <- to_;
+      hole.link <- Some to_;
       return ()
 
 and unify_native ~expected ~received =

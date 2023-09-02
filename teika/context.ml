@@ -37,19 +37,20 @@ module Unify_context = struct
     let* value = context in
     return @@ f value
 
+  let[@inline always] error_subst_found ~expected ~received =
+    fail @@ TError_unify_subst_found { expected; received }
+
+  let[@inline always] error_annot_found ~expected ~received =
+    fail @@ TError_unify_annot_found { expected; received }
+
   let[@inline always] error_bound_var_clash ~expected ~received =
     fail @@ TError_unify_bound_var_clash { expected; received }
 
   let[@inline always] error_free_var_clash ~expected ~received =
     fail @@ TError_unify_free_var_clash { expected; received }
 
-  let[@inline always] error_type_clash ~expected ~expected_norm ~received
-      ~received_norm =
-    let expected = Ex_term expected in
-    let received = Ex_term received in
-    fail
-    @@ TError_unify_type_clash
-         { expected; expected_norm; received; received_norm }
+  let[@inline always] error_type_clash ~expected ~received =
+    fail @@ TError_unify_type_clash { expected; received }
 
   let[@inline always] error_var_occurs ~hole ~in_ =
     fail @@ TError_unify_var_occurs { hole; in_ }
@@ -62,7 +63,7 @@ module Typer_context = struct
   type 'a typer_context =
     level:Level.t ->
     (* TODO: Hashtbl *)
-    vars:(Level.t * ex_term * ex_term option) Name.Map.t ->
+    vars:(Level.t * term * term option) Name.Map.t ->
     expected_vars:var_info list ->
     received_vars:var_info list ->
     ('a, error) result
@@ -75,8 +76,8 @@ module Typer_context = struct
     let vars =
       (* TODO: better place for constants *)
       names
-      |> Name.Map.add (Name.make "Type") (type_level, Ex_term tt_type, None)
-      |> Name.Map.add (Name.make "String") (string_level, Ex_term tt_type, None)
+      |> Name.Map.add (Name.make "Type") (type_level, tt_type, None)
+      |> Name.Map.add (Name.make "String") (string_level, tt_type, None)
     in
     (* TODO: use proper stack *)
     let received_vars = [ Free ] in
@@ -114,7 +115,6 @@ module Typer_context = struct
     fail @@ TError_typer_pairs_not_implemented
 
   let[@inline always] error_not_a_forall ~type_ =
-    let type_ = Ex_term type_ in
     fail @@ TError_typer_not_a_forall { type_ }
 
   let[@inline always] error_var_escape ~var =
@@ -140,10 +140,8 @@ module Typer_context = struct
   let[@inline always] with_received_var ~name ~type_ ~alias f ~level ~vars
       ~expected_vars ~received_vars =
     let level = Level.next level in
-    let alias =
-      match alias with Some alias -> Some (Ex_term alias) | None -> None
-    in
-    let vars = Name.Map.add name (level, Ex_term type_, alias) vars in
+    let alias = match alias with Some alias -> Some alias | None -> None in
+    let vars = Name.Map.add name (level, type_, alias) vars in
     let received_vars = Free :: received_vars in
     f () ~level ~vars ~expected_vars ~received_vars
 

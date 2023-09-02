@@ -13,89 +13,99 @@ type typed = Typed
 type core = Core
 type sugar = Sugar
 
-type _ term =
-  | TT_loc : { term : _ term; loc : Location.t } -> loc term
-  | TT_typed : { term : _ term; annot : _ term } -> typed term
-  | TT_subst : { subst : subst; term : _ term } -> subst term
-  | TT_bound_var : { index : Index.t } -> core term
-  | TT_free_var : { level : Level.t; alias : _ term option } -> core term
-  | TT_hole : { hole : ex_term hole } -> core term
-  | TT_forall : { param : typed pat; return : _ term } -> core term
-  | TT_lambda : { param : typed pat; return : _ term } -> core term
-  | TT_apply : { lambda : _ term; arg : _ term } -> core term
-  | TT_self : { var : core pat; body : _ term } -> core term
-  | TT_fix : { var : core pat; body : _ term } -> core term
-  | TT_unroll : { term : _ term } -> core term
-  | TT_unfold : { term : _ term } -> sugar term
-  | TT_let : { bound : _ pat; value : _ term; return : _ term } -> sugar term
-  | TT_annot : { term : _ term; annot : _ term } -> sugar term
-  | TT_string : { literal : string } -> core term
-  | TT_native : { native : native } -> core term
+type term =
+  | TTerm of { desc : term_desc; type_ : term }
+  | TType of { desc : term_desc }
 
-and _ pat =
-  (* TODO: TP_loc *)
-  | TP_typed : { pat : _ pat; annot : _ term } -> typed pat
-  | TP_hole : { hole : core pat hole } -> core pat
-  | TP_var : { name : Name.t } -> core pat
+and term_desc =
+  | TT_subst of { term : term; subst : subst }
+  | TT_bound_var of { index : Index.t }
+  | TT_free_var of { level : Level.t; alias : term option }
+  | TT_hole of { hole : term hole }
+  | TT_forall of { param : typed_pat; return : term }
+  | TT_lambda of { param : typed_pat; return : term }
+  | TT_apply of { lambda : term; arg : term }
+  | TT_self of { var : core_pat; body : term }
+  | TT_fix of { var : core_pat; body : term }
+  | TT_unroll of { term : term }
+  | TT_unfold of { term : term }
+  | TT_let of { bound : typed_pat; value : term; return : term }
+  | TT_annot of { term : term; annot : term }
+  | TT_string of { literal : string }
+  | TT_native of { native : native }
 
-and 'a hole = { mutable link : 'a }
+and typed_pat = TPat of { pat : core_pat; type_ : term }
+
+and core_pat =
+  | TP_hole of { hole : core_pat hole }
+  (* x *)
+  | TP_var of { name : Name.t }
+
+and 'a hole = { mutable link : 'a option }
 
 and subst =
-  | TS_subst_bound : { from : Index.t; to_ : _ term } -> subst
-  | TS_subst_free : { from : Level.t; to_ : _ term } -> subst
-  | TS_open_bound : { from : Index.t; to_ : Level.t } -> subst
-  | TS_close_free : { from : Level.t; to_ : Index.t } -> subst
+  | TS_subst_bound of { from : Index.t; to_ : term }
+  | TS_subst_free of { from : Level.t; to_ : term }
+  | TS_open_bound of { from : Index.t; to_ : Level.t }
+  | TS_close_free of { from : Level.t; to_ : Index.t }
 
 and native = TN_debug
-and ex_term = Ex_term : _ term -> ex_term [@@ocaml.unboxed]
-and ex_pat = Ex_pat : _ term -> ex_pat [@@ocaml.unboxed]
-and ex_hole = Ex_hole : _ hole -> ex_hole [@@ocaml.unboxed]
 
 let nil_level = Level.zero
 let type_level = Level.next nil_level
 let string_level = Level.next type_level
 
-let tt_subst_bound ~from ~to_ term =
-  TT_subst { subst = TS_subst_bound { from; to_ }; term }
+(* TODO: path compression *)
 
-let tt_subst_free ~from ~to_ term =
-  TT_subst { subst = TS_subst_free { from; to_ }; term }
+let rec tp_repr pat =
+  match pat with
+  | TP_hole { hole } -> (
+      match hole.link with Some pat -> tp_repr pat | None -> pat)
+  | TP_var _ -> pat
 
-let tt_open_bound ~from ~to_ term =
-  TT_subst { subst = TS_open_bound { from; to_ }; term }
+let rec tt_repr term =
+  match term with
+  (* TODO: expand type_? *)
+  | TTerm { desc; type_ = _ } -> tt_repr_desc term desc
+  | TType { desc } -> tt_repr_desc term desc
 
-let tt_close_free ~from ~to_ term =
-  TT_subst { subst = TS_close_free { from; to_ }; term }
+and tt_repr_desc term desc =
+  match desc with
+  | TT_hole { hole } -> (
+      match hole.link with Some term -> tt_repr term | None -> term)
+  (* TODO: expand cases here  *)
+  | _ -> term
 
-let tt_nil = TT_free_var { level = nil_level; alias = None }
-let tt_type = TT_free_var { level = type_level; alias = None }
-let string_type = TT_free_var { level = string_level; alias = None }
+let tt_match term =
+  match tt_repr term with
+  (* TODO: expand type_? *)
+  | TTerm { desc; type_ = _ } -> desc
+  | TType { desc } -> desc
+
+let tt_map_desc term f =
+  match tt_repr term with
+  (* TODO: expand type_? *)
+  | TTerm { desc; type_ } ->
+      let wrap desc = TTerm { desc; type_ } in
+      f ~wrap term desc
+  | TType { desc } ->
+      let wrap desc = TType { desc } in
+      f ~wrap term desc
+
+(* TODO: loc *)
+let tt_type =
+  (* TODO: why types have locations? *)
+  let desc = TT_free_var { level = type_level; alias = None } in
+  TType { desc }
+
+let string_type =
+  let desc = TT_free_var { level = string_level; alias = None } in
+  TType { desc }
 
 let tt_hole () =
-  let hole = { link = Ex_term tt_nil } in
+  let hole = { link = None } in
   TT_hole { hole }
 
-let is_tt_nil (type a) (term : a term) =
-  (* TODO: why not physical equality?
-      Because TT_free_var is rebuilt in a couple places *)
-  match term with
-  | TT_free_var { level; alias = None } -> Level.equal nil_level level
-  | _ -> false
-
-(* TODO: ugly hack *)
-let nil_name = Name.make "**nil**"
-
-let tp_nil =
-  (* TODO: very distinct way, maybe level on pattern? *)
-  TP_var { name = nil_name }
-
 let tp_hole () =
-  let hole = { link = tp_nil } in
+  let hole = { link = None } in
   TP_hole { hole }
-
-let is_tp_nil (type a) (pat : a pat) =
-  match pat with
-  | TP_var { name } ->
-      (* TODO: physical equality used here *)
-      name == nil_name
-  | _ -> false

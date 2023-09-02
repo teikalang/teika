@@ -1,3 +1,3 @@
 open Teika
 
-val untype_term : _ Ttree.term -> Utree.term
+val untype_term : Ttree.term -> Utree.term
