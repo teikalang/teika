@@ -1,11 +1,8 @@
 open Ltree
 open Ttree
 open Context
-open Typer_context
 open Escape_check
-
-let unify_term ~expected ~received =
-  with_unify_context @@ fun () -> Unify.unify_term ~expected ~received
+open Unify
 
 let open_term term =
   (* TODO: this opening is weird *)

@@ -1,5 +1,5 @@
-open Context.Typer_context
 open Ttree
+open Context
 open Expand_head
 
 let rec escape_check_term ~current term =

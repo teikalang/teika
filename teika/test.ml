@@ -267,9 +267,7 @@ module Ttree_utils = struct
   open Teika
   open Context
 
-  let infer_term term =
-    let open Typer_context in
-    run @@ fun () -> Typer.infer_term term
+  let infer_term term = run @@ fun () -> Typer.infer_term term
 
   (* let dump code =
        let stree = Slexer.from_string Sparser.term_opt code |> Option.get in
