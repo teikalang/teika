@@ -24,21 +24,17 @@ module Unify_context : sig
   val ( let+ ) : 'a unify_context -> ('a -> 'b) -> 'b unify_context
 
   (* errors *)
+  val error_subst_found : expected:term -> received:term -> 'a unify_context
+  val error_annot_found : expected:term -> received:term -> 'a unify_context
+
   val error_bound_var_clash :
     expected:Index.t -> received:Index.t -> 'a unify_context
 
   val error_free_var_clash :
     expected:Level.t -> received:Level.t -> 'a unify_context
 
-  val error_type_clash :
-    expected:_ term ->
-    expected_norm:core term ->
-    received:_ term ->
-    received_norm:core term ->
-    'a unify_context
-
-  val error_var_occurs :
-    hole:ex_term hole -> in_:ex_term hole -> 'a unify_context
+  val error_type_clash : expected:term -> received:term -> 'a unify_context
+  val error_var_occurs : hole:term hole -> in_:term hole -> 'a unify_context
 
   val error_string_clash :
     expected:string -> received:string -> 'a unify_context
@@ -54,7 +50,7 @@ module Typer_context : sig
   (* TODO: next_var must be bigger than type_of_types *)
   val test :
     level:Level.t ->
-    vars:(Level.t * ex_term * ex_term option) Name.Map.t ->
+    vars:(Level.t * term * term option) Name.Map.t ->
     expected_vars:var_info list ->
     received_vars:var_info list ->
     (unit -> 'a typer_context) ->
@@ -70,7 +66,7 @@ module Typer_context : sig
 
   (* errors *)
   val error_pairs_not_implemented : unit -> 'a typer_context
-  val error_not_a_forall : type_:_ term -> 'a typer_context
+  val error_not_a_forall : type_:term -> 'a typer_context
   val error_var_escape : var:Level.t -> 'a typer_context
 
   val error_typer_unknown_extension :
@@ -83,15 +79,13 @@ module Typer_context : sig
   val enter_level : (unit -> 'a typer_context) -> 'a typer_context
 
   (* vars *)
-  val lookup_var :
-    name:Name.t -> (Level.t * ex_term * ex_term option) typer_context
-
+  val lookup_var : name:Name.t -> (Level.t * term * term option) typer_context
   val with_expected_var : (unit -> 'a typer_context) -> 'a typer_context
 
   val with_received_var :
     name:Name.t ->
-    type_:_ term ->
-    alias:_ term option ->
+    type_:term ->
+    alias:term option ->
     (unit -> 'a typer_context) ->
     'a typer_context
 

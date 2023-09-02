@@ -20,5 +20,5 @@ let () =
   compile
     {|
       Bool = (A : Type) -> (t : A) -> (f : A) -> A;
-      (A => t => f => t : Bool)
+      @native("debug")(A => t => f => t : Bool)
     |}

@@ -1,7 +1,6 @@
 open Teika
 open Ttree
 open Utree
-open Expand_head
 
 (* TODO: Type will lead to issues,
    it will be a free var *)
@@ -45,9 +44,11 @@ end
 
 open Context
 
-let rec untype_term : type a. a Ttree.term -> term context =
- fun term ->
-  match expand_head_term term with
+let expand_subst_term = Expand_head.expand_subst_term
+
+let rec untype_term term =
+  match tt_match term with
+  | TT_subst { term; subst } -> untype_term @@ expand_subst_term ~subst term
   | TT_bound_var { index } ->
       let+ var = lookup index in
       UT_var { var }
@@ -64,7 +65,7 @@ let rec untype_term : type a. a Ttree.term -> term context =
   | TT_forall _ -> return type_term
   | TT_lambda { param; return } ->
       let+ param, return =
-        erase_pat param @@ fun var ->
+        erase_typed_pat param @@ fun var ->
         let+ return = untype_term return in
         (var, return)
       in
@@ -76,7 +77,7 @@ let rec untype_term : type a. a Ttree.term -> term context =
   | TT_self _ -> return type_term
   | TT_fix { var; body } ->
       let+ var, body =
-        erase_pat var @@ fun var ->
+        erase_core_pat var @@ fun var ->
         let+ body = untype_term body in
         (var, body)
       in
@@ -85,15 +86,24 @@ let rec untype_term : type a. a Ttree.term -> term context =
   | TT_unroll { term } ->
       let+ term = untype_term term in
       UT_apply { lambda = term; arg = unit_term }
+  | TT_unfold { term } -> untype_term term
+  | TT_let { bound = _; value; return } ->
+      (* TODO: emit let *)
+      let subst = TS_subst_bound { from = Index.zero; to_ = value } in
+      untype_term @@ expand_subst_term ~subst return
+  | TT_annot { term; annot = _ } -> untype_term term
   | TT_string { literal } -> return @@ UT_string { literal }
   | TT_native { native } -> erase_native native
 
 and erase_native native = match native with TN_debug -> return @@ debug_term
 
-and erase_pat : type a k. a Ttree.pat -> (Var.t -> k context) -> k context =
+and erase_typed_pat pat k =
+  let (TPat { pat; type_ = _ }) = pat in
+  erase_core_pat pat k
+
+and erase_core_pat : type k. _ -> (Var.t -> k context) -> k context =
  fun pat k ->
-  match pat with
-  | TP_typed { pat; annot = _ } -> erase_pat pat k
+  match tp_repr pat with
   | TP_hole _ -> raise Pat_hole_found
   | TP_var { name } -> with_var name k
 
