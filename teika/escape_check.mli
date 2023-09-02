@@ -1,4 +1,4 @@
-open Context.Typer_context
 open Ttree
+open Context
 
-val escape_check_term : term -> unit typer_context
+val escape_check_term : term -> unit context

@@ -1,6 +1,5 @@
 open Ttree
 open Context
-open Unify_context
 open Expand_head
 
 (* TODO: ensure this is eliminated *)

@@ -1,4 +1,4 @@
-open Context
 open Ttree
+open Context
 
-val infer_term : Ltree.term -> term Typer_context.t
+val infer_term : Ltree.term -> term context
