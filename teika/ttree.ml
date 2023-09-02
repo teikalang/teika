@@ -20,7 +20,7 @@ type term =
 and term_desc =
   | TT_subst of { term : term; subst : subst }
   | TT_bound_var of { index : Index.t }
-  | TT_free_var of { level : Level.t; alias : term option }
+  | TT_free_var of { level : Level.t }
   | TT_hole of { hole : term hole }
   | TT_forall of { param : typed_pat; return : term }
   | TT_lambda of { param : typed_pat; return : term }
@@ -44,9 +44,7 @@ and core_pat =
 and 'a hole = { mutable link : 'a option }
 
 and subst =
-  | TS_subst_bound of { from : Index.t; to_ : term }
-  | TS_subst_free of { from : Level.t; to_ : term }
-  | TS_open_bound of { from : Index.t; to_ : Level.t }
+  | TS_subst_bound of { to_ : term }
   | TS_close_free of { from : Level.t; to_ : Index.t }
 
 and native = TN_debug
@@ -95,11 +93,11 @@ let tt_map_desc term f =
 (* TODO: loc *)
 let tt_type =
   (* TODO: why types have locations? *)
-  let desc = TT_free_var { level = type_level; alias = None } in
+  let desc = TT_free_var { level = type_level } in
   TType { desc }
 
 let string_type =
-  let desc = TT_free_var { level = string_level; alias = None } in
+  let desc = TT_free_var { level = string_level } in
   TType { desc }
 
 let tt_hole () =

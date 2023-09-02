@@ -71,7 +71,7 @@ let rec unfold_fix term =
   | TT_unroll { term = fix } -> (
       match tt_match @@ expand_head_term fix with
       | TT_fix { var = _; body } ->
-          let subst = TS_subst_bound { from = Index.zero; to_ = fix } in
+          let subst = TS_subst_bound { to_ = fix } in
           expand_head_term @@ expand_subst_term ~subst body
       | _ -> term)
   | TT_unfold { term } ->

@@ -1,7 +1,6 @@
 [@@@ocaml.warning "-unused-constructor"]
 
 open Ttree
-open Expand_head
 
 module Ptree = struct
   open Format
@@ -226,13 +225,10 @@ and _ptree_of_subst config next holes subst =
   let open Ptree in
   let ptree_of_term term = ptree_of_term config next holes term in
   match subst with
-  | TS_subst_bound { from; to_ } ->
+  | TS_subst_bound { to_ } ->
       let to_ = ptree_of_term to_ in
-      PS_subst_bound { from; to_ }
-  | TS_subst_free { from; to_ } ->
-      let to_ = ptree_of_term to_ in
-      PS_subst_free { from; to_ }
-  | TS_open_bound { from; to_ } -> PS_open_bound { from; to_ }
+      (* TODO: this is interesting *)
+      PS_subst_bound { from = Index.zero; to_ }
   | TS_close_free { from; to_ } -> PS_close_free { from; to_ }
 
 let config =

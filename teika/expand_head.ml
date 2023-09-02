@@ -1,4 +1,5 @@
 open Ttree
+open Context
 
 let rec expand_subst_term ~subst term =
   (* TODO: check if term has same type as subst *)
@@ -88,46 +89,46 @@ and expand_subst_typed_pat : subst:subst -> _ -> _ =
   TPat { pat; type_ }
 
 let rec expand_head_term term =
-  tt_map_desc term @@ fun ~wrap:_ term desc ->
+  tt_map_desc term @@ fun ~wrap term desc ->
   match desc with
-  | TT_subst { term; subst } ->
-      expand_head_term @@ expand_subst_term ~subst term
-  | TT_bound_var _ -> term
-  | TT_free_var { level = _; alias = Some alias } -> expand_head_term alias
-  | TT_free_var _ -> term
-  | TT_hole { hole } -> (
-      (* TODO: path compression *)
-      (* TODO: move this to machinery *)
-      match hole.link with
-      | None -> term
-      | Some link ->
-          (* TODO: path compression *)
-          expand_head_term link)
-  | TT_forall _ -> term
-  | TT_lambda _ -> term
+  | TT_subst _ -> return term
+  | TT_bound_var { index } -> (
+      let* alias = resolve_bound_var ~index in
+      match alias with
+      | Some alias -> expand_head_term alias
+      | None -> return term)
+  | TT_free_var { level } -> (
+      let* alias = resolve_free_var ~level in
+      match alias with
+      | Some alias -> expand_head_term alias
+      | None -> return term)
+  | TT_hole _ -> return term
+  | TT_forall _ -> return term
+  | TT_lambda _ -> return term
   | TT_apply { lambda; arg } -> (
       (* TODO: use expanded lambda? *)
-      match tt_match (expand_head_term lambda) with
+      let* lambda = expand_head_term lambda in
+      match tt_match lambda with
       | TT_lambda { param = _; return } ->
           (* TODO: param is not used here,
              but it would be cool to check when in debug *)
           (* TODO: this could be done in O(1) with context extending *)
-          let subst = TS_subst_bound { from = Index.zero; to_ = arg } in
-          expand_head_term @@ expand_subst_term ~subst return
+          let subst = TS_subst_bound { to_ = arg } in
+          expand_head_term @@ wrap @@ TT_subst { term = return; subst }
       | TT_native { native } -> expand_head_native native ~arg
-      | _lambda -> term)
-  | TT_self _ -> term
-  | TT_fix _ -> term
-  | TT_unroll _ -> term
+      | _lambda -> return term)
+  | TT_self _ -> return term
+  | TT_fix _ -> return term
+  | TT_unroll _ -> return term
   | TT_unfold { term } -> expand_head_term term
   | TT_let { bound = _; value; return } ->
       (* TODO: param is not used here,
          but it would be cool to check when in debug *)
-      let subst = TS_subst_bound { from = Index.zero; to_ = value } in
-      expand_head_term @@ expand_subst_term ~subst return
+      let subst = TS_subst_bound { to_ = value } in
+      expand_head_term @@ wrap @@ TT_subst { term = return; subst }
   | TT_annot { term; annot = _ } -> expand_head_term term
-  | TT_string _ -> term
-  | TT_native _ -> term
+  | TT_string _ -> return term
+  | TT_native _ -> return term
 
 and expand_head_native native ~arg =
   match native with TN_debug -> expand_head_term arg

@@ -87,10 +87,16 @@ let rec untype_term term =
       let+ term = untype_term term in
       UT_apply { lambda = term; arg = unit_term }
   | TT_unfold { term } -> untype_term term
-  | TT_let { bound = _; value; return } ->
+  | TT_let { bound; value; return } ->
       (* TODO: emit let *)
-      let subst = TS_subst_bound { from = Index.zero; to_ = value } in
-      untype_term @@ expand_subst_term ~subst return
+      let* var, return =
+        erase_typed_pat bound @@ fun var ->
+        let+ return = untype_term return in
+        (var, return)
+      in
+      let+ value = untype_term value in
+      let lambda = UT_lambda { param = var; return } in
+      UT_apply { lambda; arg = value }
   | TT_annot { term; annot = _ } -> untype_term term
   | TT_string { literal } -> return @@ UT_string { literal }
   | TT_native { native } -> erase_native native

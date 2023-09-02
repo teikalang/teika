@@ -7,7 +7,7 @@ type ('a, 'b) result = { match_ : 'k. ok:('a -> 'k) -> error:('b -> 'k) -> 'k }
 let[@inline always] ok value = { match_ = (fun ~ok ~error:_ -> ok value) }
 let[@inline always] error desc = { match_ = (fun ~ok:_ ~error -> error desc) }
 
-type var_info = Free
+type var_info = Free | Subst of term
 
 type 'a context =
   level:Level.t ->

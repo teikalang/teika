@@ -14,7 +14,7 @@ and term_desc =
   | TT_bound_var of { index : Index.t }
   (* x/+n *)
   (* TODO: this alias is a hack *)
-  | TT_free_var of { level : Level.t; alias : term option }
+  | TT_free_var of { level : Level.t }
   (* TODO: I really don't like this ex_term *)
   (* _x/+n *)
   | TT_hole of { hole : term hole }
@@ -56,11 +56,7 @@ and 'a hole = { mutable link : 'a option }
 
 and subst =
   (* -f := N *)
-  | TS_subst_bound of { from : Index.t; to_ : term }
-  (* +f := N *)
-  | TS_subst_free of { from : Level.t; to_ : term }
-  (* -f `open` +t *)
-  | TS_open_bound of { from : Index.t; to_ : Level.t }
+  | TS_subst_bound of { to_ : term }
   (* +f `open` -t *)
   | TS_close_free of { from : Level.t; to_ : Index.t }
 
@@ -75,7 +71,7 @@ val tt_match : term -> term_desc
 val tp_repr : core_pat -> core_pat
 
 val tt_map_desc :
-  term -> (wrap:(term_desc -> term) -> term -> term_desc -> term) -> term
+  term -> (wrap:(term_desc -> term) -> term -> term_desc -> 'a) -> 'a
 
 (* constructors *)
 val tt_type : term

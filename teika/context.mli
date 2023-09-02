@@ -1,7 +1,7 @@
 open Ttree
 open Terror
 
-type var_info = Free
+type var_info = Free | Subst of term
 type 'a context
 type 'a t = 'a context
 
@@ -48,6 +48,10 @@ val enter_level : (unit -> 'a context) -> 'a context
 
 (* vars *)
 val lookup_var : name:Name.t -> (Level.t * term * term option) context
+
+(* TODO: resolve not great  *)
+val resolve_bound_var : index:Index.t -> term option context
+val resolve_free_var : level:Level.t -> term option context
 val with_expected_var : (unit -> 'a context) -> 'a context
 
 val with_received_var :
