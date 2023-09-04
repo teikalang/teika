@@ -6,7 +6,7 @@ module Var_context : sig
   type 'a t = 'a var_context
 
   (* monad *)
-  val return : 'a -> 'a var_context
+  val pure : 'a -> 'a var_context
   val ( let* ) : 'a var_context -> ('a -> 'b var_context) -> 'b var_context
 
   (* errors *)
@@ -25,7 +25,7 @@ module Unify_context : sig
   type 'a t = 'a unify_context
 
   (* monad *)
-  val return : 'a -> 'a unify_context
+  val pure : 'a -> 'a unify_context
 
   val ( let* ) :
     'a unify_context -> ('a -> 'b unify_context) -> 'b unify_context
@@ -60,12 +60,10 @@ module Typer_context : sig
 
   (* monad *)
   val run : (unit -> 'a typer_context) -> ('a, error) result
-  val return : 'a -> 'a typer_context
+  val pure : 'a -> 'a typer_context
 
   val ( let* ) :
     'a typer_context -> ('a -> 'b typer_context) -> 'b typer_context
-
-  val ( let+ ) : 'a typer_context -> ('a -> 'b) -> 'b typer_context
 
   (* error *)
   val error_pairs_not_implemented : unit -> 'a typer_context

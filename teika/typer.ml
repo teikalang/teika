@@ -5,23 +5,24 @@ open Typer_context
 open Escape_check
 open Unify
 
-let escape_check_term term =
-  with_var_context @@ fun () -> escape_check_term term
+let escape_check_term term = with_var_context @@ fun () -> tt_escape_check term
 
 let unify_term ~expected ~received =
-  with_unify_context @@ fun () -> unify_term ~expected ~received
+  with_unify_context @@ fun () -> tt_unify ~expected ~received
 
 let open_term term =
   (* TODO: this opening is weird *)
-  let+ to_ = level () in
+  let* to_ = level () in
   let subst = TS_open_bound { from = Index.zero; to_ } in
-  tt_map_desc term @@ fun ~wrap term _desc -> wrap @@ TT_subst { term; subst }
+  pure @@ tt_map_desc term
+  @@ fun ~wrap term _desc -> wrap @@ TT_subst { term; subst }
 
 let close_term term =
   (* TODO: this closing is weird *)
-  let+ from = level () in
+  let* from = level () in
   let subst = TS_close_free { from; to_ = Index.zero } in
-  tt_map_desc term @@ fun ~wrap term _desc -> wrap @@ TT_subst { term; subst }
+  pure @@ tt_map_desc term
+  @@ fun ~wrap term _desc -> wrap @@ TT_subst { term; subst }
 
 let ttype_subst_free ~from ~to_ term =
   let subst = TS_subst_free { from; to_ } in
@@ -32,18 +33,19 @@ let ttype_subst_free ~from ~to_ term =
 let ttype_hole () = TType { desc = tt_hole () }
 
 let split_forall type_ =
+  (* TODO: optimization, avoid the holes when annotated *)
   let param_type = ttype_hole () in
   let param = TPat { pat = tp_hole (); type_ = param_type } in
   enter_level @@ fun () ->
   (* TODO: this is needed because unification is monomorphic *)
   let* return = open_term @@ ttype_hole () in
   let* expected =
-    let+ return = close_term return in
+    let* return = close_term return in
     let desc = TT_forall { param; return } in
-    TType { desc }
+    pure @@ TType { desc }
   in
-  let+ () = unify_term ~received:type_ ~expected in
-  (param_type, return)
+  let* () = unify_term ~received:type_ ~expected in
+  pure (param_type, return)
 
 let split_self type_ =
   (* TODO: this is needed because unification is monomorphic *)
@@ -51,11 +53,11 @@ let split_self type_ =
   let* body = open_term @@ ttype_hole () in
   let* expected =
     let var = tp_hole () in
-    let+ body = close_term body in
-    TType { desc = TT_self { var; body } }
+    let* body = close_term body in
+    pure @@ TType { desc = TT_self { var; body } }
   in
-  let+ () = unify_term ~received:type_ ~expected in
-  body
+  let* () = unify_term ~received:type_ ~expected in
+  pure body
 
 (* TODO: better place for this *)
 let rec unfold_fix term =
@@ -63,7 +65,7 @@ let rec unfold_fix term =
   (* TODO: not ideal to expand head *)
   tt_map_desc term @@ fun ~wrap term desc ->
   match desc with
-  | TT_subst { term; subst } -> unfold_fix @@ expand_subst_term ~subst term
+  | TT_subst { term; subst } -> unfold_fix @@ tt_expand_subst ~subst term
   | TT_bound_var _ -> term
   | TT_free_var _ -> term
   | TT_hole _ -> term
@@ -76,10 +78,10 @@ let rec unfold_fix term =
   | TT_self _ -> term
   | TT_fix _ -> term
   | TT_unroll { term = fix } -> (
-      match tt_match @@ expand_head_term fix with
+      match tt_match @@ tt_expand_head fix with
       | TT_fix { var = _; body } ->
           let subst = TS_subst_bound { from = Index.zero; to_ = fix } in
-          expand_head_term @@ expand_subst_term ~subst body
+          tt_expand_head @@ tt_expand_subst ~subst body
       | _ -> term)
   | TT_unfold { term } ->
       let term = unfold_fix term in
@@ -99,8 +101,8 @@ let rec unfold_fix term =
 let rec check_term term ~expected =
   (* TODO: propagation through dependent things *)
   let wrapped desc =
-    let+ () = escape_check_term expected in
-    TTerm { desc; type_ = expected }
+    let* () = escape_check_term expected in
+    pure @@ TTerm { desc; type_ = expected }
   in
   match term with
   | LT_var { var = name } -> (
@@ -176,8 +178,8 @@ let rec check_term term ~expected =
 
 and check_term_extension ~extension ~payload ~expected =
   let wrapped desc =
-    let+ () = escape_check_term expected in
-    TTerm { desc; type_ = expected }
+    let* () = escape_check_term expected in
+    pure @@ TTerm { desc; type_ = expected }
   in
   match (Name.repr extension, payload) with
   | _, LT_loc { term = payload; loc = _ } ->
@@ -230,8 +232,8 @@ and check_term_extension ~extension ~payload ~expected =
 
 and check_term_native ~native ~expected =
   let wrapped desc =
-    let+ () = escape_check_term expected in
-    TTerm { desc; type_ = expected }
+    let* () = escape_check_term expected in
+    pure @@ TTerm { desc; type_ = expected }
   in
   match native with
   | "debug" ->
