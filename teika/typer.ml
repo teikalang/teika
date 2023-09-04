@@ -9,7 +9,7 @@ let escape_check_term term =
   with_var_context @@ fun () -> escape_check_term term
 
 let unify_term ~expected ~received =
-  with_unify_context @@ fun () -> unify_term ~expected ~received
+  with_unify_context @@ fun () -> tt_unify ~expected ~received
 
 let open_term term =
   (* TODO: this opening is weird *)
