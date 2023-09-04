@@ -32,7 +32,7 @@ let rec tt_occurs hole ~in_ =
   *)
   let tt_occurs ~in_ = tt_occurs hole ~in_ in
   let tpat_occurs ~in_ = tpat_occurs hole ~in_ in
-  match tt_match @@ expand_head_term in_ with
+  match tt_match @@ tt_expand_head in_ with
   (* TODO: frozen and subst *)
   | TT_subst _ -> error_subst_found in_
   | TT_unfold _ -> error_unfold_found in_
@@ -83,8 +83,7 @@ open Unify_context
 let rec tt_unify ~expected ~received =
   (* TODO: short circuit physical equality *)
   match
-    ( tt_match @@ expand_head_term expected,
-      tt_match @@ expand_head_term received )
+    (tt_match @@ tt_expand_head expected, tt_match @@ tt_expand_head received)
   with
   (* TODO: annot and subst equality?  *)
   | TT_subst _, _ | _, TT_subst _ -> error_subst_found ~expected ~received

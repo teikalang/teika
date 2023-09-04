@@ -9,7 +9,7 @@ let rec tt_escape_check ~current term =
 
   (* TODO: check without expand_head? *)
   (* TODO: this should not be here *)
-  match tt_match @@ expand_head_term term with
+  match tt_match @@ tt_expand_head term with
   | TT_subst { term; subst } -> tt_escape_check @@ tt_expand_subst ~subst term
   | TT_bound_var { index = _ } ->
       (* TODO: also check bound var *)
