@@ -1,5 +1,6 @@
 open Ttree
 open Context
+open Var_context
 open Expand_head
 
 let rec escape_check_term ~current term =

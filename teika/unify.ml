@@ -24,6 +24,7 @@ open Expand_head
 (* TODO: diff is a bad name *)
 
 let rec occurs_term hole ~in_ =
+  let open Var_context in
   (* TODO: this is needed because of non injective functions
        the unification could succeed only if expand_head happened
 
@@ -32,7 +33,10 @@ let rec occurs_term hole ~in_ =
   let occurs_term ~in_ = occurs_term hole ~in_ in
   let occurs_typed_pat ~in_ = occurs_typed_pat hole ~in_ in
   match tt_match @@ expand_head_term in_ with
-  | TT_subst { term; subst } -> occurs_term ~in_:(expand_subst_term ~subst term)
+  (* TODO: frozen and subst *)
+  | TT_subst _ -> error_subst_found in_
+  | TT_unfold _ -> error_unfold_found in_
+  | TT_annot _ -> error_annot_found in_
   | TT_bound_var { index = _ } -> return ()
   | TT_free_var { level = _; alias = _ } -> return ()
   (* TODO: use this substs? *)
@@ -52,14 +56,10 @@ let rec occurs_term hole ~in_ =
   | TT_self { var = _; body } -> occurs_term ~in_:body
   | TT_fix { var = _; body } -> occurs_term ~in_:body
   | TT_unroll { term } -> occurs_term ~in_:term
-  | TT_unfold { term } -> occurs_term ~in_:term
   | TT_let { bound; value; return } ->
       let* () = occurs_typed_pat ~in_:bound in
       let* () = occurs_term ~in_:value in
       occurs_term ~in_:return
-  | TT_annot { term; annot } ->
-      let* () = occurs_term ~in_:term in
-      occurs_term ~in_:annot
   | TT_string { literal = _ } -> return ()
   | TT_native { native = _ } -> return ()
 
@@ -67,6 +67,18 @@ and occurs_typed_pat hole ~in_ =
   (* TODO: occurs inside of TP_hole *)
   let (TPat { pat = _; type_ }) = in_ in
   occurs_term hole ~in_:type_
+
+let unify_term_hole hole ~to_ =
+  let open Var_context in
+  match tt_match to_ with
+  | TT_hole { hole = to_ } when hole == to_ -> return ()
+  | _ ->
+      (* TODO: prefer a direction when both are holes? *)
+      let* () = occurs_term hole ~in_:to_ in
+      hole.link <- Some to_;
+      return ()
+
+open Unify_context
 
 let rec unify_term ~expected ~received =
   (* TODO: short circuit physical equality *)
@@ -87,8 +99,11 @@ let rec unify_term ~expected ~received =
       match Level.equal expected received with
       | true -> return ()
       | false -> error_free_var_clash ~expected ~received)
-  | TT_hole { hole }, _ -> unify_term_hole hole ~to_:received
-  | _, TT_hole { hole } -> unify_term_hole hole ~to_:expected
+  | TT_hole { hole }, _ ->
+      (* TODO: tests if wrong context is used *)
+      with_received_var_context @@ fun () -> unify_term_hole hole ~to_:received
+  | _, TT_hole { hole } ->
+      with_expected_var_context @@ fun () -> unify_term_hole hole ~to_:expected
   (* TODO: track whenever it is unified and locations, visualizing inference *)
   | ( TT_forall { param = expected_param; return = expected_return },
       TT_forall { param = received_param; return = received_return } ) ->
@@ -152,15 +167,6 @@ let rec unify_term ~expected ~received =
       | TT_self _ | TT_fix _ | TT_unroll _ | TT_unfold _ | TT_let _
       | TT_string _ | TT_native _ ) ) ->
       error_type_clash ~expected ~received
-
-and unify_term_hole hole ~to_ =
-  match tt_match to_ with
-  | TT_hole { hole = to_ } when hole == to_ -> return ()
-  | _ ->
-      (* TODO: prefer a direction when both are holes? *)
-      let* () = occurs_term hole ~in_:to_ in
-      hole.link <- Some to_;
-      return ()
 
 and unify_typed_pat ~expected ~received =
   (* TODO: pat? *)
