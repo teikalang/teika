@@ -5,8 +5,7 @@ open Typer_context
 open Escape_check
 open Unify
 
-let escape_check_term term =
-  with_var_context @@ fun () -> escape_check_term term
+let escape_check_term term = with_var_context @@ fun () -> tt_escape_check term
 
 let unify_term ~expected ~received =
   with_unify_context @@ fun () -> tt_unify ~expected ~received

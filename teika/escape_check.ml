@@ -3,15 +3,14 @@ open Context
 open Var_context
 open Expand_head
 
-let rec escape_check_term ~current term =
-  let escape_check_term term = escape_check_term ~current term in
-  let escape_check_typed_pat pat = escape_check_typed_pat ~current pat in
+let rec tt_escape_check ~current term =
+  let tt_escape_check term = tt_escape_check ~current term in
+  let tpat_escape_check pat = tpat_escape_check ~current pat in
 
   (* TODO: check without expand_head? *)
   (* TODO: this should not be here *)
   match tt_match @@ expand_head_term term with
-  | TT_subst { term; subst } ->
-      escape_check_term @@ expand_subst_term ~subst term
+  | TT_subst { term; subst } -> tt_escape_check @@ expand_subst_term ~subst term
   | TT_bound_var { index = _ } ->
       (* TODO: also check bound var *)
       (* TODO: very very important to check for bound vars, unification
@@ -23,33 +22,33 @@ let rec escape_check_term ~current term =
       | false -> return ())
   | TT_hole _hole -> return ()
   | TT_forall { param; return } ->
-      let* () = escape_check_typed_pat param in
-      escape_check_term return
+      let* () = tpat_escape_check param in
+      tt_escape_check return
   | TT_lambda { param; return } ->
-      let* () = escape_check_typed_pat param in
-      escape_check_term return
+      let* () = tpat_escape_check param in
+      tt_escape_check return
   | TT_apply { lambda; arg } ->
-      let* () = escape_check_term lambda in
-      escape_check_term arg
-  | TT_self { var = _; body } -> escape_check_term body
-  | TT_fix { var = _; body } -> escape_check_term body
-  | TT_unroll { term } -> escape_check_term term
-  | TT_unfold { term } -> escape_check_term term
+      let* () = tt_escape_check lambda in
+      tt_escape_check arg
+  | TT_self { var = _; body } -> tt_escape_check body
+  | TT_fix { var = _; body } -> tt_escape_check body
+  | TT_unroll { term } -> tt_escape_check term
+  | TT_unfold { term } -> tt_escape_check term
   | TT_let { bound; value; return } ->
-      let* () = escape_check_typed_pat bound in
-      let* () = escape_check_term value in
-      escape_check_term return
+      let* () = tpat_escape_check bound in
+      let* () = tt_escape_check value in
+      tt_escape_check return
   | TT_annot { term; annot } ->
-      let* () = escape_check_term term in
-      escape_check_term annot
+      let* () = tt_escape_check term in
+      tt_escape_check annot
   | TT_string { literal = _ } -> return ()
   | TT_native { native = _ } -> return ()
 
-and escape_check_typed_pat ~current term =
+and tpat_escape_check ~current term =
   (* TODO: check pat? *)
   let (TPat { pat = _; type_ }) = term in
-  escape_check_term ~current type_
+  tt_escape_check ~current type_
 
-let escape_check_term term =
+let tt_escape_check term =
   let* current = level () in
-  escape_check_term ~current term
+  tt_escape_check ~current term
