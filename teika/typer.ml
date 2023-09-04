@@ -1,8 +1,15 @@
 open Ltree
 open Ttree
 open Context
+open Typer_context
 open Escape_check
 open Unify
+
+let escape_check_term term =
+  with_var_context @@ fun () -> escape_check_term term
+
+let unify_term ~expected ~received =
+  with_unify_context @@ fun () -> unify_term ~expected ~received
 
 let open_term term =
   (* TODO: this opening is weird *)
@@ -219,7 +226,7 @@ and check_term_extension ~extension ~payload ~expected =
       wrapped @@ TT_unfold { term }
   | "@native", LT_string { literal = native } ->
       check_term_native ~native ~expected
-  | _ -> error_typer_unknown_extension ~extension ~payload
+  | _ -> error_unknown_extension ~extension ~payload
 
 and check_term_native ~native ~expected =
   let wrapped desc =
@@ -231,7 +238,7 @@ and check_term_native ~native ~expected =
       (* TODO: use this types? *)
       let* _param_type, _return = split_forall expected in
       wrapped @@ TT_native { native = TN_debug }
-  | native -> error_typer_unknown_native ~native
+  | native -> error_unknown_native ~native
 
 and check_annot term = check_term term ~expected:tt_type
 
@@ -246,8 +253,7 @@ and check_core_pat pat ~expected ~alias f =
   match (pat, expected) with
   | LP_var { var = name }, expected ->
       (* TODO: add different names for left and right *)
-      with_expected_var @@ fun () ->
-      with_received_var ~name ~type_:expected ~alias @@ fun () ->
+      with_free_vars ~name ~type_:expected ~alias @@ fun () ->
       f @@ TP_var { name }
   | LP_pair _, _ -> error_pairs_not_implemented ()
   | LP_annot { pat; annot }, _expected_desc ->

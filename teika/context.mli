@@ -1,61 +1,101 @@
 open Ttree
 open Terror
 
-type var_info = Free
-type 'a context
-type 'a t = 'a context
+module Var_context : sig
+  type 'a var_context
+  type 'a t = 'a var_context
 
-(* monad *)
-val run : (unit -> 'a context) -> ('a, error) result
+  (* monad *)
+  val return : 'a -> 'a var_context
+  val ( let* ) : 'a var_context -> ('a -> 'b var_context) -> 'b var_context
 
-(* TODO: next_var must be bigger than type_of_types *)
-val test :
-  level:Level.t ->
-  vars:(Level.t * term * term option) Name.Map.t ->
-  expected_vars:var_info list ->
-  received_vars:var_info list ->
-  (unit -> 'a context) ->
-  ('a, error) result
+  (* errors *)
+  val error_subst_found : term -> 'a var_context
+  val error_unfold_found : term -> 'a var_context
+  val error_annot_found : term -> 'a var_context
+  val error_var_occurs : hole:term hole -> in_:term hole -> 'a var_context
+  val error_var_escape : var:Level.t -> 'a var_context
 
-val return : 'a -> 'a context
-val bind : 'a context -> ('a -> 'b context) -> 'b context
-val ( let* ) : 'a context -> ('a -> 'b context) -> 'b context
-val ( let+ ) : 'a context -> ('a -> 'b) -> 'b context
+  (* TODO: this should be removed *)
+  val level : unit -> Level.t var_context
+end
 
-(* errors *)
-(* unify *)
-val error_subst_found : expected:term -> received:term -> 'a context
-val error_annot_found : expected:term -> received:term -> 'a context
-val error_bound_var_clash : expected:Index.t -> received:Index.t -> 'a context
-val error_free_var_clash : expected:Level.t -> received:Level.t -> 'a context
-val error_type_clash : expected:term -> received:term -> 'a context
-val error_var_occurs : hole:term hole -> in_:term hole -> 'a context
-val error_string_clash : expected:string -> received:string -> 'a context
+module Unify_context : sig
+  type 'a unify_context
+  type 'a t = 'a unify_context
 
-(* typer *)
-val error_pairs_not_implemented : unit -> 'a context
-val error_not_a_forall : type_:term -> 'a context
-val error_var_escape : var:Level.t -> 'a context
+  (* monad *)
+  val return : 'a -> 'a unify_context
 
-val error_typer_unknown_extension :
-  extension:Name.t -> payload:Ltree.term -> 'a context
+  val ( let* ) :
+    'a unify_context -> ('a -> 'b unify_context) -> 'b unify_context
 
-val error_typer_unknown_native : native:string -> 'a context
+  (* error *)
+  val error_subst_found : expected:term -> received:term -> 'a unify_context
+  val error_unfold_found : expected:term -> received:term -> 'a unify_context
+  val error_annot_found : expected:term -> received:term -> 'a unify_context
 
-(* level *)
-val level : unit -> Level.t context
-val enter_level : (unit -> 'a context) -> 'a context
+  val error_bound_var_clash :
+    expected:Index.t -> received:Index.t -> 'a unify_context
 
-(* vars *)
-val lookup_var : name:Name.t -> (Level.t * term * term option) context
-val with_expected_var : (unit -> 'a context) -> 'a context
+  val error_free_var_clash :
+    expected:Level.t -> received:Level.t -> 'a unify_context
 
-val with_received_var :
-  name:Name.t ->
-  type_:term ->
-  alias:term option ->
-  (unit -> 'a context) ->
-  'a context
+  val error_type_clash : expected:term -> received:term -> 'a unify_context
 
-(* locs *)
-val with_loc : loc:Location.t -> (unit -> 'a context) -> 'a context
+  val error_string_clash :
+    expected:string -> received:string -> 'a unify_context
+
+  (* vars *)
+  val with_free_vars : (unit -> 'a unify_context) -> 'a unify_context
+
+  (* context *)
+  val with_expected_var_context : (unit -> 'a Var_context.t) -> 'a unify_context
+  val with_received_var_context : (unit -> 'a Var_context.t) -> 'a unify_context
+end
+
+module Typer_context : sig
+  type 'a typer_context
+  type 'a t = 'a typer_context
+
+  (* monad *)
+  val run : (unit -> 'a typer_context) -> ('a, error) result
+  val return : 'a -> 'a typer_context
+
+  val ( let* ) :
+    'a typer_context -> ('a -> 'b typer_context) -> 'b typer_context
+
+  val ( let+ ) : 'a typer_context -> ('a -> 'b) -> 'b typer_context
+
+  (* error *)
+  val error_pairs_not_implemented : unit -> 'a typer_context
+
+  val error_unknown_extension :
+    extension:Name.t -> payload:Ltree.term -> 'a typer_context
+
+  val error_unknown_native : native:string -> 'a typer_context
+
+  (* TODO: this should be removed *)
+  val level : unit -> Level.t typer_context
+  val enter_level : (unit -> 'a typer_context) -> 'a typer_context
+
+  (* vars *)
+
+  (* TODO: names from both sides *)
+  val with_free_vars :
+    name:Name.t ->
+    type_:term ->
+    alias:term option ->
+    (unit -> 'a typer_context) ->
+    'a typer_context
+
+  val lookup_var : name:Name.t -> (Level.t * term * term option) typer_context
+
+  (* locs *)
+  val with_loc :
+    loc:Location.t -> (unit -> 'a typer_context) -> 'a typer_context
+
+  (* context *)
+  val with_var_context : (unit -> 'a Var_context.t) -> 'a typer_context
+  val with_unify_context : (unit -> 'a Unify_context.t) -> 'a typer_context
+end
