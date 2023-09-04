@@ -6,7 +6,7 @@ module Var_context = struct
   type 'a var_context = level:Level.t -> ('a, error) result
   type 'a t = 'a var_context
 
-  let return value ~level:_ = Ok value
+  let pure value ~level:_ = Ok value
   let fail desc ~level:_ = Error desc
 
   let ( let* ) context f ~level =
@@ -26,7 +26,7 @@ module Unify_context = struct
   type 'a unify_context = level:Level.t -> ('a, error) result
   type 'a t = 'a unify_context
 
-  let return value ~level:_ = Ok value
+  let pure value ~level:_ = Ok value
   let fail desc ~level:_ = Error desc
 
   let ( let* ) context f ~level =
@@ -86,17 +86,13 @@ module Typer_context = struct
     (* TODO: should Type be here? *)
     f () ~level ~vars
 
-  let return value ~level:_ ~vars:_ = Ok value
+  let pure value ~level:_ ~vars:_ = Ok value
   let fail desc ~level:_ ~vars:_ = Error desc
 
   let ( let* ) context f ~level ~vars =
     match context ~level ~vars with
     | Ok value -> f value ~level ~vars
     | Error _ as error -> error
-
-  let ( let+ ) context f =
-    let* value = context in
-    return (f value)
 
   let error_pairs_not_implemented () =
     fail @@ TError_typer_pairs_not_implemented

@@ -15,12 +15,12 @@ let rec tt_escape_check ~current term =
       (* TODO: also check bound var *)
       (* TODO: very very important to check for bound vars, unification
             may unify variables outside of their binders *)
-      return ()
+      pure ()
   | TT_free_var { level; alias = _ } -> (
       match Level.(current < level) with
       | true -> error_var_escape ~var:level
-      | false -> return ())
-  | TT_hole _hole -> return ()
+      | false -> pure ())
+  | TT_hole _hole -> pure ()
   | TT_forall { param; return } ->
       let* () = tpat_escape_check param in
       tt_escape_check return
@@ -41,8 +41,8 @@ let rec tt_escape_check ~current term =
   | TT_annot { term; annot } ->
       let* () = tt_escape_check term in
       tt_escape_check annot
-  | TT_string { literal = _ } -> return ()
-  | TT_native { native = _ } -> return ()
+  | TT_string { literal = _ } -> pure ()
+  | TT_native { native = _ } -> pure ()
 
 and tpat_escape_check ~current term =
   (* TODO: check pat? *)

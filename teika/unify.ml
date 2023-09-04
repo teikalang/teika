@@ -37,13 +37,13 @@ let rec tt_occurs hole ~in_ =
   | TT_subst _ -> error_subst_found in_
   | TT_unfold _ -> error_unfold_found in_
   | TT_annot _ -> error_annot_found in_
-  | TT_bound_var { index = _ } -> return ()
-  | TT_free_var { level = _; alias = _ } -> return ()
+  | TT_bound_var { index = _ } -> pure ()
+  | TT_free_var { level = _; alias = _ } -> pure ()
   (* TODO: use this substs? *)
   | TT_hole { hole = in_ } -> (
       match hole == in_ with
       | true -> error_var_occurs ~hole ~in_
-      | false -> return ())
+      | false -> pure ())
   | TT_forall { param; return } ->
       let* () = tpat_occurs ~in_:param in
       tt_occurs ~in_:return
@@ -60,8 +60,8 @@ let rec tt_occurs hole ~in_ =
       let* () = tpat_occurs ~in_:bound in
       let* () = tt_occurs ~in_:value in
       tt_occurs ~in_:return
-  | TT_string { literal = _ } -> return ()
-  | TT_native { native = _ } -> return ()
+  | TT_string { literal = _ } -> pure ()
+  | TT_native { native = _ } -> pure ()
 
 and tpat_occurs hole ~in_ =
   (* TODO: occurs inside of TP_hole *)
@@ -71,12 +71,12 @@ and tpat_occurs hole ~in_ =
 let unify_term_hole hole ~to_ =
   let open Var_context in
   match tt_match to_ with
-  | TT_hole { hole = to_ } when hole == to_ -> return ()
+  | TT_hole { hole = to_ } when hole == to_ -> pure ()
   | _ ->
       (* TODO: prefer a direction when both are holes? *)
       let* () = tt_occurs hole ~in_:to_ in
       hole.link <- Some to_;
-      return ()
+      pure ()
 
 open Unify_context
 
@@ -91,12 +91,12 @@ let rec tt_unify ~expected ~received =
   (* TODO: frozen and subst? *)
   | TT_bound_var { index = expected }, TT_bound_var { index = received } -> (
       match Index.equal expected received with
-      | true -> return ()
+      | true -> pure ()
       | false -> error_bound_var_clash ~expected ~received)
   | ( TT_free_var { level = expected; alias = _ },
       TT_free_var { level = received; alias = _ } ) -> (
       match Level.equal expected received with
-      | true -> return ()
+      | true -> pure ()
       | false -> error_free_var_clash ~expected ~received)
   | TT_hole { hole }, _ ->
       (* TODO: tests if wrong context is used *)
@@ -147,7 +147,7 @@ let rec tt_unify ~expected ~received =
       tt_unify ~expected:expected_return ~received:received_return
   | TT_string { literal = expected }, TT_string { literal = received } -> (
       match String.equal expected received with
-      | true -> return ()
+      | true -> pure ()
       | false -> error_string_clash ~expected ~received)
   | TT_native { native = expected }, TT_native { native = received } ->
       unify_native ~expected ~received
@@ -170,16 +170,16 @@ and tp_unify ~expected ~received =
   match (tp_repr expected, tp_repr received) with
   | TP_hole { hole }, pat | pat, TP_hole { hole } ->
       unify_pat_hole hole ~to_:pat
-  | TP_var _, TP_var _ -> return ()
+  | TP_var _, TP_var _ -> pure ()
 
 and unify_pat_hole hole ~to_ =
   match to_ with
-  | TP_hole { hole = to_ } when hole == to_ -> return ()
+  | TP_hole { hole = to_ } when hole == to_ -> pure ()
   | _ ->
       (* TODO: prefer a direction when both are holes? *)
       (* TODO: occurs_pat? *)
       hole.link <- Some to_;
-      return ()
+      pure ()
 
 and unify_native ~expected ~received =
-  match (expected, received) with TN_debug, TN_debug -> return ()
+  match (expected, received) with TN_debug, TN_debug -> pure ()
