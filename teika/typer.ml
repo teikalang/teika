@@ -62,7 +62,7 @@ let rec unfold_fix term =
   (* TODO: not ideal to expand head *)
   tt_map_desc term @@ fun ~wrap term desc ->
   match desc with
-  | TT_subst { term; subst } -> unfold_fix @@ expand_subst_term ~subst term
+  | TT_subst { term; subst } -> unfold_fix @@ tt_expand_subst ~subst term
   | TT_bound_var _ -> term
   | TT_free_var _ -> term
   | TT_hole _ -> term
@@ -78,7 +78,7 @@ let rec unfold_fix term =
       match tt_match @@ expand_head_term fix with
       | TT_fix { var = _; body } ->
           let subst = TS_subst_bound { from = Index.zero; to_ = fix } in
-          expand_head_term @@ expand_subst_term ~subst body
+          expand_head_term @@ tt_expand_subst ~subst body
       | _ -> term)
   | TT_unfold { term } ->
       let term = unfold_fix term in

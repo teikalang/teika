@@ -147,7 +147,7 @@ let rec ptree_of_term config next holes term =
   let ptree_of_hole hole = ptree_of_hole config next holes hole in
   (* TODO: print details *)
   match tt_match term with
-  | TT_subst { term; subst } -> ptree_of_term @@ expand_subst_term ~subst term
+  | TT_subst { term; subst } -> ptree_of_term @@ tt_expand_subst ~subst term
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level; alias = _ } -> PT_var_level { level }
   | TT_hole { hole } -> ptree_of_hole @@ Ex_hole hole
