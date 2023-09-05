@@ -6,18 +6,12 @@ let rec tt_expand_subst ~subst term =
   let tt_subst term subst = wrap @@ TT_subst { term; subst } in
   let with_var subst =
     match subst with
-    | TS_subst_bound { from; to_ } ->
+    | TS_open { from; to_ } ->
         let from = Index.(from + one) in
-        TS_subst_bound { from; to_ }
-    | TS_subst_free { from; to_ } ->
-        (* TODO: shifting here? *)
-        TS_subst_free { from; to_ }
-    | TS_open_bound { from; to_ } ->
-        let from = Index.(from + one) in
-        TS_open_bound { from; to_ }
-    | TS_close_free { from; to_ } ->
+        TS_open { from; to_ }
+    | TS_close { from; to_ } ->
         let to_ = Index.(to_ + one) in
-        TS_close_free { from; to_ }
+        TS_close { from; to_ }
   in
   match desc with
   | TT_subst { term; subst = subst' } ->
@@ -25,21 +19,13 @@ let rec tt_expand_subst ~subst term =
       tt_expand_subst ~subst term
   | TT_bound_var { index } -> (
       match subst with
-      | TS_subst_bound { from; to_ } -> (
+      | TS_open { from; to_ } -> (
           match Index.equal from index with true -> to_ | false -> term)
-      | TS_subst_free { from = _; to_ = _ } -> term
-      | TS_open_bound { from; to_ } -> (
-          match Index.equal from index with
-          | true -> wrap @@ TT_free_var { level = to_; alias = None }
-          | false -> term)
-      | TS_close_free { from = _; to_ = _ } -> term)
+      | TS_close { from = _; to_ = _ } -> term)
   | TT_free_var { level; alias = _ } -> (
       match subst with
-      | TS_subst_bound { from = _; to_ = _ } -> term
-      | TS_subst_free { from; to_ } -> (
-          match Level.equal from level with true -> to_ | false -> term)
-      | TS_open_bound { from = _; to_ = _ } -> term
-      | TS_close_free { from; to_ } -> (
+      | TS_open { from = _; to_ = _ } -> term
+      | TS_close { from; to_ } -> (
           match Level.equal from level with
           | true -> wrap @@ TT_bound_var { index = to_ }
           | false -> term))
@@ -111,7 +97,7 @@ let rec tt_expand_head term =
           (* TODO: param is not used here,
              but it would be cool to check when in debug *)
           (* TODO: this could be done in O(1) with context extending *)
-          let subst = TS_subst_bound { from = Index.zero; to_ = arg } in
+          let subst = TS_open { from = Index.zero; to_ = arg } in
           tt_expand_head @@ tt_expand_subst ~subst return
       | TT_native { native } -> expand_head_native native ~arg
       | _lambda -> term)
@@ -122,7 +108,7 @@ let rec tt_expand_head term =
   | TT_let { bound = _; value; return } ->
       (* TODO: param is not used here,
          but it would be cool to check when in debug *)
-      let subst = TS_subst_bound { from = Index.zero; to_ = value } in
+      let subst = TS_open { from = Index.zero; to_ = value } in
       tt_expand_head @@ tt_expand_subst ~subst return
   | TT_annot { term; annot = _ } -> tt_expand_head term
   | TT_string _ -> term

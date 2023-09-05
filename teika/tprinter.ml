@@ -27,10 +27,8 @@ module Ptree = struct
     | PT_native of { native : string }
 
   and subst =
-    | PS_subst_bound : { from : Index.t; to_ : term } -> subst
-    | PS_subst_free : { from : Level.t; to_ : term } -> subst
-    | PS_open_bound : { from : Index.t; to_ : Level.t } -> subst
-    | PS_close_free : { from : Level.t; to_ : Index.t } -> subst
+    | PS_open : { from : Index.t; to_ : term } -> subst
+    | PS_close : { from : Level.t; to_ : Index.t } -> subst
 
   let pp_loc fmt loc =
     let pp_pos fmt pos =
@@ -45,13 +43,9 @@ module Ptree = struct
 
   let _pp_subst_syntax ~pp_wrapped fmt subst =
     match subst with
-    | PS_subst_bound { from; to_ } ->
+    | PS_open { from; to_ } ->
         fprintf fmt "\\-%a := %a" Index.pp from pp_wrapped to_
-    | PS_subst_free { from; to_ } ->
-        fprintf fmt "\\+%a := %a" Level.pp from pp_wrapped to_
-    | PS_open_bound { from; to_ } ->
-        fprintf fmt "\\-%a `open` \\+%a" Index.pp from Level.pp to_
-    | PS_close_free { from; to_ } ->
+    | PS_close { from; to_ } ->
         fprintf fmt "\\+%a `close` \\-%a" Level.pp from Index.pp to_
 
   let pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term =
@@ -226,14 +220,10 @@ and _ptree_of_subst config next holes subst =
   let open Ptree in
   let ptree_of_term term = ptree_of_term config next holes term in
   match subst with
-  | TS_subst_bound { from; to_ } ->
+  | TS_open { from; to_ } ->
       let to_ = ptree_of_term to_ in
-      PS_subst_bound { from; to_ }
-  | TS_subst_free { from; to_ } ->
-      let to_ = ptree_of_term to_ in
-      PS_subst_free { from; to_ }
-  | TS_open_bound { from; to_ } -> PS_open_bound { from; to_ }
-  | TS_close_free { from; to_ } -> PS_close_free { from; to_ }
+      PS_open { from; to_ }
+  | TS_close { from; to_ } -> PS_close { from; to_ }
 
 let config =
   { typed_mode = Typed_default; loc_mode = Loc_default; var_mode = Var_name }
