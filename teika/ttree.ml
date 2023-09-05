@@ -49,7 +49,7 @@ and subst =
   (* +f `open` -t *)
   | TS_close of { from : Level.t; to_ : Index.t }
 
-and native = TN_debug
+and native = TN_debug [@@deriving show { with_path = true }]
 
 let nil_level = Level.zero
 let type_level = Level.next nil_level

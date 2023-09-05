@@ -15,10 +15,16 @@ module Var_context = struct
     | Error _ as error -> error
 
   let error_subst_found term = fail @@ TError_misc_subst_found { term }
+  let error_bound_var_found term = fail @@ TError_misc_bound_var_found { term }
   let error_unfold_found term = fail @@ TError_misc_unfold_found { term }
   let error_annot_found term = fail @@ TError_misc_annot_found { term }
   let error_var_occurs ~hole ~in_ = fail @@ TError_misc_var_occurs { hole; in_ }
   let error_var_escape ~var = fail @@ TError_misc_var_escape { var }
+
+  let with_free_var f ~level =
+    let level = Level.next level in
+    f () ~level
+
   let level () ~level = Ok level
 end
 
@@ -36,6 +42,9 @@ module Unify_context = struct
 
   let error_subst_found ~expected ~received =
     fail @@ TError_unify_subst_found { expected; received }
+
+  let error_bound_var_found ~expected ~received =
+    fail @@ TError_unify_bound_var_found { expected; received }
 
   let error_unfold_found ~expected ~received =
     fail @@ TError_unify_unfold_found { expected; received }
