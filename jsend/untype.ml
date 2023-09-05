@@ -44,11 +44,11 @@ end
 
 open Context
 
-let expand_subst_term = Expand_head.expand_subst_term
+let tt_expand_subst = Expand_head.tt_expand_subst
 
 let rec untype_term term =
   match tt_match term with
-  | TT_subst { term; subst } -> untype_term @@ expand_subst_term ~subst term
+  | TT_subst { term; subst } -> untype_term @@ tt_expand_subst ~subst term
   | TT_bound_var { index } ->
       let+ var = lookup index in
       UT_var { var }
@@ -89,8 +89,8 @@ let rec untype_term term =
   | TT_unfold { term } -> untype_term term
   | TT_let { bound = _; value; return } ->
       (* TODO: emit let *)
-      let subst = TS_subst_bound { from = Index.zero; to_ = value } in
-      untype_term @@ expand_subst_term ~subst return
+      let subst = TS_open { from = Index.zero; to_ = value } in
+      untype_term @@ tt_expand_subst ~subst return
   | TT_annot { term; annot = _ } -> untype_term term
   | TT_string { literal } -> return @@ UT_string { literal }
   | TT_native { native } -> erase_native native

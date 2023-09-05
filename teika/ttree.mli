@@ -60,7 +60,7 @@ and subst =
   (* +f `open` -t *)
   | TS_close of { from : Level.t; to_ : Index.t }
 
-and native = TN_debug
+and native = TN_debug [@@deriving show]
 
 val nil_level : Level.t
 val type_level : Level.t

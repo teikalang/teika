@@ -75,10 +75,10 @@ module Ptree = struct
         fprintf fmt "%a : %a" pp_funct term pp_wrapped annot
     | PT_string { literal } ->
         (* TODO: is this correct *)
-        fprintf fmt {|"%S"|} literal
+        fprintf fmt {|%S|} literal
     | PT_native { native } ->
         (* TODO: this is clearly not the best way*)
-        fprintf fmt {|@native("%S")|} native
+        fprintf fmt {|@native(%S)|} native
 
   type prec = Wrapped | Let | Funct | Apply | Atom
 
@@ -142,6 +142,7 @@ let rec ptree_of_term config next holes term =
   (* TODO: print details *)
   match tt_match term with
   | TT_subst { term; subst } -> ptree_of_term @@ tt_expand_subst ~subst term
+  (* TODO: bound var should not be reachable  *)
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level; alias = _ } -> PT_var_level { level }
   | TT_hole { hole } -> ptree_of_hole @@ Ex_hole hole

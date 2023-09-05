@@ -11,12 +11,14 @@ module Var_context : sig
 
   (* errors *)
   val error_subst_found : term -> 'a var_context
+  val error_bound_var_found : term -> 'a var_context
   val error_unfold_found : term -> 'a var_context
   val error_annot_found : term -> 'a var_context
   val error_var_occurs : hole:term hole -> in_:term hole -> 'a var_context
   val error_var_escape : var:Level.t -> 'a var_context
 
   (* TODO: this should be removed *)
+  val with_free_var : (unit -> 'a var_context) -> 'a var_context
   val level : unit -> Level.t var_context
 end
 
@@ -32,6 +34,7 @@ module Unify_context : sig
 
   (* error *)
   val error_subst_found : expected:term -> received:term -> 'a unify_context
+  val error_bound_var_found : expected:term -> received:term -> 'a unify_context
   val error_unfold_found : expected:term -> received:term -> 'a unify_context
   val error_annot_found : expected:term -> received:term -> 'a unify_context
 

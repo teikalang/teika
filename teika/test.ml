@@ -298,6 +298,9 @@ module Typer = struct
 
   (* TODO: write tests for locations and names / offset *)
   (* TODO: write tests for escape check *)
+  let univ_type = check "Type" ~wrapper:false {|(Type : Type)|}
+  let string_type = check "String" ~wrapper:false {|(String : Type)|}
+
   let id =
     check "id" ~wrapper:false
       {|(((A : Type) => (x : A) => x)
@@ -399,6 +402,8 @@ module Typer = struct
 
   let tests =
     [
+      univ_type;
+      string_type;
       id;
       id_propagate;
       id_unify;
@@ -416,10 +421,6 @@ module Typer = struct
       unfold_false;
       let_alias;
       simple_string;
-      (*
-          pair;
-          left_unpair;
-          right_unpair; *)
     ]
 
   (* alcotest *)
