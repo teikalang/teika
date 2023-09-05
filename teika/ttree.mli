@@ -56,13 +56,9 @@ and 'a hole = { mutable link : 'a option }
 
 and subst =
   (* -f := N *)
-  | TS_subst_bound of { from : Index.t; to_ : term }
-  (* +f := N *)
-  | TS_subst_free of { from : Level.t; to_ : term }
-  (* -f `open` +t *)
-  | TS_open_bound of { from : Index.t; to_ : Level.t }
+  | TS_open of { from : Index.t; to_ : term }
   (* +f `open` -t *)
-  | TS_close_free of { from : Level.t; to_ : Index.t }
+  | TS_close of { from : Level.t; to_ : Index.t }
 
 and native = TN_debug
 
@@ -75,7 +71,7 @@ val tt_match : term -> term_desc
 val tp_repr : core_pat -> core_pat
 
 val tt_map_desc :
-  term -> (wrap:(term_desc -> term) -> term -> term_desc -> term) -> term
+  term -> (wrap:(term_desc -> term) -> term -> term_desc -> 'a) -> 'a
 
 (* constructors *)
 val tt_type : term
