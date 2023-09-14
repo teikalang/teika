@@ -44,10 +44,14 @@ and core_pat =
 and 'a hole = { mutable link : 'a option }
 
 and subst =
-  (* -f := N *)
-  | TS_open of { from : Index.t; to_ : term }
-  (* +f `open` -t *)
-  | TS_close of { from : Level.t; to_ : Index.t }
+  (* open *)
+  | TS_open of { to_ : term }
+  (* close +l *)
+  | TS_close of { from : Level.t }
+  (* lift s *)
+  | TS_lift of { subst : subst }
+  (* s :: n *)
+  | TS_cons of { subst : subst; next : subst }
 
 and native = TN_debug [@@deriving show { with_path = true }]
 
