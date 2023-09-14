@@ -14,15 +14,15 @@ let subst_free term ~to_ =
   (* TODO: this could be done waaay better *)
   let* level = level () in
   tt_map_desc term @@ fun ~wrap term _desc ->
-  let subst = TS_close { from = level; to_ = Index.zero } in
+  let subst = TS_close { from = level } in
   let term = wrap @@ TT_subst { term; subst } in
-  let subst = TS_open { from = Index.zero; to_ } in
+  let subst = TS_open { to_ } in
   pure @@ wrap @@ TT_subst { term; subst }
 
 let close_term term =
   (* TODO: this closing is weird *)
   let* from = level () in
-  let subst = TS_close { from; to_ = Index.zero } in
+  let subst = TS_close { from } in
   pure @@ tt_map_desc term
   @@ fun ~wrap term _desc -> wrap @@ TT_subst { term; subst }
 
@@ -74,7 +74,7 @@ let rec unfold_fix term =
   | TT_unroll { term = fix } -> (
       match tt_match @@ tt_expand_head fix with
       | TT_fix { var = _; body } ->
-          let subst = TS_open { from = Index.zero; to_ = fix } in
+          let subst = TS_open { to_ = fix } in
           tt_expand_head @@ tt_expand_subst ~subst body
       | _ -> term)
   | TT_unfold { term } ->

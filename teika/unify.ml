@@ -29,7 +29,7 @@ let open_term term =
   tt_map_desc term @@ fun ~wrap term _desc ->
   let* level = level () in
   let to_ = wrap @@ TT_free_var { level; alias = None } in
-  let subst = TS_open { from = Index.zero; to_ } in
+  let subst = TS_open { to_ } in
   pure @@ wrap @@ TT_subst { term; subst }
 
 let rec tt_occurs hole ~in_ =

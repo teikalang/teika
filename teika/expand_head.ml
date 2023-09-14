@@ -1,34 +1,64 @@
 open Ttree
 
+(* TODO: can do better than this *)
+let rec repr_bound_var index subst =
+  match subst with
+  | TS_open { to_ } -> (
+      match Index.equal index Index.zero with
+      (* TODO: id subst *)
+      | true -> Some (to_, None)
+      | false -> None)
+  | TS_close { from = _ } -> None
+  | TS_lift { subst } -> (
+      match Index.previous index with
+      | Some index -> repr_bound_var index subst
+      | None -> None)
+  | TS_cons { subst; next } -> (
+      match repr_bound_var index subst with
+      | Some (to_, Some subst) -> Some (to_, Some (TS_cons { subst; next }))
+      | Some (to_, None) -> Some (to_, Some next)
+      | None -> repr_bound_var index next)
+
+let rec repr_free_var level subst =
+  match subst with
+  | TS_open { to_ = _ } -> None
+  | TS_close { from } -> (
+      match Level.equal level from with
+      | true -> Some (Index.zero, None)
+      | false -> None)
+  | TS_lift { subst } -> (
+      match repr_free_var level subst with
+      | Some (index, subst) -> Some (Index.next index, subst)
+      | None -> None)
+  | TS_cons { subst; next } -> (
+      match repr_free_var level subst with
+      | Some (to_, Some subst) -> Some (to_, Some (TS_cons { subst; next }))
+      | Some (to_, None) -> Some (to_, Some next)
+      | None -> repr_free_var level next)
+
 let rec tt_expand_subst ~subst term =
   (* TODO: check if term has same type as subst *)
   tt_map_desc term @@ fun ~wrap term desc ->
   let tt_subst term subst = wrap @@ TT_subst { term; subst } in
-  let with_var subst =
-    match subst with
-    | TS_open { from; to_ } ->
-        let from = Index.(from + one) in
-        TS_open { from; to_ }
-    | TS_close { from; to_ } ->
-        let to_ = Index.(to_ + one) in
-        TS_close { from; to_ }
-  in
+  let with_var subst = TS_lift { subst } in
   match desc with
   | TT_subst { term; subst = subst' } ->
       let term = tt_expand_subst ~subst:subst' term in
       tt_expand_subst ~subst term
   | TT_bound_var { index } -> (
-      match subst with
-      | TS_open { from; to_ } -> (
-          match Index.equal from index with true -> to_ | false -> term)
-      | TS_close { from = _; to_ = _ } -> term)
+      match repr_bound_var index subst with
+      | Some (to_, Some subst) -> tt_expand_subst ~subst to_
+      | Some (to_, None) -> to_
+      | None -> term)
   | TT_free_var { level; alias = _ } -> (
-      match subst with
-      | TS_open { from = _; to_ = _ } -> term
-      | TS_close { from; to_ } -> (
-          match Level.equal from level with
-          | true -> wrap @@ TT_bound_var { index = to_ }
-          | false -> term))
+      match repr_free_var level subst with
+      | Some (index, Some subst) ->
+          let to_ = wrap @@ TT_bound_var { index } in
+          tt_expand_subst ~subst to_
+      | Some (index, None) ->
+          let to_ = wrap @@ TT_bound_var { index } in
+          to_
+      | None -> term)
   (* TODO: subst and hole *)
   | TT_hole { hole = _ } -> term
   | TT_forall { param; return } ->
@@ -97,7 +127,7 @@ let rec tt_expand_head term =
           (* TODO: param is not used here,
              but it would be cool to check when in debug *)
           (* TODO: this could be done in O(1) with context extending *)
-          let subst = TS_open { from = Index.zero; to_ = arg } in
+          let subst = TS_open { to_ = arg } in
           tt_expand_head @@ tt_expand_subst ~subst return
       | TT_native { native } -> expand_head_native native ~arg
       | _lambda -> term)
@@ -108,7 +138,7 @@ let rec tt_expand_head term =
   | TT_let { bound = _; value; return } ->
       (* TODO: param is not used here,
          but it would be cool to check when in debug *)
-      let subst = TS_open { from = Index.zero; to_ = value } in
+      let subst = TS_open { to_ = value } in
       tt_expand_head @@ tt_expand_subst ~subst return
   | TT_annot { term; annot = _ } -> tt_expand_head term
   | TT_string _ -> term

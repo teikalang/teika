@@ -26,10 +26,6 @@ module Ptree = struct
     (* TODO: very weird for native to be a string *)
     | PT_native of { native : string }
 
-  and subst =
-    | PS_open : { from : Index.t; to_ : term } -> subst
-    | PS_close : { from : Level.t; to_ : Index.t } -> subst
-
   let pp_loc fmt loc =
     let pp_pos fmt pos =
       let Lexing.{ pos_fname; pos_lnum; pos_bol; pos_cnum = _ } = pos in
@@ -40,13 +36,6 @@ module Ptree = struct
     match Location.is_none loc with
     | true -> fprintf fmt "[%a .. %a]" pp_pos loc_start pp_pos loc_end
     | false -> fprintf fmt "[__NONE__]"
-
-  let _pp_subst_syntax ~pp_wrapped fmt subst =
-    match subst with
-    | PS_open { from; to_ } ->
-        fprintf fmt "\\-%a := %a" Index.pp from pp_wrapped to_
-    | PS_close { from; to_ } ->
-        fprintf fmt "\\+%a `close` \\-%a" Level.pp from Index.pp to_
 
   let pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term =
     match term with
@@ -216,15 +205,6 @@ and ptree_of_hole _config next holes hole =
       next := id + 1;
       Hashtbl.add holes hole term;
       term
-
-and _ptree_of_subst config next holes subst =
-  let open Ptree in
-  let ptree_of_term term = ptree_of_term config next holes term in
-  match subst with
-  | TS_open { from; to_ } ->
-      let to_ = ptree_of_term to_ in
-      PS_open { from; to_ }
-  | TS_close { from; to_ } -> PS_close { from; to_ }
 
 let config =
   { typed_mode = Typed_default; loc_mode = Loc_default; var_mode = Var_name }
