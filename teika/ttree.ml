@@ -44,6 +44,7 @@ and core_pat =
 and 'a hole = { mutable link : 'a option }
 
 and subst =
+  | TS_id
   (* open *)
   | TS_open of { to_ : term }
   (* close +l *)
