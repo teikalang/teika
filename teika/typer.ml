@@ -5,10 +5,24 @@ open Typer_context
 open Escape_check
 open Unify
 
-let escape_check_term term = with_var_context @@ fun () -> tt_escape_check term
+let escape_check_term term =
+  with_var_context @@ fun subst ->
+  let term =
+    tt_map_desc term @@ fun ~wrap term _desc -> wrap @@ TT_subst { term; subst }
+  in
+  tt_escape_check term
 
 let unify_term ~expected ~received =
-  with_unify_context @@ fun () -> tt_unify ~expected ~received
+  with_unify_context @@ fun subst ->
+  let expected =
+    tt_map_desc expected @@ fun ~wrap term _desc ->
+    wrap @@ TT_subst { term; subst }
+  in
+  let received =
+    tt_map_desc received @@ fun ~wrap term _desc ->
+    wrap @@ TT_subst { term; subst }
+  in
+  tt_unify ~expected ~received
 
 let subst_free term ~to_ =
   (* TODO: this could be done waaay better *)
@@ -99,12 +113,10 @@ let rec check_term term ~expected =
     pure @@ TTerm { desc; type_ = expected }
   in
   match term with
-  | LT_var { var = name } -> (
-      let* level, received, alias = lookup_var ~name in
+  | LT_var { var = name } ->
+      let* index, received = lookup_var ~name in
       let* () = unify_term ~received ~expected in
-      match alias with
-      | Some alias -> wrapped @@ TT_free_var { level; alias = Some alias }
-      | None -> wrapped @@ TT_free_var { level; alias = None })
+      wrapped @@ TT_bound_var { index }
   | LT_extension { extension; payload } ->
       check_term_extension ~extension ~payload ~expected
   | LT_forall { param; return } ->
