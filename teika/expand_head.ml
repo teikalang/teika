@@ -46,10 +46,9 @@ let rec repr_free_var level subst =
 
 let rec tt_expand_subst ~subst term =
   (* TODO: check if term has same type as subst *)
-  tt_map_desc term @@ fun ~wrap term desc ->
-  let tt_subst term subst = wrap @@ TT_subst { term; subst } in
+  let tt_subst term subst = TT_subst { term; subst } in
   let with_var subst = TS_lift { subst } in
-  match desc with
+  match term with
   | TT_subst { term; subst = first } ->
       let subst = TS_cons { subst = first; next = subst } in
       tt_expand_subst ~subst term
@@ -60,7 +59,7 @@ let rec tt_expand_subst ~subst term =
   | TT_free_var { level } -> (
       match repr_free_var level subst with
       | Some (index, subst) ->
-          let to_ = wrap @@ TT_bound_var { index } in
+          let to_ = TT_bound_var { index } in
           tt_expand_subst ~subst to_
       | None -> term)
   (* TODO: subst and hole *)
@@ -68,36 +67,36 @@ let rec tt_expand_subst ~subst term =
   | TT_forall { param; return } ->
       let param = tpat_expand_subst ~subst param in
       let return = tt_subst return @@ with_var subst in
-      wrap @@ TT_forall { param; return }
+      TT_forall { param; return }
   | TT_lambda { param; return } ->
       let param = tpat_expand_subst ~subst param in
       let return = tt_subst return @@ with_var subst in
-      wrap @@ TT_lambda { param; return }
+      TT_lambda { param; return }
   | TT_apply { lambda; arg } ->
       let lambda = tt_subst lambda subst in
       let arg = tt_subst arg subst in
-      wrap @@ TT_apply { lambda; arg }
+      TT_apply { lambda; arg }
   | TT_self { var; body } ->
       let body = tt_subst body @@ with_var subst in
-      wrap @@ TT_self { var; body }
+      TT_self { var; body }
   | TT_fix { var; body } ->
       let body = tt_subst body @@ with_var subst in
-      wrap @@ TT_fix { var; body }
+      TT_fix { var; body }
   | TT_unroll { term } ->
       let term = tt_subst term subst in
-      wrap @@ TT_unroll { term }
+      TT_unroll { term }
   | TT_unfold { term } ->
       let term = tt_subst term subst in
-      wrap @@ TT_unfold { term }
+      TT_unfold { term }
   | TT_let { bound; value; return } ->
       let bound = tpat_expand_subst ~subst bound in
       let value = tt_subst value subst in
       let return = tt_subst return @@ with_var subst in
-      wrap @@ TT_let { bound; value; return }
+      TT_let { bound; value; return }
   | TT_annot { term; annot } ->
       let term = tt_subst term subst in
       let annot = tt_subst annot subst in
-      wrap @@ TT_annot { term; annot }
+      TT_annot { term; annot }
   | TT_string _ -> term
   | TT_native _ -> term
 
@@ -108,8 +107,7 @@ and tpat_expand_subst : subst:subst -> _ -> _ =
   TPat { pat; type_ }
 
 let rec tt_expand_head term =
-  tt_map_desc term @@ fun ~wrap:_ term desc ->
-  match desc with
+  match term with
   | TT_subst { term; subst } -> tt_expand_head @@ tt_expand_subst ~subst term
   | TT_bound_var _ -> term
   | TT_free_var _ -> term

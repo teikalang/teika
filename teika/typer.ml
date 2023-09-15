@@ -6,60 +6,45 @@ open Escape_check
 open Unify
 
 let escape_check_term term =
-  with_var_context @@ fun subst ->
-  let term =
-    tt_map_desc term @@ fun ~wrap term _desc -> wrap @@ TT_subst { term; subst }
-  in
-  tt_escape_check term
+  with_var_context @@ fun subst -> tt_escape_check @@ TT_subst { term; subst }
 
 let unify_term ~expected ~received =
   with_unify_context @@ fun subst ->
-  let expected =
-    tt_map_desc expected @@ fun ~wrap term _desc ->
-    wrap @@ TT_subst { term; subst }
-  in
-  let received =
-    tt_map_desc received @@ fun ~wrap term _desc ->
-    wrap @@ TT_subst { term; subst }
-  in
+  let expected = TT_subst { term = expected; subst } in
+  let received = TT_subst { term = received; subst } in
   tt_unify ~expected ~received
 
 let open_term term ~to_ =
   (* TODO: should probably be added in the context *)
   let subst = TS_open { to_ } in
-  pure @@ tt_map_desc term
-  @@ fun ~wrap term _desc -> wrap @@ TT_subst { term; subst }
+  TT_subst { term; subst }
 
 let close_term term =
   (* TODO: this closing is weird *)
   let* from = level () in
   let subst = TS_close { from } in
-  pure @@ tt_map_desc term
-  @@ fun ~wrap term _desc -> wrap @@ TT_subst { term; subst }
-
-(* TODO: loc *)
-let ttype_hole () = TType { desc = tt_hole () }
+  pure @@ TT_subst { term; subst }
 
 let split_forall type_ =
   (* TODO: optimization, avoid the holes when annotated *)
-  let param_type = ttype_hole () in
+  let param_type = tt_hole () in
   let param = TPat { pat = tp_hole (); type_ = param_type } in
-  let return = ttype_hole () in
+  let return = tt_hole () in
   let* expected =
     enter_level @@ fun () ->
     let* return = close_term return in
-    pure @@ TType { desc = TT_forall { param; return } }
+    pure @@ TT_forall { param; return }
   in
   let* () = unify_term ~received:type_ ~expected in
   pure (param_type, return)
 
 let split_self type_ =
   let var = tp_hole () in
-  let body = ttype_hole () in
+  let body = tt_hole () in
   let* expected =
     enter_level @@ fun () ->
     let* body = close_term body in
-    pure @@ TType { desc = TT_self { var; body } }
+    pure @@ TT_self { var; body }
   in
   let* () = unify_term ~received:type_ ~expected in
   pure body
@@ -68,8 +53,7 @@ let split_self type_ =
 let rec unfold_fix term =
   let open Expand_head in
   (* TODO: not ideal to expand head *)
-  tt_map_desc term @@ fun ~wrap term desc ->
-  match desc with
+  match tt_repr term with
   | TT_subst { term; subst } -> unfold_fix @@ tt_expand_subst ~subst term
   | TT_bound_var _ -> term
   | TT_free_var _ -> term
@@ -79,7 +63,7 @@ let rec unfold_fix term =
   | TT_apply { lambda; arg } ->
       let lambda = unfold_fix lambda in
       let arg = unfold_fix arg in
-      wrap @@ TT_apply { lambda; arg }
+      TT_apply { lambda; arg }
   | TT_self _ -> term
   | TT_fix _ -> term
   | TT_unroll { term = fix } -> (
@@ -90,13 +74,13 @@ let rec unfold_fix term =
       | _ -> term)
   | TT_unfold { term } ->
       let term = unfold_fix term in
-      wrap @@ TT_unfold { term }
+      TT_unfold { term }
       (* TODO: unfold under let?  *)
   | TT_let _ -> term
   | TT_annot { term; annot } ->
       let term = unfold_fix term in
       let annot = unfold_fix annot in
-      wrap @@ TT_annot { term; annot }
+      TT_annot { term; annot }
   | TT_string _ -> term
   | TT_native _ -> term
 
@@ -105,9 +89,9 @@ let rec unfold_fix term =
    Seems to help with many cases such as expected on annotation *)
 let rec check_term term ~expected =
   (* TODO: propagation through dependent things *)
-  let wrapped desc =
+  let wrapped term =
     let* () = escape_check_term expected in
-    pure @@ TTerm { desc; type_ = expected }
+    pure @@ term
   in
   match term with
   | LT_var { var = name } ->
@@ -120,7 +104,7 @@ let rec check_term term ~expected =
       (* TODO: this could in theory be improved by expected term *)
       (* TODO: this could also be checked after the return *)
       let* () = unify_term ~received:tt_type ~expected in
-      let param_type = ttype_hole () in
+      let param_type = tt_hole () in
       let* param, return =
         check_typed_pat param ~expected:param_type ~alias:None @@ fun param ->
         let* return = check_annot return in
@@ -137,14 +121,14 @@ let rec check_term term ~expected =
       in
       wrapped @@ TT_lambda { param; return }
   | LT_apply { lambda; arg } ->
-      let lambda_type = ttype_hole () in
+      let lambda_type = tt_hole () in
       let* lambda = check_term lambda ~expected:lambda_type in
       (* TODO: this could be better? avoiding split forall? *)
       let* arg_type, return_type = split_forall lambda_type in
       let* arg = check_term arg ~expected:arg_type in
       let* () =
         (* TODO: this is hackish *)
-        let* received = open_term return_type ~to_:arg in
+        let received = open_term return_type ~to_:arg in
         unify_term ~received ~expected
       in
       wrapped @@ TT_apply { lambda; arg }
@@ -153,8 +137,8 @@ let rec check_term term ~expected =
   | LT_let { bound; return } ->
       (* TODO: use this loc *)
       let (LBind { loc = _; pat; value }) = bound in
-      let value_type = ttype_hole () in
-      let return_type = ttype_hole () in
+      let value_type = tt_hole () in
+      let return_type = tt_hole () in
       let* value = check_term value ~expected:value_type in
       (* TODO: type pattern first? *)
       let* bound, return =
@@ -165,7 +149,7 @@ let rec check_term term ~expected =
       in
       (* TODO: is this subst here right? *)
       let* () =
-        let* received = open_term return_type ~to_:value in
+        let received = open_term return_type ~to_:value in
         unify_term ~received ~expected
       in
       wrapped @@ TT_let { bound; value; return }
@@ -184,9 +168,9 @@ let rec check_term term ~expected =
       check_term term ~expected
 
 and check_term_extension ~extension ~payload ~expected =
-  let wrapped desc =
+  let wrapped term =
     let* () = escape_check_term expected in
-    pure @@ TTerm { desc; type_ = expected }
+    pure @@ term
   in
   match (Name.repr extension, payload) with
   | _, LT_loc { term = payload; loc = _ } ->
@@ -196,7 +180,7 @@ and check_term_extension ~extension ~payload ~expected =
       (* TODO: this could in theory be improved by expected term *)
       (* TODO: this could also be checked after the return *)
       let* () = unify_term ~received:tt_type ~expected in
-      let self_type = ttype_hole () in
+      let self_type = tt_hole () in
       let* expected_body = split_self self_type in
       let* var, body =
         check_core_pat self ~expected:self_type ~alias:None @@ fun var ->
@@ -216,18 +200,18 @@ and check_term_extension ~extension ~payload ~expected =
       in
       wrapped @@ TT_fix { var; body }
   | "@unroll", fix ->
-      let fix_type = ttype_hole () in
+      let fix_type = tt_hole () in
       let* fix = check_term fix ~expected:fix_type in
       (* TODO: this could be better? avoiding split self? *)
       let* body_type = split_self fix_type in
       let* () =
-        let* received = open_term body_type ~to_:fix in
+        let received = open_term body_type ~to_:fix in
         unify_term ~received ~expected
       in
       wrapped @@ TT_unroll { term = fix }
   | "@unfold", term ->
       (* TODO: breaks propagation *)
-      let term_type = ttype_hole () in
+      let term_type = tt_hole () in
       let* term = check_term term ~expected:term_type in
       let* () =
         let received = unfold_fix term_type in
@@ -239,9 +223,9 @@ and check_term_extension ~extension ~payload ~expected =
   | _ -> error_unknown_extension ~extension ~payload
 
 and check_term_native ~native ~expected =
-  let wrapped desc =
+  let wrapped term =
     let* () = escape_check_term expected in
-    pure @@ TTerm { desc; type_ = expected }
+    pure @@ term
   in
   match native with
   | "debug" ->
@@ -282,5 +266,5 @@ and check_core_pat :
       with_loc ~loc @@ fun () -> check_core_pat pat ~expected ~alias f
 
 let infer_term term =
-  let expected = ttype_hole () in
+  let expected = tt_hole () in
   check_term term ~expected

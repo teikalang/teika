@@ -26,11 +26,10 @@ open Expand_head
 (* TODO: duplicated *)
 let open_term term =
   let open Var_context in
-  tt_map_desc term @@ fun ~wrap term _desc ->
   let* level = level () in
-  let to_ = wrap @@ TT_free_var { level } in
+  let to_ = TT_free_var { level } in
   let subst = TS_open { to_ } in
-  pure @@ wrap @@ TT_subst { term; subst }
+  pure @@ TT_subst { term; subst }
 
 let rec tt_occurs hole ~in_ =
   let open Var_context in
