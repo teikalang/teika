@@ -28,7 +28,7 @@ let open_term term =
   let open Var_context in
   tt_map_desc term @@ fun ~wrap term _desc ->
   let* level = level () in
-  let to_ = wrap @@ TT_free_var { level; alias = None } in
+  let to_ = wrap @@ TT_free_var { level } in
   let subst = TS_open { to_ } in
   pure @@ wrap @@ TT_subst { term; subst }
 
@@ -48,7 +48,7 @@ let rec tt_occurs hole ~in_ =
   | TT_unfold _ -> error_unfold_found in_
   | TT_annot _ -> error_annot_found in_
   (* TODO: escape check *)
-  | TT_free_var { level = _; alias = _ } -> pure ()
+  | TT_free_var { level = _ } -> pure ()
   (* TODO: use this substs? *)
   | TT_hole { hole = in_ } -> (
       match hole == in_ with
@@ -112,8 +112,7 @@ let rec tt_unify ~expected ~received =
       error_bound_var_found ~expected ~received
   | TT_unfold _, _ | _, TT_unfold _ -> error_unfold_found ~expected ~received
   | TT_annot _, _ | _, TT_annot _ -> error_annot_found ~expected ~received
-  | ( TT_free_var { level = expected; alias = _ },
-      TT_free_var { level = received; alias = _ } ) -> (
+  | TT_free_var { level = expected }, TT_free_var { level = received } -> (
       match Level.equal expected received with
       | true -> pure ()
       | false -> error_free_var_clash ~expected ~received)

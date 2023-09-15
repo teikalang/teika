@@ -133,7 +133,7 @@ let rec ptree_of_term config next holes term =
   | TT_subst { term; subst } -> ptree_of_term @@ tt_expand_subst ~subst term
   (* TODO: bound var should not be reachable  *)
   | TT_bound_var { index } -> PT_var_index { index }
-  | TT_free_var { level; alias = _ } -> PT_var_level { level }
+  | TT_free_var { level } -> PT_var_level { level }
   | TT_hole { hole } -> ptree_of_hole @@ Ex_hole hole
   | TT_forall { param; return } ->
       let param = ptree_of_typed_pat param in

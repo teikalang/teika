@@ -57,7 +57,7 @@ let rec tt_expand_subst ~subst term =
       match repr_bound_var index subst with
       | Some (to_, subst) -> tt_expand_subst ~subst to_
       | None -> term)
-  | TT_free_var { level; alias = _ } -> (
+  | TT_free_var { level } -> (
       match repr_free_var level subst with
       | Some (index, subst) ->
           let to_ = wrap @@ TT_bound_var { index } in
@@ -112,7 +112,6 @@ let rec tt_expand_head term =
   match desc with
   | TT_subst { term; subst } -> tt_expand_head @@ tt_expand_subst ~subst term
   | TT_bound_var _ -> term
-  | TT_free_var { level = _; alias = Some alias } -> tt_expand_head alias
   | TT_free_var _ -> term
   | TT_hole { hole } -> (
       (* TODO: path compression *)

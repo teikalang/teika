@@ -94,12 +94,8 @@ module Typer_context = struct
       |> Name.Map.add (Name.make "String") (string_level, tt_type)
     in
     let subst =
-      let type_ =
-        TType { desc = TT_free_var { level = type_level; alias = None } }
-      in
-      let string =
-        TType { desc = TT_free_var { level = string_level; alias = None } }
-      in
+      let type_ = TType { desc = TT_free_var { level = type_level } } in
+      let string = TType { desc = TT_free_var { level = string_level } } in
       let subst = TS_open { to_ = type_ } in
       TS_cons { subst = TS_open { to_ = string }; next = TS_lift { subst } }
     in
@@ -142,7 +138,11 @@ module Typer_context = struct
     let level = Level.next level in
     let vars = Name.Map.add name (level, type_) vars in
     let subst =
-      let to_ = TTerm { desc = TT_free_var { level; alias }; type_ } in
+      let to_ =
+        match alias with
+        | Some alias -> alias
+        | None -> TTerm { desc = TT_free_var { level }; type_ }
+      in
       TS_cons { subst = TS_open { to_ }; next = TS_lift { subst } }
     in
     f () ~level ~vars ~subst
