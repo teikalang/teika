@@ -11,7 +11,13 @@ let rec repr_bound_var index subst =
   | TS_close { from = _ } -> None
   | TS_lift { subst } -> (
       match Index.previous index with
-      | Some index -> repr_bound_var index subst
+      | Some index -> (
+          match repr_bound_var index subst with
+          | Some (to_, Some subst) ->
+              let subst = TS_lift { subst } in
+              Some (to_, Some subst)
+          | Some (to_, None) -> Some (to_, None)
+          | None -> None)
       | None -> None)
   | TS_cons { subst; next } -> (
       match repr_bound_var index subst with
@@ -28,7 +34,10 @@ let rec repr_free_var level subst =
       | false -> None)
   | TS_lift { subst } -> (
       match repr_free_var level subst with
-      | Some (index, subst) -> Some (Index.next index, subst)
+      | Some (index, Some subst) ->
+          let subst = TS_lift { subst } in
+          Some (Index.next index, Some subst)
+      | Some (index, None) -> Some (Index.next index, None)
       | None -> None)
   | TS_cons { subst; next } -> (
       match repr_free_var level subst with
@@ -42,8 +51,8 @@ let rec tt_expand_subst ~subst term =
   let tt_subst term subst = wrap @@ TT_subst { term; subst } in
   let with_var subst = TS_lift { subst } in
   match desc with
-  | TT_subst { term; subst = subst' } ->
-      let term = tt_expand_subst ~subst:subst' term in
+  | TT_subst { term; subst = first } ->
+      let subst = TS_cons { subst = first; next = subst } in
       tt_expand_subst ~subst term
   | TT_bound_var { index } -> (
       match repr_bound_var index subst with
@@ -55,9 +64,7 @@ let rec tt_expand_subst ~subst term =
       | Some (index, Some subst) ->
           let to_ = wrap @@ TT_bound_var { index } in
           tt_expand_subst ~subst to_
-      | Some (index, None) ->
-          let to_ = wrap @@ TT_bound_var { index } in
-          to_
+      | Some (index, None) -> wrap @@ TT_bound_var { index }
       | None -> term)
   (* TODO: subst and hole *)
   | TT_hole { hole = _ } -> term
