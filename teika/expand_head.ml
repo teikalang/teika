@@ -3,37 +3,45 @@ open Ttree
 (* TODO: can do better than this *)
 let rec repr_bound_var index subst =
   match subst with
+  | TS_id -> None
   | TS_open { to_ } -> (
       match Index.equal index Index.zero with
       (* TODO: id subst *)
-      | true -> Some (to_, None)
+      | true -> Some (to_, TS_id)
       | false -> None)
   | TS_close { from = _ } -> None
   | TS_lift { subst } -> (
       match Index.previous index with
-      | Some index -> repr_bound_var index subst
+      | Some index -> (
+          match repr_bound_var index subst with
+          (* TODO: maybe shouldn't wrap TS_id? *)
+          | Some (to_, subst) ->
+              let subst = TS_lift { subst } in
+              Some (to_, subst)
+          | None -> None)
       | None -> None)
   | TS_cons { subst; next } -> (
       match repr_bound_var index subst with
-      | Some (to_, Some subst) -> Some (to_, Some (TS_cons { subst; next }))
-      | Some (to_, None) -> Some (to_, Some next)
+      | Some (to_, subst) -> Some (to_, TS_cons { subst; next })
       | None -> repr_bound_var index next)
 
 let rec repr_free_var level subst =
   match subst with
+  | TS_id -> None
   | TS_open { to_ = _ } -> None
   | TS_close { from } -> (
       match Level.equal level from with
-      | true -> Some (Index.zero, None)
+      | true -> Some (Index.zero, TS_id)
       | false -> None)
   | TS_lift { subst } -> (
       match repr_free_var level subst with
-      | Some (index, subst) -> Some (Index.next index, subst)
+      | Some (index, subst) ->
+          let subst = TS_lift { subst } in
+          Some (Index.next index, subst)
       | None -> None)
   | TS_cons { subst; next } -> (
       match repr_free_var level subst with
-      | Some (to_, Some subst) -> Some (to_, Some (TS_cons { subst; next }))
-      | Some (to_, None) -> Some (to_, Some next)
+      | Some (to_, subst) -> Some (to_, TS_cons { subst; next })
       | None -> repr_free_var level next)
 
 let rec tt_expand_subst ~subst term =
@@ -42,22 +50,18 @@ let rec tt_expand_subst ~subst term =
   let tt_subst term subst = wrap @@ TT_subst { term; subst } in
   let with_var subst = TS_lift { subst } in
   match desc with
-  | TT_subst { term; subst = subst' } ->
-      let term = tt_expand_subst ~subst:subst' term in
+  | TT_subst { term; subst = first } ->
+      let subst = TS_cons { subst = first; next = subst } in
       tt_expand_subst ~subst term
   | TT_bound_var { index } -> (
       match repr_bound_var index subst with
-      | Some (to_, Some subst) -> tt_expand_subst ~subst to_
-      | Some (to_, None) -> to_
+      | Some (to_, subst) -> tt_expand_subst ~subst to_
       | None -> term)
-  | TT_free_var { level; alias = _ } -> (
+  | TT_free_var { level } -> (
       match repr_free_var level subst with
-      | Some (index, Some subst) ->
+      | Some (index, subst) ->
           let to_ = wrap @@ TT_bound_var { index } in
           tt_expand_subst ~subst to_
-      | Some (index, None) ->
-          let to_ = wrap @@ TT_bound_var { index } in
-          to_
       | None -> term)
   (* TODO: subst and hole *)
   | TT_hole { hole = _ } -> term
@@ -108,7 +112,6 @@ let rec tt_expand_head term =
   match desc with
   | TT_subst { term; subst } -> tt_expand_head @@ tt_expand_subst ~subst term
   | TT_bound_var _ -> term
-  | TT_free_var { level = _; alias = Some alias } -> tt_expand_head alias
   | TT_free_var _ -> term
   | TT_hole { hole } -> (
       (* TODO: path compression *)

@@ -90,13 +90,13 @@ module Typer_context : sig
     (unit -> 'a typer_context) ->
     'a typer_context
 
-  val lookup_var : name:Name.t -> (Level.t * term * term option) typer_context
+  val lookup_var : name:Name.t -> (Index.t * term) typer_context
 
   (* locs *)
   val with_loc :
     loc:Location.t -> (unit -> 'a typer_context) -> 'a typer_context
 
   (* context *)
-  val with_var_context : (unit -> 'a Var_context.t) -> 'a typer_context
-  val with_unify_context : (unit -> 'a Unify_context.t) -> 'a typer_context
+  val with_var_context : (subst -> 'a Var_context.t) -> 'a typer_context
+  val with_unify_context : (subst -> 'a Unify_context.t) -> 'a typer_context
 end

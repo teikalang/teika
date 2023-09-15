@@ -13,8 +13,7 @@ and term_desc =
   (* x/-n *)
   | TT_bound_var of { index : Index.t }
   (* x/+n *)
-  (* TODO: this alias is a hack *)
-  | TT_free_var of { level : Level.t; alias : term option }
+  | TT_free_var of { level : Level.t }
   (* TODO: I really don't like this ex_term *)
   (* _x/+n *)
   | TT_hole of { hole : term hole }
@@ -55,6 +54,8 @@ and core_pat =
 and 'a hole = { mutable link : 'a option }
 
 and subst =
+  (* id *)
+  | TS_id
   (* open *)
   | TS_open of { to_ : term }
   (* close +l *)

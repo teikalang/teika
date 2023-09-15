@@ -8,7 +8,7 @@ let open_term term =
   let open Var_context in
   tt_map_desc term @@ fun ~wrap term _desc ->
   let* level = level () in
-  let to_ = wrap @@ TT_free_var { level; alias = None } in
+  let to_ = wrap @@ TT_free_var { level } in
   let subst = TS_open { to_ } in
   pure @@ wrap @@ TT_subst { term; subst }
 
@@ -24,7 +24,7 @@ let rec tt_escape_check term =
   | TT_bound_var _ -> error_bound_var_found term
   | TT_unfold _ -> error_unfold_found term
   | TT_annot _ -> error_annot_found term
-  | TT_free_var { level; alias = _ } -> (
+  | TT_free_var { level } -> (
       match Level.(current < level) with
       | true -> error_var_escape ~var:level
       | false -> pure ())

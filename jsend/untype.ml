@@ -53,10 +53,10 @@ let rec untype_term term =
       let+ var = lookup index in
       UT_var { var }
   (* TODO: those should definitely not be hard coded here  *)
-  | TT_free_var { level; alias = None } when Level.equal level type_level ->
+  | TT_free_var { level } when Level.equal level type_level ->
       let var = Var.type_ in
       return @@ UT_var { var }
-  | TT_free_var { level; alias = None } when Level.equal level string_level ->
+  | TT_free_var { level } when Level.equal level string_level ->
       (* TODO: is it okay for string to be this? *)
       let var = Var.type_ in
       return @@ UT_var { var }
@@ -89,7 +89,7 @@ let rec untype_term term =
   | TT_unfold { term } -> untype_term term
   | TT_let { bound = _; value; return } ->
       (* TODO: emit let *)
-      let subst = TS_open { from = Index.zero; to_ = value } in
+      let subst = TS_open { to_ = value } in
       untype_term @@ tt_expand_subst ~subst return
   | TT_annot { term; annot = _ } -> untype_term term
   | TT_string { literal } -> return @@ UT_string { literal }
