@@ -14,10 +14,6 @@ type core = Core
 type sugar = Sugar
 
 type term =
-  | TTerm of { desc : term_desc; type_ : term }
-  | TType of { desc : term_desc }
-
-and term_desc =
   | TT_subst of { term : term; subst : subst }
   | TT_bound_var of { index : Index.t }
   | TT_free_var of { level : Level.t }
@@ -70,42 +66,16 @@ let rec tp_repr pat =
 
 let rec tt_repr term =
   match term with
-  (* TODO: expand type_? *)
-  | TTerm { desc; type_ = _ } -> tt_repr_desc term desc
-  | TType { desc } -> tt_repr_desc term desc
-
-and tt_repr_desc term desc =
-  match desc with
   | TT_hole { hole } -> (
       match hole.link with Some term -> tt_repr term | None -> term)
   (* TODO: expand cases here  *)
   | _ -> term
 
-let tt_match term =
-  match tt_repr term with
-  (* TODO: expand type_? *)
-  | TTerm { desc; type_ = _ } -> desc
-  | TType { desc } -> desc
-
-let tt_map_desc term f =
-  match tt_repr term with
-  (* TODO: expand type_? *)
-  | TTerm { desc; type_ } ->
-      let wrap desc = TTerm { desc; type_ } in
-      f ~wrap term desc
-  | TType { desc } ->
-      let wrap desc = TType { desc } in
-      f ~wrap term desc
+let tt_match term = tt_repr term
 
 (* TODO: loc *)
-let tt_type =
-  (* TODO: why types have locations? *)
-  let desc = TT_free_var { level = type_level } in
-  TType { desc }
-
-let string_type =
-  let desc = TT_free_var { level = string_level } in
-  TType { desc }
+let tt_type = TT_free_var { level = type_level }
+let string_type = TT_free_var { level = string_level }
 
 let tt_hole () =
   let hole = { link = None } in

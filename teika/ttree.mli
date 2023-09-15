@@ -4,10 +4,6 @@ type core = Core
 type sugar = Sugar
 
 type term =
-  | TTerm of { desc : term_desc; type_ : term }
-  | TType of { desc : term_desc }
-
-and term_desc =
   (* M[S]*)
   | TT_subst of { term : term; subst : subst }
   (* x/-n *)
@@ -72,14 +68,12 @@ val type_level : Level.t
 val string_level : Level.t
 
 (* utils *)
-val tt_match : term -> term_desc
+val tt_repr : term -> term
+val tt_match : term -> term
 val tp_repr : core_pat -> core_pat
-
-val tt_map_desc :
-  term -> (wrap:(term_desc -> term) -> term -> term_desc -> 'a) -> 'a
 
 (* constructors *)
 val tt_type : term
 val string_type : term
-val tt_hole : unit -> term_desc
+val tt_hole : unit -> term
 val tp_hole : unit -> core_pat
