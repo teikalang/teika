@@ -2,7 +2,7 @@ open Ltree
 open Ttree
 open Context
 open Typer_context
-open Escape_check
+open Tmachinery
 open Unify
 
 let escape_check_term term =
@@ -48,41 +48,6 @@ let split_self type_ =
   in
   let* () = unify_term ~received:type_ ~expected in
   pure body
-
-(* TODO: better place for this *)
-let rec unfold_fix term =
-  let open Expand_head in
-  (* TODO: not ideal to expand head *)
-  match tt_repr term with
-  | TT_subst { term; subst } -> unfold_fix @@ tt_expand_subst ~subst term
-  | TT_bound_var _ -> term
-  | TT_free_var _ -> term
-  | TT_hole _ -> term
-  | TT_forall _ -> term
-  | TT_lambda _ -> term
-  | TT_apply { lambda; arg } ->
-      let lambda = unfold_fix lambda in
-      let arg = unfold_fix arg in
-      TT_apply { lambda; arg }
-  | TT_self _ -> term
-  | TT_fix _ -> term
-  | TT_unroll { term = fix } -> (
-      match tt_match @@ tt_expand_head fix with
-      | TT_fix { var = _; body } ->
-          let subst = TS_open { to_ = fix } in
-          tt_expand_head @@ tt_expand_subst ~subst body
-      | _ -> term)
-  | TT_unfold { term } ->
-      let term = unfold_fix term in
-      TT_unfold { term }
-      (* TODO: unfold under let?  *)
-  | TT_let _ -> term
-  | TT_annot { term; annot } ->
-      let term = unfold_fix term in
-      let annot = unfold_fix annot in
-      TT_annot { term; annot }
-  | TT_string _ -> term
-  | TT_native _ -> term
 
 (* TODO: does having expected_term also improves inference?
      Maybe with self and fix? But maybe not worth it
@@ -214,7 +179,7 @@ and check_term_extension ~extension ~payload ~expected =
       let term_type = tt_hole () in
       let* term = check_term term ~expected:term_type in
       let* () =
-        let received = unfold_fix term_type in
+        let received = tt_unfold_fix term_type in
         unify_term ~received ~expected
       in
       wrapped @@ TT_unfold { term }

@@ -44,7 +44,7 @@ end
 
 open Context
 
-let tt_expand_subst = Expand_head.tt_expand_subst
+let tt_expand_subst = Tmachinery.tt_expand_subst
 
 let rec untype_term term =
   match tt_match term with

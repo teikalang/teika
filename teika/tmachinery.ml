@@ -1,4 +1,6 @@
 open Ttree
+open Context
+open Var_context
 
 (* TODO: can do better than this *)
 let rec repr_bound_var index subst =
@@ -147,3 +149,89 @@ let rec tt_expand_head term =
 
 and expand_head_native native ~arg =
   match native with TN_debug -> tt_expand_head arg
+
+(* TODO: duplicated *)
+let open_term term =
+  let open Var_context in
+  let* level = level () in
+  let to_ = TT_free_var { level } in
+  let subst = TS_open { to_ } in
+  pure @@ TT_subst { term; subst }
+
+let rec tt_escape_check term =
+  let* current = level () in
+  (* TODO: check without expand_head? *)
+  (* TODO: this should not be here *)
+  match tt_match @@ tt_expand_head term with
+  | TT_subst _ -> error_subst_found term
+  | TT_unfold _ -> error_unfold_found term
+  | TT_annot _ -> error_annot_found term
+  (* TODO: also check bound var *)
+  (* TODO: very very important to check for bound vars, unification
+        may unify variables outside of their binders *)
+  | TT_bound_var _ -> pure ()
+  | TT_free_var { level } -> (
+      match Level.(current < level) with
+      | true -> error_var_escape ~var:level
+      | false -> pure ())
+  | TT_hole _hole -> pure ()
+  | TT_forall { param; return } | TT_lambda { param; return } ->
+      let* () = tpat_escape_check param in
+      with_free_var @@ fun () ->
+      let* return = open_term return in
+      tt_escape_check return
+  | TT_apply { lambda; arg } ->
+      let* () = tt_escape_check lambda in
+      tt_escape_check arg
+  | TT_self { var = _; body } | TT_fix { var = _; body } ->
+      with_free_var @@ fun () ->
+      let* body = open_term body in
+      tt_escape_check body
+  | TT_unroll { term } -> tt_escape_check term
+  | TT_let { bound; value; return } ->
+      let* () = tpat_escape_check bound in
+      let* () = tt_escape_check value in
+      with_free_var @@ fun () ->
+      let* return = open_term return in
+      tt_escape_check return
+  | TT_string { literal = _ } -> pure ()
+  | TT_native { native = _ } -> pure ()
+
+and tpat_escape_check term =
+  (* TODO: check pat? *)
+  let (TPat { pat = _; type_ }) = term in
+  tt_escape_check type_
+
+(* TODO: better place for this *)
+let rec tt_unfold_fix term =
+  (* TODO: not ideal to expand head *)
+  match tt_repr term with
+  | TT_subst { term; subst } -> tt_unfold_fix @@ tt_expand_subst ~subst term
+  | TT_bound_var _ -> term
+  | TT_free_var _ -> term
+  | TT_hole _ -> term
+  | TT_forall _ -> term
+  | TT_lambda _ -> term
+  | TT_apply { lambda; arg } ->
+      let lambda = tt_unfold_fix lambda in
+      let arg = tt_unfold_fix arg in
+      TT_apply { lambda; arg }
+  | TT_self _ -> term
+  | TT_fix _ -> term
+  | TT_unroll { term = fix } -> (
+      match tt_match @@ tt_expand_head fix with
+      | TT_fix { var = _; body } ->
+          let subst = TS_open { to_ = fix } in
+          tt_expand_head @@ tt_expand_subst ~subst body
+      | _ -> term)
+  | TT_unfold { term } ->
+      let term = tt_unfold_fix term in
+      TT_unfold { term }
+      (* TODO: unfold under let?  *)
+  | TT_let _ -> term
+  | TT_annot { term; annot } ->
+      let term = tt_unfold_fix term in
+      let annot = tt_unfold_fix annot in
+      TT_annot { term; annot }
+  | TT_string _ -> term
+  | TT_native _ -> term

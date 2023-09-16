@@ -1,6 +1,6 @@
 open Ttree
 open Context
-open Expand_head
+open Tmachinery
 
 (* TODO: ensure this is eliminated *)
 
