@@ -291,81 +291,78 @@ module Typer = struct
   open Ttree_utils
 
   type test =
-    | Check of { name : string; annotated_term : string; wrapper : bool }
+    | Check of { name : string; annotated_term : string }
+    | Fail of { name : string; annotated_term : string }
 
-  let check ?(wrapper = true) name annotated_term =
-    Check { name; annotated_term; wrapper }
+  let check name annotated_term = Check { name; annotated_term }
+  let fail name annotated_term = Fail { name; annotated_term }
 
   (* TODO: write tests for locations and names / offset *)
   (* TODO: write tests for escape check *)
-  let univ_type = check "Type" ~wrapper:false {|(Type : Type)|}
-  let string_type = check "String" ~wrapper:false {|(String : Type)|}
+  let univ_type = check "Type" {|(Type : Type)|}
+  let string_type = check "String" {|(String : Type)|}
 
   let id =
-    check "id" ~wrapper:false
-      {|(((A : Type) => (x : A) => x)
-        : (A : Type) -> (x : A) -> A)|}
+    check "id"
+      {|(
+        (x : (A : Type) -> (x : A) -> A) => (x : (A : Type) -> (x : A) -> A))|}
 
   let id_propagate =
-    check "id_propagate" ~wrapper:false
-      {|((A => x => x) : (A : Type) -> (x : A) -> A)|}
+    check "id_propagate" {|((A => x => x) : (A : Type) -> (x : A) -> A)|}
 
   let id_unify =
-    check "id_unify" ~wrapper:false
-      {|((A => (x : A) => x) : (A : Type) -> (x : A) -> A)|}
+    check "id_unify" {|((A => (x : A) => x) : (A : Type) -> (x : A) -> A)|}
 
   let let_id =
-    check "let_id" ~wrapper:false
+    check "let_id"
       {|((id = A => (x : A) => x; id) : (A : Type) -> (x : A) -> A)|}
 
   let id_type =
-    check "id_type" ~wrapper:false
-      {|((A => (x : A) => x) Type
+    check "id_type" {|((A => (x : A) => x) Type
         : (x : Type) -> Type)|}
 
   let id_type_never =
-    check "id_type_never" ~wrapper:false
+    check "id_type_never"
       {|(((A : Type) => (x : A) => x) Type ((A : Type) -> A)
         : Type)|}
 
   let return_id_propagate =
-    check "return_id_propagate" ~wrapper:false
+    check "return_id_propagate"
       {|((((id : (A : Type) -> (x : A) -> A) => id) (A => x => x))
         : (A : Type) -> (x : A) -> A)|}
 
   let sequence =
-    check "sequence" ~wrapper:false
+    check "sequence"
       {|((A => (x : A) => B => (y : B) => y)
         : (A : Type) -> (x : A) -> (B : Type) -> (y : B) -> B)|}
 
   let bool =
-    check "bool" ~wrapper:false
-      {|(((A : Type) -> (x : A) -> (y : A) -> A)
+    check "bool" {|(((A : Type) -> (x : A) -> (y : A) -> A)
         : Type)|}
 
   let true_ =
-    check "true" ~wrapper:false
+    check "true"
       {|(((A : Type) => (x : A) => (y : A) => x)
         : (A : Type) -> (x : A) -> (y : A) -> A)|}
 
   let true_unify =
-    check "true_unify" ~wrapper:false
+    check "true_unify"
       {|(((A : Type) => x => (y : A) => x)
         : (A : Type) -> (x : A) -> (y : A) -> A)|}
 
   let false_ =
-    check "false" ~wrapper:false
+    check "false"
       {|((A => (x : A) => (y : A) => y)
         : (A : Type) -> (x : A) -> (y : A) -> A)|}
 
   let ind_false_T =
-    check "False_T" ~wrapper:false
+    check "False_T"
       {|
         (@self(False -> (f : @self(f -> @unroll False f)) -> Type) : Type)
       |}
 
   let ind_false =
-    check "False" ~wrapper:false
+    check "False"
       {|
         (@fix(False => f =>
           (P : (f : @self(f -> @unroll False f)) -> Type) -> P f
@@ -388,17 +385,18 @@ module Typer = struct
               (P : (f : @self(f -> @unroll (%s) f)) -> Type) -> P f))|}
         ind_false ind_false ind_false ind_false
     in
-    check "unfold False" ~wrapper:false code
+    check "unfold False" code
 
   let let_alias =
-    check "let_alias" ~wrapper:false
+    check "let_alias"
       {|
         Id = (A : Type) => A;
         (A => (x : A) => (x : Id A))
       |}
 
-  let simple_string =
-    check "simple_string" ~wrapper:false {|("simple string" : String)|}
+  let simple_string = check "simple_string" {|("simple string" : String)|}
+  let invalid_annotation = fail "invalid_annotation" {|(String : "A")|}
+  let simplest_escape_check = fail "simplest_escape_check" "x => A => (x : A)"
 
   let tests =
     [
@@ -421,12 +419,14 @@ module Typer = struct
       unfold_false;
       let_alias;
       simple_string;
+      invalid_annotation;
+      simplest_escape_check;
     ]
 
   (* alcotest *)
   let test test =
-    let (Check { name; annotated_term; wrapper = _ }) = test in
-    let check () =
+    let check ~name ~annotated_term =
+      Alcotest.test_case name `Quick @@ fun () ->
       let actual = Slexer.from_string Sparser.term_opt annotated_term in
       match actual with
       | Some stree -> (
@@ -439,7 +439,21 @@ module Typer = struct
               failwith @@ Format.asprintf "error: %a\n%!" Terror.pp error)
       | None -> failwith "failed to parse"
     in
-    Alcotest.test_case name `Quick check
+    let fail ~name ~annotated_term =
+      Alcotest.test_case name `Quick @@ fun () ->
+      let actual = Slexer.from_string Sparser.term_opt annotated_term in
+      match actual with
+      | Some stree -> (
+          let ltree = Lparser.from_stree stree in
+          match infer_term ltree with
+          | Ok _ttree -> failwith "failed but should had worked "
+          (* TODO: check for specific error *)
+          | Error _error -> ())
+      | None -> failwith "failed to parse"
+    in
+    match test with
+    | Check { name; annotated_term } -> check ~name ~annotated_term
+    | Fail { name; annotated_term } -> fail ~name ~annotated_term
 
   let tests = ("typer", List.map test tests)
 end
