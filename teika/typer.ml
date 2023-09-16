@@ -5,47 +5,33 @@ open Typer_context
 open Tmachinery
 open Unify
 
-let escape_check_term term =
-  with_var_context @@ fun subst -> tt_escape_check @@ TT_subst { term; subst }
+let escape_check_term term = with_var_context @@ fun () -> tt_escape_check term
 
 let unify_term ~expected ~received =
-  with_unify_context @@ fun subst ->
-  let expected = TT_subst { term = expected; subst } in
-  let received = TT_subst { term = received; subst } in
-  tt_unify ~expected ~received
+  with_unify_context @@ fun () -> tt_unify ~expected ~received
 
-let open_term term ~to_ =
-  (* TODO: should probably be added in the context *)
-  let subst = TS_open { to_ } in
-  TT_subst { term; subst }
+let tt_open_level term =
+  let* to_ = level () in
+  let to_ = TT_free_var { level = to_ } in
+  pure @@ tt_open term ~to_
 
-let close_term term =
-  (* TODO: this closing is weird *)
+let tt_close_level term =
   let* from = level () in
-  let subst = TS_close { from } in
-  pure @@ TT_subst { term; subst }
+  pure @@ tt_close term ~from
 
 let split_forall type_ =
   (* TODO: optimization, avoid the holes when annotated *)
   let param_type = tt_hole () in
   let param = TPat { pat = tp_hole (); type_ = param_type } in
   let return = tt_hole () in
-  let* expected =
-    enter_level @@ fun () ->
-    let* return = close_term return in
-    pure @@ TT_forall { param; return }
-  in
+  let expected = TT_forall { param; return } in
   let* () = unify_term ~received:type_ ~expected in
   pure (param_type, return)
 
 let split_self type_ =
   let var = tp_hole () in
   let body = tt_hole () in
-  let* expected =
-    enter_level @@ fun () ->
-    let* body = close_term body in
-    pure @@ TT_self { var; body }
-  in
+  let expected = TT_self { var; body } in
   let* () = unify_term ~received:type_ ~expected in
   pure body
 
@@ -60,9 +46,9 @@ let rec check_term term ~expected =
   in
   match term with
   | LT_var { var = name } ->
-      let* index, received = lookup_var ~name in
+      let* level, received = lookup_var ~name in
       let* () = unify_term ~received ~expected in
-      wrapped @@ TT_bound_var { index }
+      wrapped @@ TT_free_var { level }
   | LT_extension { extension; payload } ->
       check_term_extension ~extension ~payload ~expected
   | LT_forall { param; return } ->
@@ -73,6 +59,7 @@ let rec check_term term ~expected =
       let* param, return =
         check_typed_pat param ~expected:param_type ~alias:None @@ fun param ->
         let* return = check_annot return in
+        let* return = tt_close_level return in
         pure (param, return)
       in
       wrapped @@ TT_forall { param; return }
@@ -81,7 +68,11 @@ let rec check_term term ~expected =
       let* param_type, return_type = split_forall expected in
       let* param, return =
         check_typed_pat param ~expected:param_type ~alias:None @@ fun param ->
-        let* return = check_term return ~expected:return_type in
+        let* return =
+          let* return_type = tt_open_level return_type in
+          check_term return ~expected:return_type
+        in
+        let* return = tt_close_level return in
         pure (param, return)
       in
       wrapped @@ TT_lambda { param; return }
@@ -92,8 +83,7 @@ let rec check_term term ~expected =
       let* arg_type, return_type = split_forall lambda_type in
       let* arg = check_term arg ~expected:arg_type in
       let* () =
-        (* TODO: this is hackish *)
-        let received = open_term return_type ~to_:arg in
+        let received = tt_open return_type ~to_:arg in
         unify_term ~received ~expected
       in
       wrapped @@ TT_apply { lambda; arg }
@@ -103,18 +93,19 @@ let rec check_term term ~expected =
       (* TODO: use this loc *)
       let (LBind { loc = _; pat; value }) = bound in
       let value_type = tt_hole () in
-      let return_type = tt_hole () in
       let* value = check_term value ~expected:value_type in
       (* TODO: type pattern first? *)
-      let* bound, return =
+      let* bound, return_type, return =
         check_typed_pat pat ~expected:value_type ~alias:(Some value)
         @@ fun bound ->
+        let return_type = tt_hole () in
         let* return = check_term return ~expected:return_type in
-        pure (bound, return)
+        let* return_type = tt_close_level return_type in
+        let* return = tt_close_level return in
+        pure (bound, return_type, return)
       in
-      (* TODO: is this subst here right? *)
       let* () =
-        let received = open_term return_type ~to_:value in
+        let received = tt_open return_type ~to_:value in
         unify_term ~received ~expected
       in
       wrapped @@ TT_let { bound; value; return }
@@ -151,6 +142,7 @@ and check_term_extension ~extension ~payload ~expected =
         check_core_pat self ~expected:self_type ~alias:None @@ fun var ->
         (* TODO: pattern on self *)
         let* body = check_annot body in
+        let* body = tt_close_level body in
         let* () = unify_term ~received:body ~expected:expected_body in
         pure (var, body)
       in
@@ -160,7 +152,11 @@ and check_term_extension ~extension ~payload ~expected =
       let* var, body =
         check_core_pat self ~expected ~alias:None @@ fun var ->
         (* TODO: pattern on fix *)
-        let* body = check_term body ~expected:expected_body_type in
+        let* body =
+          let* expected_body_type = tt_open_level expected_body_type in
+          check_term body ~expected:expected_body_type
+        in
+        let* body = tt_close_level body in
         pure (var, body)
       in
       wrapped @@ TT_fix { var; body }
@@ -170,7 +166,7 @@ and check_term_extension ~extension ~payload ~expected =
       (* TODO: this could be better? avoiding split self? *)
       let* body_type = split_self fix_type in
       let* () =
-        let received = open_term body_type ~to_:fix in
+        let received = tt_open body_type ~to_:fix in
         unify_term ~received ~expected
       in
       wrapped @@ TT_unroll { term = fix }
@@ -201,7 +197,10 @@ and check_term_native ~native ~expected =
 
 and check_annot term = check_term term ~expected:tt_type
 
-and check_typed_pat pat ~expected ~alias f =
+and check_typed_pat :
+    type k.
+    _ -> expected:_ -> alias:_ -> (_ -> k typer_context) -> k typer_context =
+ fun pat ~expected ~alias f ->
   (* TODO: why this escape check? *)
   let* () = escape_check_term expected in
   check_core_pat pat ~expected ~alias @@ fun pat ->

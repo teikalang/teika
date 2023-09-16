@@ -1,6 +1,7 @@
 [@@@ocaml.warning "-unused-constructor"]
 
 open Ttree
+open Tmachinery
 
 module Ptree = struct
   open Format
@@ -26,7 +27,7 @@ module Ptree = struct
 
   and subst =
     | PS_id
-    | PS_open of { to_ : term }
+    | PS_open of { to_ : Level.t }
     | PS_close of { from : Level.t }
     | PS_lift of { subst : subst }
     | PS_cons of { subst : subst; next : subst }
@@ -67,10 +68,10 @@ module Ptree = struct
         (* TODO: this is clearly not the best way*)
         fprintf fmt {|@native(%S)|} native
 
-  let pp_subst_syntax ~pp_wrapped ~pp_atom ~pp_term_atom fmt term =
+  let pp_subst_syntax ~pp_wrapped ~pp_atom fmt term =
     match term with
     | PS_id -> fprintf fmt "id"
-    | PS_open { to_ } -> fprintf fmt "open %a" pp_term_atom to_
+    | PS_open { to_ } -> fprintf fmt "open +%a" Level.pp to_
     | PS_close { from } -> fprintf fmt "close +%a" Level.pp from
     | PS_lift { subst } -> fprintf fmt "lift %a" pp_atom subst
     | PS_cons { subst; next } ->
@@ -107,11 +108,10 @@ module Ptree = struct
   and pp_subst prec fmt subst =
     let pp_wrapped fmt subst = pp_subst S_wrapped fmt subst in
     let pp_atom fmt subst = pp_subst S_atom fmt subst in
-    let pp_term_atom fmt term = pp_term T_atom fmt term in
     match (subst, prec) with
     | PS_id, (S_wrapped | S_atom)
     | (PS_open _ | PS_close _ | PS_lift _ | PS_cons _), S_wrapped ->
-        pp_subst_syntax ~pp_wrapped ~pp_atom ~pp_term_atom fmt subst
+        pp_subst_syntax ~pp_wrapped ~pp_atom fmt subst
     | (PS_open _ | PS_close _ | PS_lift _ | PS_cons _), S_atom ->
         fprintf fmt "(%a)" pp_wrapped subst
 
@@ -145,20 +145,19 @@ type ex_hole = Ex_hole : _ hole -> ex_hole [@@ocaml.unboxed]
 let rec ptree_of_term config next holes term =
   let open Ptree in
   let ptree_of_term term = ptree_of_term config next holes term in
-  let ptree_of_subst subst = ptree_of_subst config next holes subst in
   let ptree_of_core_pat pat = ptree_of_core_pat config next holes pat in
   let ptree_of_typed_pat pat = ptree_of_typed_pat config next holes pat in
-  let ptree_of_hole hole = ptree_of_hole config next holes hole in
+  let ptree_of_tt_hole hole ~subst =
+    ptree_of_tt_hole config next holes hole ~subst
+  in
   (* TODO: print details *)
   match tt_match term with
-  | TT_subst { term; subst } ->
-      let term = ptree_of_term term in
-      let subst = ptree_of_subst subst in
-      PT_subst { term; subst }
   (* TODO: bound var should not be reachable  *)
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level } -> PT_var_level { level }
-  | TT_hole { hole } -> ptree_of_hole @@ Ex_hole hole
+  | TT_hole { hole; subst } ->
+      (* TODO: print hole substs *)
+      ptree_of_tt_hole ~subst @@ Ex_hole hole
   | TT_forall { param; return } ->
       let param = ptree_of_typed_pat param in
       let return = ptree_of_term return in
@@ -200,14 +199,12 @@ let rec ptree_of_term config next holes term =
       PT_native { native }
 
 and ptree_of_subst config next holes subst =
-  let ptree_of_term term = ptree_of_term config next holes term in
+  let open Ptree in
   let ptree_of_subst subst = ptree_of_subst config next holes subst in
   (* TODO: print details *)
   match subst with
   | TS_id -> PS_id
-  | TS_open { to_ } ->
-      let to_ = ptree_of_term to_ in
-      PS_open { to_ }
+  | TS_open { to_ } -> PS_open { to_ }
   | TS_close { from } -> PS_close { from }
   | TS_lift { subst } ->
       let subst = ptree_of_subst subst in
@@ -229,13 +226,34 @@ and ptree_of_typed_pat config next holes pat =
 
 and ptree_of_core_pat config next holes pat =
   let open Ptree in
-  let ptree_of_hole hole = ptree_of_hole config next holes hole in
+  let ptree_of_tpat_hole hole = ptree_of_tpat_hole config next holes hole in
   (* TODO: expand head here? *)
   match tp_repr pat with
-  | TP_hole { hole } -> ptree_of_hole @@ Ex_hole hole
+  | TP_hole { hole } -> ptree_of_tpat_hole @@ Ex_hole hole
   | TP_var { name } -> PT_var_name { name }
 
-and ptree_of_hole _config next holes hole =
+and ptree_of_tt_hole config next holes hole ~subst =
+  let open Ptree in
+  let ptree_of_subst subst = ptree_of_subst config next holes subst in
+  (* TODO: extract this into machinery tooling *)
+  (* TODO: allow to print link *)
+  match Hashtbl.find_opt holes hole with
+  | Some term -> term
+  | None ->
+      let id = !next in
+      let term = PT_hole_var_full { id } in
+      let term =
+        match subst with
+        | TS_id -> term
+        | subst ->
+            let subst = ptree_of_subst subst in
+            PT_subst { term; subst }
+      in
+      next := id + 1;
+      Hashtbl.add holes hole term;
+      term
+
+and ptree_of_tpat_hole _config next holes hole =
   let open Ptree in
   (* TODO: extract this into machinery tooling *)
   (* TODO: allow to print link *)
@@ -260,7 +278,8 @@ let pp_term fmt term =
 let pp_term_hole fmt hole =
   let next = ref 0 in
   let holes = Hashtbl.create 8 in
-  let pterm = ptree_of_hole config next holes @@ Ex_hole hole in
+  (* TODO: this is weird *)
+  let pterm = ptree_of_tt_hole config next holes ~subst:TS_id @@ Ex_hole hole in
   Ptree.pp_term fmt pterm
 
 let pp_subst fmt subst =

@@ -4,15 +4,13 @@ type core = Core
 type sugar = Sugar
 
 type term =
-  (* M[S]*)
-  | TT_subst of { term : term; subst : subst }
   (* x/-n *)
   | TT_bound_var of { index : Index.t }
   (* x/+n *)
   | TT_free_var of { level : Level.t }
   (* TODO: I really don't like this ex_term *)
   (* _x/+n *)
-  | TT_hole of { hole : term hole }
+  | TT_hole of { hole : term hole; subst : subst }
   (* (x : A) -> B *)
   | TT_forall of { param : typed_pat; return : term }
   (* (x : A) => e *)
@@ -52,8 +50,8 @@ and 'a hole = { mutable link : 'a option }
 and subst =
   (* id *)
   | TS_id
-  (* open *)
-  | TS_open of { to_ : term }
+  (* open -t *)
+  | TS_open of { to_ : Level.t }
   (* close +l *)
   | TS_close of { from : Level.t }
   (* lift s *)
@@ -68,8 +66,6 @@ val type_level : Level.t
 val string_level : Level.t
 
 (* utils *)
-val tt_repr : term -> term
-val tt_match : term -> term
 val tp_repr : core_pat -> core_pat
 
 (* constructors *)

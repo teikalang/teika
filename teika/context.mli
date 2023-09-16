@@ -10,7 +10,6 @@ module Var_context : sig
   val ( let* ) : 'a var_context -> ('a -> 'b var_context) -> 'b var_context
 
   (* errors *)
-  val error_subst_found : term -> 'a var_context
   val error_unfold_found : term -> 'a var_context
   val error_annot_found : term -> 'a var_context
   val error_var_occurs : hole:term hole -> in_:term hole -> 'a var_context
@@ -32,7 +31,6 @@ module Unify_context : sig
     'a unify_context -> ('a -> 'b unify_context) -> 'b unify_context
 
   (* error *)
-  val error_subst_found : expected:term -> received:term -> 'a unify_context
   val error_unfold_found : expected:term -> received:term -> 'a unify_context
   val error_annot_found : expected:term -> received:term -> 'a unify_context
 
@@ -88,13 +86,13 @@ module Typer_context : sig
     (unit -> 'a typer_context) ->
     'a typer_context
 
-  val lookup_var : name:Name.t -> (Index.t * term) typer_context
+  val lookup_var : name:Name.t -> (Level.t * term) typer_context
 
   (* locs *)
   val with_loc :
     loc:Location.t -> (unit -> 'a typer_context) -> 'a typer_context
 
   (* context *)
-  val with_var_context : (subst -> 'a Var_context.t) -> 'a typer_context
-  val with_unify_context : (subst -> 'a Unify_context.t) -> 'a typer_context
+  val with_var_context : (unit -> 'a Var_context.t) -> 'a typer_context
+  val with_unify_context : (unit -> 'a Unify_context.t) -> 'a typer_context
 end

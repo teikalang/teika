@@ -43,12 +43,10 @@ end = struct
 end
 
 open Context
-
-let tt_expand_subst = Tmachinery.tt_expand_subst
+open Tmachinery
 
 let rec untype_term term =
-  match tt_match term with
-  | TT_subst { term; subst } -> untype_term @@ tt_expand_subst ~subst term
+  match tt_repr term with
   | TT_bound_var { index } ->
       let+ var = lookup index in
       UT_var { var }
@@ -89,8 +87,7 @@ let rec untype_term term =
   | TT_unfold { term } -> untype_term term
   | TT_let { bound = _; value; return } ->
       (* TODO: emit let *)
-      let subst = TS_open { to_ = value } in
-      untype_term @@ tt_expand_subst ~subst return
+      untype_term @@ tt_open return ~to_:value
   | TT_annot { term; annot = _ } -> untype_term term
   | TT_string { literal } -> return @@ UT_string { literal }
   | TT_native { native } -> erase_native native

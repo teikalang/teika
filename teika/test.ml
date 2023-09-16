@@ -303,9 +303,7 @@ module Typer = struct
   let string_type = check "String" {|(String : Type)|}
 
   let id =
-    check "id"
-      {|(
-        (x : (A : Type) -> (x : A) -> A) => (x : (A : Type) -> (x : A) -> A))|}
+    check "id" {|((A : Type) => (x : A) => x : (A : Type) -> (x : A) -> A)|}
 
   let id_propagate =
     check "id_propagate" {|((A => x => x) : (A : Type) -> (x : A) -> A)|}

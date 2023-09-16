@@ -14,10 +14,9 @@ type core = Core
 type sugar = Sugar
 
 type term =
-  | TT_subst of { term : term; subst : subst }
   | TT_bound_var of { index : Index.t }
   | TT_free_var of { level : Level.t }
-  | TT_hole of { hole : term hole }
+  | TT_hole of { hole : term hole; subst : subst }
   | TT_forall of { param : typed_pat; return : term }
   | TT_lambda of { param : typed_pat; return : term }
   | TT_apply of { lambda : term; arg : term }
@@ -42,7 +41,7 @@ and 'a hole = { mutable link : 'a option }
 and subst =
   | TS_id
   (* open *)
-  | TS_open of { to_ : term }
+  | TS_open of { to_ : Level.t }
   (* close +l *)
   | TS_close of { from : Level.t }
   (* lift s *)
@@ -64,22 +63,13 @@ let rec tp_repr pat =
       match hole.link with Some pat -> tp_repr pat | None -> pat)
   | TP_var _ -> pat
 
-let rec tt_repr term =
-  match term with
-  | TT_hole { hole } -> (
-      match hole.link with Some term -> tt_repr term | None -> term)
-  (* TODO: expand cases here  *)
-  | _ -> term
-
-let tt_match term = tt_repr term
-
 (* TODO: loc *)
 let tt_type = TT_free_var { level = type_level }
 let string_type = TT_free_var { level = string_level }
 
 let tt_hole () =
   let hole = { link = None } in
-  TT_hole { hole }
+  TT_hole { hole; subst = TS_id }
 
 let tp_hole () =
   let hole = { link = None } in
