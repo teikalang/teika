@@ -17,12 +17,12 @@ let rec tt_escape_check term =
   (* TODO: this should not be here *)
   match tt_match @@ tt_expand_head term with
   | TT_subst _ -> error_subst_found term
+  | TT_unfold _ -> error_unfold_found term
+  | TT_annot _ -> error_annot_found term
   (* TODO: also check bound var *)
   (* TODO: very very important to check for bound vars, unification
         may unify variables outside of their binders *)
-  | TT_bound_var _ -> error_bound_var_found term
-  | TT_unfold _ -> error_unfold_found term
-  | TT_annot _ -> error_annot_found term
+  | TT_bound_var _ -> pure ()
   | TT_free_var { level } -> (
       match Level.(current < level) with
       | true -> error_var_escape ~var:level

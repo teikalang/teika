@@ -7,7 +7,6 @@ type error =
   | TError_loc of { error : error; loc : Location.t [@opaque] }
   (* misc *)
   | TError_misc_subst_found of { term : term }
-  | TError_misc_bound_var_found of { term : term }
   | TError_misc_unfold_found of { term : term }
   | TError_misc_annot_found of { term : term }
   (* TODO: lazy names for errors *)
@@ -15,7 +14,6 @@ type error =
   | TError_misc_var_escape of { var : Level.t }
   (* unify *)
   | TError_unify_subst_found of { expected : term; received : term }
-  | TError_unify_bound_var_found of { expected : term; received : term }
   | TError_unify_unfold_found of { expected : term; received : term }
   | TError_unify_annot_found of { expected : term; received : term }
   | TError_unify_bound_var_clash of { expected : Index.t; received : Index.t }

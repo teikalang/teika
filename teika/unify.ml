@@ -43,10 +43,9 @@ let rec tt_occurs hole ~in_ =
   match tt_match @@ tt_expand_head in_ with
   (* TODO: frozen and subst *)
   | TT_subst _ -> error_subst_found in_
-  | TT_bound_var _ -> error_bound_var_found in_
   | TT_unfold _ -> error_unfold_found in_
-  | TT_annot _ -> error_annot_found in_
-  (* TODO: escape check *)
+  | TT_annot _ -> error_annot_found in_ (* TODO: escape check *)
+  | TT_bound_var { index = _ } -> pure ()
   | TT_free_var { level = _ } -> pure ()
   (* TODO: use this substs? *)
   | TT_hole { hole = in_ } -> (
@@ -107,10 +106,12 @@ let rec tt_unify ~expected ~received =
   (* TODO: frozen and subst? *)
   (* TODO: annot and subst equality?  *)
   | TT_subst _, _ | _, TT_subst _ -> error_subst_found ~expected ~received
-  | TT_bound_var _, _ | _, TT_bound_var _ ->
-      error_bound_var_found ~expected ~received
   | TT_unfold _, _ | _, TT_unfold _ -> error_unfold_found ~expected ~received
   | TT_annot _, _ | _, TT_annot _ -> error_annot_found ~expected ~received
+  | TT_bound_var { index = expected }, TT_bound_var { index = received } -> (
+      match Index.equal expected received with
+      | true -> pure ()
+      | false -> error_bound_var_clash ~expected ~received)
   | TT_free_var { level = expected }, TT_free_var { level = received } -> (
       match Level.equal expected received with
       | true -> pure ()
@@ -167,10 +168,12 @@ let rec tt_unify ~expected ~received =
       | false -> error_string_clash ~expected ~received)
   | TT_native { native = expected }, TT_native { native = received } ->
       unify_native ~expected ~received
-  | ( ( TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _
-      | TT_fix _ | TT_unroll _ | TT_let _ | TT_string _ | TT_native _ ),
-      ( TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_self _
-      | TT_fix _ | TT_unroll _ | TT_let _ | TT_string _ | TT_native _ ) ) ->
+  | ( ( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
+      | TT_self _ | TT_fix _ | TT_unroll _ | TT_let _ | TT_string _
+      | TT_native _ ),
+      ( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
+      | TT_self _ | TT_fix _ | TT_unroll _ | TT_let _ | TT_string _
+      | TT_native _ ) ) ->
       error_type_clash ~expected ~received
 
 and tpat_unify ~expected ~received =
