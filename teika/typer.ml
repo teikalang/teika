@@ -56,24 +56,22 @@ let rec check_term term ~expected =
       (* TODO: this could also be checked after the return *)
       let* () = unify_term ~received:tt_type ~expected in
       let param_type = tt_hole () in
-      let* param, return =
-        check_typed_pat param ~expected:param_type ~alias:None @@ fun param ->
+      let* name, param = check_typed_pat param ~expected:param_type in
+      let* return =
+        with_free_vars ~name ~type_:param_type ~alias:None @@ fun () ->
         let* return = check_annot return in
-        let* return = tt_close_level return in
-        pure (param, return)
+        tt_close_level return
       in
       wrapped @@ TT_forall { param; return }
   | LT_lambda { param; return } ->
       (* TODO: maybe unify param? *)
       let* param_type, return_type = split_forall expected in
-      let* param, return =
-        check_typed_pat param ~expected:param_type ~alias:None @@ fun param ->
-        let* return =
-          let* return_type = tt_open_level return_type in
-          check_term return ~expected:return_type
-        in
-        let* return = tt_close_level return in
-        pure (param, return)
+      let* name, param = check_typed_pat param ~expected:param_type in
+      let* return =
+        with_free_vars ~name ~type_:param_type ~alias:None @@ fun () ->
+        let* return_type = tt_open_level return_type in
+        let* return = check_term return ~expected:return_type in
+        tt_close_level return
       in
       wrapped @@ TT_lambda { param; return }
   | LT_apply { lambda; arg } ->
@@ -93,16 +91,15 @@ let rec check_term term ~expected =
       (* TODO: use this loc *)
       let (LBind { loc = _; pat; value }) = bound in
       let value_type = tt_hole () in
+      let* name, bound = check_typed_pat pat ~expected:value_type in
       let* value = check_term value ~expected:value_type in
-      (* TODO: type pattern first? *)
-      let* bound, return_type, return =
-        check_typed_pat pat ~expected:value_type ~alias:(Some value)
-        @@ fun bound ->
+      let* return_type, return =
+        with_free_vars ~name ~type_:value_type ~alias:(Some value) @@ fun () ->
         let return_type = tt_hole () in
         let* return = check_term return ~expected:return_type in
         let* return_type = tt_close_level return_type in
         let* return = tt_close_level return in
-        pure (bound, return_type, return)
+        pure (return_type, return)
       in
       let* () =
         let received = tt_open return_type ~to_:value in
@@ -138,26 +135,28 @@ and check_term_extension ~extension ~payload ~expected =
       let* () = unify_term ~received:tt_type ~expected in
       let self_type = tt_hole () in
       let* expected_body = split_self self_type in
-      let* var, body =
-        check_core_pat self ~expected:self_type ~alias:None @@ fun var ->
+      let* name, var = check_core_pat self ~expected:self_type in
+      let* body =
+        with_free_vars ~name ~type_:self_type ~alias:None @@ fun () ->
         (* TODO: pattern on self *)
         let* body = check_annot body in
         let* body = tt_close_level body in
+        (* TODO: this unify here is weird *)
         let* () = unify_term ~received:body ~expected:expected_body in
-        pure (var, body)
+        pure body
       in
       wrapped @@ TT_self { var; body }
   | "@fix", LT_lambda { param = self; return = body } ->
       let* expected_body_type = split_self expected in
-      let* var, body =
-        check_core_pat self ~expected ~alias:None @@ fun var ->
+      let* name, var = check_core_pat self ~expected in
+      let* body =
+        with_free_vars ~name ~type_:expected ~alias:None @@ fun () ->
         (* TODO: pattern on fix *)
         let* body =
           let* expected_body_type = tt_open_level expected_body_type in
           check_term body ~expected:expected_body_type
         in
-        let* body = tt_close_level body in
-        pure (var, body)
+        tt_close_level body
       in
       wrapped @@ TT_fix { var; body }
   | "@unroll", fix ->
@@ -197,37 +196,25 @@ and check_term_native ~native ~expected =
 
 and check_annot term = check_term term ~expected:tt_type
 
-and check_typed_pat :
-    type k.
-    _ -> expected:_ -> alias:_ -> (_ -> k typer_context) -> k typer_context =
- fun pat ~expected ~alias f ->
+and check_typed_pat pat ~expected =
   (* TODO: why this escape check? *)
   let* () = escape_check_term expected in
-  check_core_pat pat ~expected ~alias @@ fun pat ->
-  f @@ TPat { pat; type_ = expected }
+  let* name, pat = check_core_pat pat ~expected in
+  (* TODO: returning name is not ideal *)
+  pure (name, TPat { pat; type_ = expected })
 
-and check_core_pat :
-    type k.
-    pat ->
-    expected:_ ->
-    alias:_ ->
-    (core_pat -> k typer_context) ->
-    k typer_context =
- fun pat ~expected ~alias f ->
+and check_core_pat pat ~expected =
   (* TODO: expected should be a pattern, to achieve strictness *)
-  match (pat, expected) with
-  | LP_var { var = name }, expected ->
-      (* TODO: add different names for left and right *)
-      with_free_vars ~name ~type_:expected ~alias @@ fun () ->
-      f @@ TP_var { name }
-  | LP_pair _, _ -> error_pairs_not_implemented ()
-  | LP_annot { pat; annot }, _expected_desc ->
+  match pat with
+  | LP_var { var = name } -> pure (name, TP_var { name })
+  | LP_pair _ -> error_pairs_not_implemented ()
+  | LP_annot { pat; annot } ->
       (* TODO: TP_annot *)
       let* annot = check_annot annot in
       let* () = unify_term ~received:annot ~expected in
-      check_core_pat pat ~expected:annot ~alias f
-  | LP_loc { pat; loc }, _expected_desc ->
-      with_loc ~loc @@ fun () -> check_core_pat pat ~expected ~alias f
+      check_core_pat pat ~expected:annot
+  | LP_loc { pat; loc } ->
+      with_loc ~loc @@ fun () -> check_core_pat pat ~expected
 
 let infer_term term =
   let expected = tt_hole () in
