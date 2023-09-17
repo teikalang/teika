@@ -1,14 +1,13 @@
 [@@@ocaml.warning "-unused-constructor"]
 
 open Ttree
-open Expand_head
+open Tmachinery
 
 module Ptree = struct
   open Format
 
   type term =
-    | PT_loc of { term : term; loc : Location.t }
-    | PT_typed of { term : term; annot : term }
+    | PT_subst of { term : term; subst : subst }
     | PT_var_name of { name : Name.t }
     | PT_var_index of { index : Index.t }
     | PT_var_level of { level : Level.t }
@@ -26,22 +25,22 @@ module Ptree = struct
     (* TODO: very weird for native to be a string *)
     | PT_native of { native : string }
 
-  let pp_loc fmt loc =
-    let pp_pos fmt pos =
-      let Lexing.{ pos_fname; pos_lnum; pos_bol; pos_cnum = _ } = pos in
-      (* TODO: print only file by default? *)
-      fprintf fmt "%s:%d:%d" pos_fname pos_lnum pos_bol
-    in
-    let Location.{ loc_start; loc_end; loc_ghost = _ } = loc in
-    match Location.is_none loc with
-    | true -> fprintf fmt "[%a .. %a]" pp_pos loc_start pp_pos loc_end
-    | false -> fprintf fmt "[__NONE__]"
+  and subst =
+    | PS_id
+    | PS_open of { to_ : Level.t }
+    | PS_close of { from : Level.t }
+    | PS_lift of { subst : subst }
+    | PS_cons of { subst : subst; next : subst }
 
-  let pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term =
+  type term_prec = T_wrapped | T_let | T_funct | T_apply | T_atom
+  type subst_prec = S_wrapped | S_atom
+
+  let pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom
+      ~pp_subst_wrapped fmt term =
     match term with
-    | PT_loc { term; loc } -> fprintf fmt "%a#%a" pp_atom term pp_loc loc
-    | PT_typed { term; annot } ->
-        fprintf fmt "%a #:# %a" pp_funct term pp_wrapped annot
+    | PT_subst { term; subst } ->
+        (* TODO: better notation *)
+        fprintf fmt "%a[%a]" pp_atom term pp_subst_wrapped subst
     | PT_var_name { name } -> fprintf fmt "%s" (Name.repr name)
     | PT_var_index { index } -> fprintf fmt "\\-%a" Index.pp index
     | PT_var_level { level } -> fprintf fmt "\\+%a" Level.pp level
@@ -69,34 +68,55 @@ module Ptree = struct
         (* TODO: this is clearly not the best way*)
         fprintf fmt {|@native(%S)|} native
 
-  type prec = Wrapped | Let | Funct | Apply | Atom
+  let pp_subst_syntax ~pp_wrapped ~pp_atom fmt term =
+    match term with
+    | PS_id -> fprintf fmt "id"
+    | PS_open { to_ } -> fprintf fmt "open +%a" Level.pp to_
+    | PS_close { from } -> fprintf fmt "close +%a" Level.pp from
+    | PS_lift { subst } -> fprintf fmt "lift %a" pp_atom subst
+    | PS_cons { subst; next } ->
+        fprintf fmt "%a :: %a" pp_atom subst pp_wrapped next
 
   let rec pp_term prec fmt term =
-    let pp_wrapped fmt term = pp_term Wrapped fmt term in
-    let pp_let fmt term = pp_term Let fmt term in
-    let pp_funct fmt term = pp_term Funct fmt term in
-    let pp_apply fmt term = pp_term Apply fmt term in
-    let pp_atom fmt term = pp_term Atom fmt term in
+    let pp_wrapped fmt term = pp_term T_wrapped fmt term in
+    let pp_let fmt term = pp_term T_let fmt term in
+    let pp_funct fmt term = pp_term T_funct fmt term in
+    let pp_apply fmt term = pp_term T_apply fmt term in
+    let pp_atom fmt term = pp_term T_atom fmt term in
+    let pp_subst_wrapped fmt subst = pp_subst S_wrapped fmt subst in
     match (term, prec) with
-    | ( ( PT_loc _ | PT_var_name _ | PT_var_index _ | PT_var_level _
+    (* TODO: subst as atom is weird *)
+    | ( ( PT_subst _ | PT_var_name _ | PT_var_index _ | PT_var_level _
         | PT_hole_var_full _ | PT_string _ ),
-        (Wrapped | Let | Funct | Apply | Atom) )
+        (T_wrapped | T_let | T_funct | T_apply | T_atom) )
     | ( ( PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _ | PT_unfold _
         | PT_native _ ),
-        (Wrapped | Let | Funct | Apply) )
-    | (PT_forall _ | PT_lambda _), (Wrapped | Let | Funct)
-    | PT_let _, (Wrapped | Let)
-    | (PT_typed _ | PT_annot _), Wrapped ->
-        pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term
+        (T_wrapped | T_let | T_funct | T_apply) )
+    | (PT_forall _ | PT_lambda _), (T_wrapped | T_let | T_funct)
+    | PT_let _, (T_wrapped | T_let)
+    | PT_annot _, T_wrapped ->
+        pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom
+          ~pp_subst_wrapped fmt term
     | ( ( PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _ | PT_unfold _
         | PT_native _ ),
-        Atom )
-    | (PT_forall _ | PT_lambda _), (Apply | Atom)
-    | PT_let _, (Funct | Apply | Atom)
-    | (PT_typed _ | PT_annot _), (Let | Funct | Apply | Atom) ->
+        T_atom )
+    | (PT_forall _ | PT_lambda _), (T_apply | T_atom)
+    | PT_let _, (T_funct | T_apply | T_atom)
+    | PT_annot _, (T_let | T_funct | T_apply | T_atom) ->
         fprintf fmt "(%a)" pp_wrapped term
 
-  let pp_term fmt term = pp_term Wrapped fmt term
+  and pp_subst prec fmt subst =
+    let pp_wrapped fmt subst = pp_subst S_wrapped fmt subst in
+    let pp_atom fmt subst = pp_subst S_atom fmt subst in
+    match (subst, prec) with
+    | PS_id, (S_wrapped | S_atom)
+    | (PS_open _ | PS_close _ | PS_lift _ | PS_cons _), S_wrapped ->
+        pp_subst_syntax ~pp_wrapped ~pp_atom fmt subst
+    | (PS_open _ | PS_close _ | PS_lift _ | PS_cons _), S_atom ->
+        fprintf fmt "(%a)" pp_wrapped subst
+
+  let pp_term fmt term = pp_term T_wrapped fmt term
+  let pp_subst fmt subst = pp_subst S_wrapped fmt subst
 end
 (* TODO: probably make printer tree *)
 
@@ -127,14 +147,17 @@ let rec ptree_of_term config next holes term =
   let ptree_of_term term = ptree_of_term config next holes term in
   let ptree_of_core_pat pat = ptree_of_core_pat config next holes pat in
   let ptree_of_typed_pat pat = ptree_of_typed_pat config next holes pat in
-  let ptree_of_hole hole = ptree_of_hole config next holes hole in
+  let ptree_of_tt_hole hole ~subst =
+    ptree_of_tt_hole config next holes hole ~subst
+  in
   (* TODO: print details *)
   match tt_match term with
-  | TT_subst { term; subst } -> ptree_of_term @@ tt_expand_subst ~subst term
   (* TODO: bound var should not be reachable  *)
   | TT_bound_var { index } -> PT_var_index { index }
   | TT_free_var { level } -> PT_var_level { level }
-  | TT_hole { hole } -> ptree_of_hole @@ Ex_hole hole
+  | TT_hole { hole; subst } ->
+      (* TODO: print hole substs *)
+      ptree_of_tt_hole ~subst @@ Ex_hole hole
   | TT_forall { param; return } ->
       let param = ptree_of_typed_pat param in
       let return = ptree_of_term return in
@@ -175,6 +198,22 @@ let rec ptree_of_term config next holes term =
       let native = match native with TN_debug -> "debug" in
       PT_native { native }
 
+and ptree_of_subst config next holes subst =
+  let open Ptree in
+  let ptree_of_subst subst = ptree_of_subst config next holes subst in
+  (* TODO: print details *)
+  match subst with
+  | TS_id -> PS_id
+  | TS_open { to_ } -> PS_open { to_ }
+  | TS_close { from } -> PS_close { from }
+  | TS_lift { subst } ->
+      let subst = ptree_of_subst subst in
+      PS_lift { subst }
+  | TS_cons { subst; next } ->
+      let subst = ptree_of_subst subst in
+      let next = ptree_of_subst next in
+      PS_cons { subst; next }
+
 and ptree_of_typed_pat config next holes pat =
   let open Ptree in
   let ptree_of_term term = ptree_of_term config next holes term in
@@ -187,13 +226,34 @@ and ptree_of_typed_pat config next holes pat =
 
 and ptree_of_core_pat config next holes pat =
   let open Ptree in
-  let ptree_of_hole hole = ptree_of_hole config next holes hole in
+  let ptree_of_tpat_hole hole = ptree_of_tpat_hole config next holes hole in
   (* TODO: expand head here? *)
   match tp_repr pat with
-  | TP_hole { hole } -> ptree_of_hole @@ Ex_hole hole
+  | TP_hole { hole } -> ptree_of_tpat_hole @@ Ex_hole hole
   | TP_var { name } -> PT_var_name { name }
 
-and ptree_of_hole _config next holes hole =
+and ptree_of_tt_hole config next holes hole ~subst =
+  let open Ptree in
+  let ptree_of_subst subst = ptree_of_subst config next holes subst in
+  (* TODO: extract this into machinery tooling *)
+  (* TODO: allow to print link *)
+  match Hashtbl.find_opt holes hole with
+  | Some term -> term
+  | None ->
+      let id = !next in
+      let term = PT_hole_var_full { id } in
+      let term =
+        match subst with
+        | TS_id -> term
+        | subst ->
+            let subst = ptree_of_subst subst in
+            PT_subst { term; subst }
+      in
+      next := id + 1;
+      Hashtbl.add holes hole term;
+      term
+
+and ptree_of_tpat_hole _config next holes hole =
   let open Ptree in
   (* TODO: extract this into machinery tooling *)
   (* TODO: allow to print link *)
@@ -218,5 +278,12 @@ let pp_term fmt term =
 let pp_term_hole fmt hole =
   let next = ref 0 in
   let holes = Hashtbl.create 8 in
-  let pterm = ptree_of_hole config next holes @@ Ex_hole hole in
+  (* TODO: this is weird *)
+  let pterm = ptree_of_tt_hole config next holes ~subst:TS_id @@ Ex_hole hole in
   Ptree.pp_term fmt pterm
+
+let pp_subst fmt subst =
+  let next = ref 0 in
+  let holes = Hashtbl.create 8 in
+  let psubst = ptree_of_subst config next holes subst in
+  Ptree.pp_subst fmt psubst
