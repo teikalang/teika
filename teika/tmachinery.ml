@@ -188,10 +188,16 @@ let tt_open term ~to_ =
 
 let tt_close term ~from = tt_apply_subst term @@ TS_close { from }
 
-let rec tt_expand_head term =
+let rec tt_expand_head ~aliases term =
+  (* TODO: aliases here is hackish *)
+  let tt_expand_head term = tt_expand_head ~aliases term in
   match tt_repr term with
   | TT_bound_var _ -> term
-  | TT_free_var _ -> term
+  | TT_free_var { level } -> (
+      (* TODO: possibly infinite loop, consume aliases *)
+      match Level.Map.find_opt level aliases with
+      | Some alias -> tt_expand_head alias
+      | None -> term)
   | TT_hole _ -> term
   | TT_forall _ -> term
   | TT_lambda _ -> term
@@ -200,7 +206,7 @@ let rec tt_expand_head term =
       match tt_match (tt_expand_head lambda) with
       | TT_lambda { param = _; return } ->
           tt_expand_head @@ tt_open return ~to_:arg
-      | TT_native { native } -> expand_head_native native ~arg
+      | TT_native { native } -> expand_head_native ~aliases native ~arg
       | _lambda -> term)
   | TT_self _ -> term
   | TT_fix _ -> term
@@ -212,14 +218,16 @@ let rec tt_expand_head term =
   | TT_string _ -> term
   | TT_native _ -> term
 
-and expand_head_native native ~arg =
-  match native with TN_debug -> tt_expand_head arg
+and expand_head_native ~aliases native ~arg =
+  match native with TN_debug -> tt_expand_head ~aliases arg
 
-let rec tt_escape_check term =
+let rec tt_escape_check ~aliases term =
+  let tt_escape_check term = tt_escape_check ~aliases term in
+  let tpat_escape_check pat = tpat_escape_check ~aliases pat in
   let* current = level () in
   (* TODO: check without expand_head? *)
   (* TODO: this should not be here *)
-  match tt_match @@ tt_expand_head term with
+  match tt_match @@ tt_expand_head ~aliases term with
   | TT_unfold _ -> error_unfold_found term
   | TT_annot _ -> error_annot_found term
   (* TODO: also check bound var *)
@@ -247,13 +255,14 @@ let rec tt_escape_check term =
   | TT_string { literal = _ } -> pure ()
   | TT_native { native = _ } -> pure ()
 
-and tpat_escape_check term =
+and tpat_escape_check ~aliases pat =
   (* TODO: check pat? *)
-  let (TPat { pat = _; type_ }) = term in
-  tt_escape_check type_
+  let (TPat { pat = _; type_ }) = pat in
+  tt_escape_check ~aliases type_
 
 (* TODO: better place for this *)
-let rec tt_unfold_fix term =
+let rec tt_unfold_fix ~aliases term =
+  let tt_unfold_fix term = tt_unfold_fix ~aliases term in
   (* TODO: not ideal to expand head *)
   match tt_repr term with
   | TT_bound_var _ -> term
@@ -268,8 +277,9 @@ let rec tt_unfold_fix term =
   | TT_self _ -> term
   | TT_fix _ -> term
   | TT_unroll { term = fix } -> (
-      match tt_match @@ tt_expand_head fix with
-      | TT_fix { var = _; body } -> tt_expand_head @@ tt_open body ~to_:fix
+      (* TODO: why expand head? *)
+      match tt_match @@ tt_expand_head ~aliases fix with
+      | TT_fix { var = _; body } -> tt_open body ~to_:fix
       | _ -> term)
   | TT_unfold { term } ->
       let term = tt_unfold_fix term in

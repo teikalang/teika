@@ -74,6 +74,7 @@ module Typer_context : sig
 
   (* TODO: this should be removed *)
   val level : unit -> Level.t typer_context
+  val aliases : unit -> term Level.Map.t typer_context
   val enter_level : (unit -> 'a typer_context) -> 'a typer_context
 
   (* vars *)
@@ -87,13 +88,16 @@ module Typer_context : sig
     'a typer_context
 
   (* TODO: this is a hack *)
-  val lookup_var : name:Name.t -> (term * term) typer_context
+  val lookup_var : name:Name.t -> (Level.t * term) typer_context
 
   (* locs *)
   val with_loc :
     loc:Location.t -> (unit -> 'a typer_context) -> 'a typer_context
 
   (* context *)
-  val with_var_context : (unit -> 'a Var_context.t) -> 'a typer_context
-  val with_unify_context : (unit -> 'a Unify_context.t) -> 'a typer_context
+  val with_var_context :
+    (aliases:term Level.Map.t -> 'a Var_context.t) -> 'a typer_context
+
+  val with_unify_context :
+    (aliases:term Level.Map.t -> 'a Unify_context.t) -> 'a typer_context
 end
