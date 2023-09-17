@@ -393,6 +393,22 @@ module Typer = struct
       |}
 
   let simple_string = check "simple_string" {|("simple string" : String)|}
+
+  let rank_2_propagate =
+    check "rank_2_propagate"
+      {|
+        Unit = (A : Type) -> (x : A) -> A;
+        (u => u Unit u : (u : Unit) -> Unit)
+      |}
+
+  let rank_2_propagate_let =
+    check "rank_2_propagate"
+      {|
+        Unit = (A : Type) -> (x : A) -> A;
+        (noop : (u : Unit) -> Unit) = u => u Unit u;
+        noop
+      |}
+
   let invalid_annotation = fail "invalid_annotation" {|(String : "A")|}
   let simplest_escape_check = fail "simplest_escape_check" "x => A => (x : A)"
 
@@ -417,6 +433,8 @@ module Typer = struct
       unfold_false;
       let_alias;
       simple_string;
+      rank_2_propagate;
+      rank_2_propagate_let;
       invalid_annotation;
       simplest_escape_check;
     ]
@@ -434,7 +452,8 @@ module Typer = struct
               Format.eprintf "%a\n%!" Tprinter.pp_term _ttree;
               ()
           | Error error ->
-              failwith @@ Format.asprintf "error: %a\n%!" Terror.pp error)
+              failwith
+              @@ Format.asprintf "error: %a\n%!" Tprinter.pp_error error)
       | None -> failwith "failed to parse"
     in
     let fail ~name ~annotated_term =

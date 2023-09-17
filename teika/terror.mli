@@ -24,6 +24,7 @@ type error =
       extension : Name.t;
       payload : Ltree.term;
     }
+  (* TODO: native should not be a string *)
   | TError_typer_unknown_native of { native : string }
 
 type t = error [@@deriving show]
