@@ -1,6 +1,7 @@
 [@@@ocaml.warning "-unused-constructor"]
 
 open Ttree
+open Terror
 open Tmachinery
 
 module Ptree = struct
@@ -117,6 +118,66 @@ module Ptree = struct
 
   let pp_term fmt term = pp_term T_wrapped fmt term
   let pp_subst fmt subst = pp_subst S_wrapped fmt subst
+end
+
+module Perror = struct
+  open Format
+  open Ptree
+
+  type error =
+    | PE_loc of { loc : Location.t; error : error }
+    | PE_fallback of { error : Terror.error }
+    | PE_var_occurs of { hole : term; in_ : term }
+    | PE_var_escape of { var : Level.t }
+    | PE_bound_var_clash of { expected : Index.t; received : Index.t }
+    | PE_free_var_clash of { expected : Level.t; received : Level.t }
+    | PE_type_clash of { expected : term; received : term }
+    | PE_string_clash of { expected : string; received : string }
+    | PE_unknown_var of { name : Name.t }
+    | PE_not_a_forall of { type_ : term }
+    | PE_pairs_not_implemented
+    | PE_unknown_extension of { extension : Name.t }
+    | PE_unknown_native of { native : string }
+
+  let pp_pos fmt pos =
+    let Lexing.{ pos_fname; pos_lnum; pos_bol; pos_cnum = _ } = pos in
+    (* TODO: print only file by default? *)
+    fprintf fmt "%s:%d:%d" pos_fname pos_lnum pos_bol
+
+  let pp_loc fmt loc =
+    let Location.{ loc_start; loc_end; loc_ghost = _ } = loc in
+    match Location.is_none loc with
+    | true -> fprintf fmt "[__NONE__]"
+    | false -> fprintf fmt "[%a .. %a]" pp_pos loc_start pp_pos loc_end
+
+  let rec pp_error fmt error =
+    match error with
+    | PE_loc { loc; error } -> fprintf fmt "%a\n%a" pp_loc loc pp_error error
+    | PE_fallback { error } -> Terror.pp fmt error
+    | PE_var_occurs { hole; in_ } ->
+        fprintf fmt "cycle would be made\nhole : %a\nin_ : %a" pp_term hole
+          pp_term in_
+    | PE_var_escape { var } ->
+        fprintf fmt "var +%a would escape the scope" Level.pp var
+    | PE_bound_var_clash { expected; received } ->
+        fprintf fmt "bound var clash\nexpected : -%a\nreceived : -%a" Index.pp
+          expected Index.pp received
+    | PE_free_var_clash { expected; received } ->
+        fprintf fmt "free var clash\nexpected : +%a\nreceived : +%a" Level.pp
+          expected Level.pp received
+    | PE_type_clash { expected; received } ->
+        fprintf fmt "type clash\nexpected : %a\nreceived : %a" pp_term expected
+          pp_term received
+    | PE_string_clash { expected; received } ->
+        fprintf fmt "string clash\nexpected : %S\nreceived : %S" expected
+          received
+    | PE_unknown_var { name } -> fprintf fmt "unknown variable %a" Name.pp name
+    | PE_not_a_forall { type_ } ->
+        fprintf fmt "expected forall\nreceived : %a" pp_term type_
+    | PE_pairs_not_implemented -> fprintf fmt "pairs not implemented"
+    | PE_unknown_extension { extension } ->
+        fprintf fmt "unknown extension : %a" Name.pp extension
+    | PE_unknown_native { native } -> fprintf fmt "unknown native : %S" native
 end
 (* TODO: probably make printer tree *)
 
@@ -266,6 +327,61 @@ and ptree_of_tpat_hole _config next holes hole =
       Hashtbl.add holes hole term;
       term
 
+and perror_of_error config next holes error =
+  let open Perror in
+  let ptree_of_term term = ptree_of_term config next holes term in
+  let ptree_of_tt_hole hole ~subst =
+    ptree_of_tt_hole config next holes hole ~subst
+  in
+  let perror_of_error error = perror_of_error config next holes error in
+  match error with
+  | TError_loc { error; loc } ->
+      let rec loop loc error =
+        match error with
+        | TError_loc { error; loc = loc' } ->
+            let loc =
+              (* ignore none locations *)
+              match Location.is_none loc' with true -> loc | false -> loc'
+            in
+            loop loc error
+        | error ->
+            let error = perror_of_error error in
+            PE_loc { loc; error }
+      in
+      loop loc error
+  | TError_misc_unfold_found _ ->
+      (* TODO: drop falback *)
+      PE_fallback { error }
+  | TError_misc_annot_found _ -> PE_fallback { error }
+  (* TODO: print hole *)
+  | TError_misc_var_occurs { hole; in_ } ->
+      (* TODO: subst *)
+      let hole = ptree_of_tt_hole ~subst:TS_id @@ Ex_hole hole in
+      let in_ = ptree_of_tt_hole ~subst:TS_id @@ Ex_hole in_ in
+      PE_var_occurs { hole; in_ }
+  | TError_misc_var_escape { var } -> PE_var_escape { var }
+  | TError_unify_unfold_found _ -> PE_fallback { error }
+  | TError_unify_annot_found _ -> PE_fallback { error }
+  | TError_unify_bound_var_clash { expected; received } ->
+      PE_bound_var_clash { expected; received }
+  | TError_unify_free_var_clash { expected; received } ->
+      PE_free_var_clash { expected; received }
+  | TError_unify_type_clash { expected; received } ->
+      let expected = ptree_of_term expected in
+      let received = ptree_of_term received in
+      PE_type_clash { expected; received }
+  | TError_unify_string_clash { expected; received } ->
+      PE_string_clash { expected; received }
+  | TError_typer_unknown_var { name } -> PE_unknown_var { name }
+  | TError_typer_not_a_forall { type_ } ->
+      let type_ = ptree_of_term type_ in
+      PE_not_a_forall { type_ }
+  | TError_typer_pairs_not_implemented ->
+      PE_pairs_not_implemented (* TODO: print payload *)
+  | TError_typer_unknown_extension { extension; payload = _ } ->
+      PE_unknown_extension { extension }
+  | TError_typer_unknown_native { native } -> PE_unknown_native { native }
+
 let config =
   { typed_mode = Typed_default; loc_mode = Loc_default; var_mode = Var_name }
 
@@ -287,3 +403,9 @@ let pp_subst fmt subst =
   let holes = Hashtbl.create 8 in
   let psubst = ptree_of_subst config next holes subst in
   Ptree.pp_subst fmt psubst
+
+let pp_error fmt error =
+  let next = ref 0 in
+  let holes = Hashtbl.create 8 in
+  let perror = perror_of_error config next holes error in
+  Perror.pp_error fmt perror
