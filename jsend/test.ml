@@ -48,5 +48,6 @@ let () =
         eight = mul two four;
         sixteen = mul two eight;
         byte = mul sixteen sixteen;
-        byte String "zero" (_ => @native("debug")("hello"))
+        short = mul byte byte;
+        short String "zero" (_ => @native("debug")("hello"))
       |}
