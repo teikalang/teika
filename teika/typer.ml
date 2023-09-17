@@ -46,9 +46,9 @@ let rec check_term term ~expected =
   in
   match term with
   | LT_var { var = name } ->
-      let* level, received = lookup_var ~name in
+      let* value, received = lookup_var ~name in
       let* () = unify_term ~received ~expected in
-      wrapped @@ TT_free_var { level }
+      wrapped @@ value
   | LT_extension { extension; payload } ->
       check_term_extension ~extension ~payload ~expected
   | LT_forall { param; return } ->

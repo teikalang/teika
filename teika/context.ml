@@ -70,7 +70,7 @@ module Typer_context = struct
     level:Level.t ->
     (* TODO: Hashtbl *)
     (* TODO: also think about word table as an optimization *)
-    vars:(Level.t * term) Name.Map.t ->
+    vars:(term * term) Name.Map.t ->
     ('a, error) result
 
   type 'a t = 'a typer_context
@@ -81,8 +81,10 @@ module Typer_context = struct
     let vars =
       (* TODO: better place for constants *)
       names
-      |> Name.Map.add (Name.make "Type") (type_level, tt_type)
-      |> Name.Map.add (Name.make "String") (string_level, tt_type)
+      |> Name.Map.add (Name.make "Type")
+           (TT_free_var { level = type_level }, tt_type)
+      |> Name.Map.add (Name.make "String")
+           (TT_free_var { level = string_level }, tt_type)
     in
     f () ~level ~vars
 
@@ -109,14 +111,20 @@ module Typer_context = struct
     let level = Level.next level in
     f () ~level ~vars
 
-  let with_free_vars ~name ~type_ ~alias:_ f ~level ~vars =
+  let with_free_vars ~name ~type_ ~alias f ~level ~vars =
     let level = Level.next level in
-    let vars = Name.Map.add name (level, type_) vars in
+    let to_ =
+      match alias with
+      (* TODO: use substitutions for this *)
+      | Some alias -> alias
+      | None -> TT_free_var { level }
+    in
+    let vars = Name.Map.add name (to_, type_) vars in
     f () ~level ~vars
 
   let lookup_var ~name ~level:_ ~vars =
     match Name.Map.find_opt name vars with
-    | Some (level, type_) -> Ok (level, type_)
+    | Some (to_, type_) -> Ok (to_, type_)
     | None -> Error (TError_typer_unknown_var { name })
 
   let with_loc ~loc f ~level ~vars =
