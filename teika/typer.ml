@@ -5,10 +5,16 @@ open Typer_context
 open Tmachinery
 open Unify
 
-let escape_check_term term = with_var_context @@ fun () -> tt_escape_check term
+let escape_check_term term =
+  with_var_context @@ fun ~aliases -> tt_escape_check ~aliases term
 
 let unify_term ~expected ~received =
-  with_unify_context @@ fun () -> tt_unify ~expected ~received
+  with_unify_context @@ fun ~aliases -> tt_unify ~aliases ~expected ~received
+
+let tt_unfold_fix term =
+  let open Var_context in
+  (* TODO: weird hack *)
+  with_var_context @@ fun ~aliases -> pure @@ tt_unfold_fix ~aliases term
 
 let tt_open_level term =
   let* to_ = level () in
@@ -46,9 +52,9 @@ let rec check_term term ~expected =
   in
   match term with
   | LT_var { var = name } ->
-      let* value, received = lookup_var ~name in
+      let* level, received = lookup_var ~name in
       let* () = unify_term ~received ~expected in
-      wrapped @@ value
+      wrapped @@ TT_free_var { level }
   | LT_extension { extension; payload } ->
       check_term_extension ~extension ~payload ~expected
   | LT_forall { param; return } ->
@@ -174,7 +180,7 @@ and check_term_extension ~extension ~payload ~expected =
       let term_type = tt_hole () in
       let* term = check_term term ~expected:term_type in
       let* () =
-        let received = tt_unfold_fix term_type in
+        let* received = tt_unfold_fix term_type in
         unify_term ~received ~expected
       in
       wrapped @@ TT_unfold { term }

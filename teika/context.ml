@@ -70,7 +70,8 @@ module Typer_context = struct
     level:Level.t ->
     (* TODO: Hashtbl *)
     (* TODO: also think about word table as an optimization *)
-    vars:(term * term) Name.Map.t ->
+    vars:(Level.t * term) Name.Map.t ->
+    aliases:term Level.Map.t ->
     ('a, error) result
 
   type 'a t = 'a typer_context
@@ -81,19 +82,18 @@ module Typer_context = struct
     let vars =
       (* TODO: better place for constants *)
       names
-      |> Name.Map.add (Name.make "Type")
-           (TT_free_var { level = type_level }, tt_type)
-      |> Name.Map.add (Name.make "String")
-           (TT_free_var { level = string_level }, tt_type)
+      |> Name.Map.add (Name.make "Type") (type_level, tt_type)
+      |> Name.Map.add (Name.make "String") (string_level, tt_type)
     in
-    f () ~level ~vars
+    let aliases = Level.Map.empty in
+    f () ~level ~vars ~aliases
 
-  let pure value ~level:_ ~vars:_ = Ok value
-  let fail desc ~level:_ ~vars:_ = Error desc
+  let pure value ~level:_ ~vars:_ ~aliases:_ = Ok value
+  let fail desc ~level:_ ~vars:_ ~aliases:_ = Error desc
 
-  let ( let* ) context f ~level ~vars =
-    match context ~level ~vars with
-    | Ok value -> f value ~level ~vars
+  let ( let* ) context f ~level ~vars ~aliases =
+    match context ~level ~vars ~aliases with
+    | Ok value -> f value ~level ~vars ~aliases
     | Error _ as error -> error
 
   let error_pairs_not_implemented () =
@@ -105,33 +105,34 @@ module Typer_context = struct
   let error_unknown_native ~native =
     fail @@ TError_typer_unknown_native { native }
 
-  let level () ~level ~vars:_ = Ok level
+  let level () ~level ~vars:_ ~aliases:_ = Ok level
+  let aliases () ~level:_ ~vars:_ ~aliases = Ok aliases
 
   let enter_level f ~level ~vars =
     let level = Level.next level in
     f () ~level ~vars
 
-  let with_free_vars ~name ~type_ ~alias f ~level ~vars =
+  let with_free_vars ~name ~type_ ~alias f ~level ~vars ~aliases =
     let level = Level.next level in
-    let to_ =
+    let vars = Name.Map.add name (level, type_) vars in
+    let aliases =
       match alias with
       (* TODO: use substitutions for this *)
-      | Some alias -> alias
-      | None -> TT_free_var { level }
+      | Some alias -> Level.Map.add level alias aliases
+      | None -> aliases
     in
-    let vars = Name.Map.add name (to_, type_) vars in
-    f () ~level ~vars
+    f () ~level ~vars ~aliases
 
-  let lookup_var ~name ~level:_ ~vars =
+  let lookup_var ~name ~level:_ ~vars ~aliases:_ =
     match Name.Map.find_opt name vars with
-    | Some (to_, type_) -> Ok (to_, type_)
+    | Some (level, type_) -> Ok (level, type_)
     | None -> Error (TError_typer_unknown_var { name })
 
-  let with_loc ~loc f ~level ~vars =
-    match f () ~level ~vars with
+  let with_loc ~loc f ~level ~vars ~aliases =
+    match f () ~level ~vars ~aliases with
     | Ok _value as ok -> ok
     | Error desc -> Error (TError_loc { error = desc; loc })
 
-  let with_var_context f ~level ~vars:_ = f () ~level
-  let with_unify_context f ~level ~vars:_ = f () ~level
+  let with_var_context f ~level ~vars:_ ~aliases = f ~aliases ~level
+  let with_unify_context f ~level ~vars:_ ~aliases = f ~aliases ~level
 end

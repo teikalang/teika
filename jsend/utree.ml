@@ -3,6 +3,7 @@ type term =
   | UT_var of { var : Var.t }
   | UT_lambda of { param : Var.t; return : term }
   | UT_apply of { lambda : term; arg : term }
+  | UT_let of { var : Var.t; value : term; return : term }
   | UT_string of { literal : string }
   | UT_external of { external_ : external_ }
 
