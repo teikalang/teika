@@ -37,16 +37,21 @@ let () =
 let () =
   compile
     {|
-        Nat = (A : Type) -> (z : A) -> (s : (x : A) -> A) -> A;
-        (zero : Nat) = A => z => s => z;
-        (succ : (n : Nat) -> Nat) = n => A => z => s => s (n A z s);
-        (add : (n : Nat) -> (m : Nat) -> Nat) = n => m => n Nat m succ;
-        (mul : (n : Nat) -> (m : Nat) -> Nat) = n => m => n Nat zero (add m);
+        Nat = (A : Type) -> (z : A) ->
+          (s : (x : A) -> A) -> (k : (x : A) -> A) -> A;
+        (zero : Nat) = A => z => s => k => k z;
+        (succ : (n : Nat) -> Nat) =
+          n => A => z => s => k => n A z s (x => k (s x));
+        (add : (n : Nat) -> (m : Nat) -> Nat) =
+          n => m => n Nat m succ (x => x);
+        (mul : (n : Nat) -> (m : Nat) -> Nat) =
+          n => m => n Nat zero (add m) (x => x);
         one = succ zero;
         two = succ one;
         four = mul two two;
         eight = mul two four;
         sixteen = mul two eight;
         byte = mul sixteen sixteen;
-        byte String "zero" (_ => @native("debug")("hello"))
+        short = mul byte byte;
+        short String "zero" (_ => @native("debug")("hello")) (x => x)
       |}

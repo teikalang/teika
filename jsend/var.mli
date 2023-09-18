@@ -14,5 +14,6 @@ val fix : var
 val unit : var
 val debug : var
 val curry : var
+val jmp : var
 
 module Map : Map.S with type key = t

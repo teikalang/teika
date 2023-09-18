@@ -60,7 +60,18 @@ and emit_block ~consts return =
       let value = emit_term value in
       let consts = (var, value) :: consts in
       emit_block ~consts return
-  | UT_var _ | UT_lambda _ | UT_apply _ | UT_string _ | UT_external _ ->
+  | UT_apply _ ->
+      (* tco *)
+      let return =
+        let return = emit_call ~args:[] return in
+        let constructor =
+          JE_call { lambda = JE_var { var = Var.jmp }; args = [ return ] }
+        in
+        JE_new { constructor }
+      in
+      let consts = List.rev consts in
+      JBlock { consts; return }
+  | UT_var _ | UT_lambda _ | UT_string _ | UT_external _ ->
       let return = emit_term return in
       let consts = List.rev consts in
       JBlock { consts; return }
