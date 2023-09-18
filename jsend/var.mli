@@ -13,5 +13,6 @@ val type_ : var
 val fix : var
 val unit : var
 val debug : var
+val curry : var
 
 module Map : Map.S with type key = t
