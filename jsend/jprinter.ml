@@ -27,6 +27,8 @@ let rec pp_expression_syntax ~pp_wrapped ~pp_call ~pp_atom ~pp_block fmt
         | param :: params -> fprintf fmt "%a, %a" Var.pp param pp_params params
       in
       fprintf fmt "function* (%a) { %a }" pp_params params pp_block block
+  (* TODO: new precedence is the same as call? *)
+  | JE_new { constructor } -> fprintf fmt "new %a" pp_call constructor
   | JE_call { lambda; args } ->
       (* TODO: almost duplicated from params *)
       let rec pp_args fmt args =
@@ -53,11 +55,12 @@ let rec pp_expression prec fmt expression =
   match (expression, prec) with
   | JE_loc { expression; loc = _ }, prec -> pp_expression prec fmt expression
   | (JE_var _ | JE_string _), (Wrapped | Call | Atom)
-  | JE_call _, (Wrapped | Call)
+  | (JE_new _ | JE_call _), (Wrapped | Call)
   | (JE_generator _ | JE_yield _), Wrapped ->
       pp_expression_syntax ~pp_wrapped ~pp_call ~pp_atom ~pp_block fmt
         expression
-  | JE_call _, Atom | (JE_generator _ | JE_yield _), (Call | Atom) ->
+  | (JE_new _ | JE_call _), Atom | (JE_generator _ | JE_yield _), (Call | Atom)
+    ->
       fprintf fmt "(%a)" pp_wrapped expression
 
 let pp_expression fmt expression = pp_expression Wrapped fmt expression

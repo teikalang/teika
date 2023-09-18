@@ -59,6 +59,7 @@ let fix = predef "$fix"
 let unit = predef "$unit"
 let debug = predef "$debug"
 let curry = predef "$curry"
+let jmp = predef "$jmp"
 
 module Map = Map.Make (struct
   type t = var
