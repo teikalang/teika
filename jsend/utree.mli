@@ -5,7 +5,7 @@ type term =
   (* TODO: patterns in the Itree? *)
   | UT_lambda of { param : Var.t; return : term }
   | UT_apply of { lambda : term; arg : term }
-  (* TODO: let here? *)
+  | UT_let of { var : Var.t; value : term; return : term }
   | UT_string of { literal : string }
   | UT_external of { external_ : external_ }
 
