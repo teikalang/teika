@@ -1,6 +1,4 @@
 open Ttree
-open Context
-open Var_context
 
 (* TODO: check type whenever substitution is happening? *)
 (* TODO: can do better than this *)
@@ -63,9 +61,9 @@ let rec tt_apply_subst term subst =
           let to_ = TT_bound_var { index } in
           tt_apply_subst to_ subst
       | None -> term)
-  | TT_hole { hole; subst = first } ->
+  | TT_hole { hole; level; subst = first } ->
       let subst = TS_cons { subst = first; next = subst } in
-      TT_hole { hole; subst }
+      TT_hole { hole; level; subst }
   | TT_forall { param; return } ->
       let param = tpat_apply_subst param subst in
       let return = tt_apply_subst return @@ with_var subst in
@@ -110,7 +108,7 @@ and tpat_apply_subst pat subst =
 and tt_repr term =
   (* TODO: path compression *)
   match term with
-  | TT_hole { hole; subst } -> (
+  | TT_hole { hole; level = _; subst } -> (
       match hole.link with
       | Some term ->
           let term = tt_repr term in
@@ -134,12 +132,12 @@ let rec tt_open term ~from ~to_ =
   | TT_bound_var { index } -> (
       match Index.equal from index with true -> to_ | false -> term)
   | TT_free_var { level = _ } -> term
-  | TT_hole { hole; subst } -> (
+  | TT_hole { hole; level; subst } -> (
       (* only capture inversible substitutions *)
       match to_ with
       | TT_free_var { level = to_ } ->
           let subst = TS_cons { subst; next = TS_open { to_ } } in
-          TT_hole { hole; subst }
+          TT_hole { hole; level; subst }
       | _ -> term)
   | TT_forall { param; return } ->
       let param = tpat_open param in
@@ -220,45 +218,6 @@ let rec tt_expand_head ~aliases term =
 
 and expand_head_native ~aliases native ~arg =
   match native with TN_debug -> tt_expand_head ~aliases arg
-
-let rec tt_escape_check ~aliases term =
-  let tt_escape_check term = tt_escape_check ~aliases term in
-  let tpat_escape_check pat = tpat_escape_check ~aliases pat in
-  let* current = level () in
-  (* TODO: check without expand_head? *)
-  (* TODO: this should not be here *)
-  match tt_match @@ tt_expand_head ~aliases term with
-  | TT_unfold _ -> error_unfold_found term
-  | TT_annot _ -> error_annot_found term
-  (* TODO: also check bound var *)
-  (* TODO: very very important to check for bound vars, unification
-        may unify variables outside of their binders *)
-  | TT_bound_var _ -> pure ()
-  | TT_free_var { level } -> (
-      match Level.(current < level) with
-      | true -> error_var_escape ~var:level
-      | false -> pure ())
-  | TT_hole _hole -> pure ()
-  | TT_forall { param; return } | TT_lambda { param; return } ->
-      let* () = tpat_escape_check param in
-      with_free_var @@ fun () -> tt_escape_check return
-  | TT_apply { lambda; arg } ->
-      let* () = tt_escape_check lambda in
-      tt_escape_check arg
-  | TT_self { var = _; body } | TT_fix { var = _; body } ->
-      with_free_var @@ fun () -> tt_escape_check body
-  | TT_unroll { term } -> tt_escape_check term
-  | TT_let { bound; value; return } ->
-      let* () = tpat_escape_check bound in
-      let* () = tt_escape_check value in
-      with_free_var @@ fun () -> tt_escape_check return
-  | TT_string { literal = _ } -> pure ()
-  | TT_native { native = _ } -> pure ()
-
-and tpat_escape_check ~aliases pat =
-  (* TODO: check pat? *)
-  let (TPat { pat = _; type_ }) = pat in
-  tt_escape_check ~aliases type_
 
 (* TODO: better place for this *)
 let rec tt_unfold_fix ~aliases term =

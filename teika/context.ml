@@ -108,9 +108,13 @@ module Typer_context = struct
   let level () ~level ~vars:_ ~aliases:_ = Ok level
   let aliases () ~level:_ ~vars:_ ~aliases = Ok aliases
 
-  let enter_level f ~level ~vars =
+  let enter_level f ~level ~vars ~aliases =
     let level = Level.next level in
-    f () ~level ~vars
+    f () ~level ~vars ~aliases
+
+  let tt_hole () ~level ~vars:_ ~aliases:_ =
+    let hole = { link = None } in
+    Ok (TT_hole { hole; level; subst = TS_id })
 
   let with_free_vars ~name ~type_ ~alias f ~level ~vars ~aliases =
     let level = Level.next level in

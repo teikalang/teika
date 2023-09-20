@@ -9,8 +9,8 @@ type term =
   (* x/+n *)
   | TT_free_var of { level : Level.t }
   (* TODO: I really don't like this ex_term *)
-  (* _x/+n *)
-  | TT_hole of { hole : term hole; subst : subst }
+  (* _x/+n[s] *)
+  | TT_hole of { hole : term hole; level : Level.t; subst : subst }
   (* (x : A) -> B *)
   | TT_forall of { param : typed_pat; return : term }
   (* (x : A) => e *)
@@ -71,5 +71,4 @@ val tp_repr : core_pat -> core_pat
 (* constructors *)
 val tt_type : term
 val string_type : term
-val tt_hole : unit -> term
 val tp_hole : unit -> core_pat
