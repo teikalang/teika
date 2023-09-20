@@ -132,6 +132,22 @@ module Typer_context = struct
     | Some (level, type_) -> Ok (level, type_)
     | None -> Error (TError_typer_unknown_var { name })
 
+  let free_vars ~vars =
+    (* TODO: this is hackish *)
+    Name.Map.fold
+      (fun name (level, _type) free_vars -> Level.Map.add level name free_vars)
+      vars Level.Map.empty
+
+  let pp_term () ~level:_ ~vars ~aliases:_ =
+    let bound_vars = [] in
+    let free_vars = free_vars ~vars in
+    Ok (Tprinter.raw_pp_term ~bound_vars ~free_vars)
+
+  let pp_error () ~level:_ ~vars ~aliases:_ =
+    let bound_vars = [] in
+    let free_vars = free_vars ~vars in
+    Ok (Tprinter.raw_pp_error ~bound_vars ~free_vars)
+
   let with_loc ~loc f ~level ~vars ~aliases =
     match f () ~level ~vars ~aliases with
     | Ok _value as ok -> ok
