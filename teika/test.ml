@@ -404,13 +404,20 @@ module Typer = struct
   let rank_2_propagate_let =
     check "rank_2_propagate"
       {|
-        Unit = (A : Type) -> (x : A) -> A;
-        (noop : (u : Unit) -> Unit) = u => u Unit u;
-        noop
-      |}
+            Unit = (A : Type) -> (x : A) -> A;
+            (noop : (u : Unit) -> Unit) = u => u Unit u;
+            noop
+          |}
 
   let invalid_annotation = fail "invalid_annotation" {|(String : "A")|}
   let simplest_escape_check = fail "simplest_escape_check" "x => A => (x : A)"
+
+  let bound_var_escape_check =
+    fail "bound_var_escape_check"
+      {|
+        call = f => v => f v;
+        (never : (A : Type) -> A) => call never
+      |}
 
   let tests =
     [
@@ -437,6 +444,7 @@ module Typer = struct
       rank_2_propagate_let;
       invalid_annotation;
       simplest_escape_check;
+      bound_var_escape_check;
     ]
 
   (* alcotest *)

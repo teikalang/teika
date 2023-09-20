@@ -2,10 +2,13 @@ open Ttree
 open Context
 open Tmachinery
 
-(* TODO: ensure this is eliminated *)
-
 (* TODO: maybe some quality of life, guarantee that unification always
     prefer the top level expected type, by tracking variance *)
+
+(* TODO: optimization, just check, when type is closed *)
+(* TODO: if every constructor had max_level,
+    this could be short circuited, avoiding traversing
+    constructors that have max_level < hole_level *)
 (* Reject cases where a variable would be unified with itself,
      this would allow to create negatively recursive types.
    Example: (f => f f)
@@ -13,38 +16,37 @@ open Tmachinery
    Also reject cases where a variable would escape it's scope,
      this would allow to violate abstractions.
    Example: (x => A => (x : A)) *)
-(* TODO: if every constructor had max_level,
-    this could be short circuited, avoiding traversing
-    constructors that have max_level < hole_level *)
-
-(* TODO: optimization, just check, when type is closed *)
-
-(* TODO: occurs should probably be on it's own context *)
-
-(* TODO: diff is a bad name *)
-
-let rec tt_occurs ~aliases hole ~in_ =
+(* TODO: occurs should probably be on machinery *)
+let rec tt_occurs ~aliases ~max_level hole ~in_ =
   let open Var_context in
   (* TODO: this is needed because of non injective functions
        the unification could succeed only if expand_head happened
 
      maybe should fail anyway ?
   *)
-  let tt_occurs ~in_ = tt_occurs ~aliases hole ~in_ in
-  let tpat_occurs ~in_ = tpat_occurs ~aliases hole ~in_ in
+  let tt_occurs ~in_ = tt_occurs ~aliases hole ~max_level ~in_ in
+  let tpat_occurs ~in_ = tpat_occurs ~aliases hole ~max_level ~in_ in
   match tt_match @@ tt_expand_head ~aliases in_ with
   (* TODO: frozen and subst *)
   | TT_unfold _ -> error_unfold_found in_
   | TT_annot _ -> error_annot_found in_ (* TODO: escape check *)
-  | TT_bound_var { index = _ } -> pure ()
-  | TT_free_var { level = _ } -> pure ()
+  | TT_bound_var { index = _ } ->
+      (* TODO: test escape check here *)
+      pure ()
+  | TT_free_var { level } -> (
+      (* TODO: test example where they're equal *)
+      match max_level < level with
+      | true -> error_var_escape ~var:level
+      | false -> pure ())
   (* TODO: use this substs? *)
-  | TT_hole { hole = in_; subst = _ } -> (
+  | TT_hole { hole = in_; level = _; subst = _ } -> (
       (* TODO: is it the same hole if substs are different? *)
       match hole == in_ with
       (* TODO: better error *)
       | true -> error_var_occurs ~hole ~in_
-      | false -> pure ())
+      | false ->
+          (* TODO: lower, add a test *)
+          pure ())
   | TT_forall { param; return } | TT_lambda { param; return } ->
       let* () = tpat_occurs ~in_:param in
       with_free_var @@ fun () -> tt_occurs ~in_:return
@@ -62,20 +64,20 @@ let rec tt_occurs ~aliases hole ~in_ =
   | TT_string { literal = _ } -> pure ()
   | TT_native { native = _ } -> pure ()
 
-and tpat_occurs hole ~in_ =
+and tpat_occurs hole ~aliases ~max_level ~in_ =
   (* TODO: occurs inside of TP_hole *)
   let (TPat { pat = _; type_ }) = in_ in
-  tt_occurs hole ~in_:type_
+  tt_occurs hole ~aliases ~max_level ~in_:type_
 
-let unify_term_hole ~aliases hole ~subst ~to_ =
+let unify_term_hole ~aliases hole ~max_level ~subst ~to_ =
   let open Var_context in
   match tt_match to_ with
-  (* TODO: what if subst is different *)
-  | TT_hole { hole = to_; subst = _ } when hole == to_ -> pure ()
+  (* TODO: what if subst or level is different *)
+  | TT_hole { hole = to_; level = _; subst = _ } when hole == to_ -> pure ()
   | _ ->
       let to_ = tt_apply_subst to_ @@ ts_inverse subst in
       (* TODO: prefer a direction when both are holes? *)
-      let* () = tt_occurs ~aliases hole ~in_:to_ in
+      let* () = tt_occurs ~aliases ~max_level hole ~in_:to_ in
       hole.link <- Some to_;
       pure ()
 
@@ -106,13 +108,13 @@ let rec tt_unify ~aliases ~expected ~received =
       match Level.equal expected received with
       | true -> pure ()
       | false -> error_free_var_clash ~expected ~received)
-  | TT_hole { hole; subst }, _ ->
+  | TT_hole { hole; level; subst }, _ ->
       (* TODO: tests if wrong context is used *)
       with_received_var_context @@ fun () ->
-      unify_term_hole hole ~subst ~to_:received
-  | _, TT_hole { hole; subst } ->
+      unify_term_hole hole ~max_level:level ~subst ~to_:received
+  | _, TT_hole { hole; level; subst } ->
       with_expected_var_context @@ fun () ->
-      unify_term_hole hole ~subst ~to_:expected
+      unify_term_hole hole ~max_level:level ~subst ~to_:expected
   (* TODO: track whenever it is unified and locations, visualizing inference *)
   | ( TT_forall { param = expected_param; return = expected_return },
       TT_forall { param = received_param; return = received_return } )

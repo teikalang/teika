@@ -76,6 +76,7 @@ module Typer_context : sig
   val level : unit -> Level.t typer_context
   val aliases : unit -> term Level.Map.t typer_context
   val enter_level : (unit -> 'a typer_context) -> 'a typer_context
+  val tt_hole : unit -> term typer_context
 
   (* vars *)
 

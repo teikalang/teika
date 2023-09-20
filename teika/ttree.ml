@@ -16,7 +16,7 @@ type sugar = Sugar
 type term =
   | TT_bound_var of { index : Index.t }
   | TT_free_var of { level : Level.t }
-  | TT_hole of { hole : term hole; subst : subst }
+  | TT_hole of { hole : term hole; level : Level.t; subst : subst }
   | TT_forall of { param : typed_pat; return : term }
   | TT_lambda of { param : typed_pat; return : term }
   | TT_apply of { lambda : term; arg : term }
@@ -66,10 +66,6 @@ let rec tp_repr pat =
 (* TODO: loc *)
 let tt_type = TT_free_var { level = type_level }
 let string_type = TT_free_var { level = string_level }
-
-let tt_hole () =
-  let hole = { link = None } in
-  TT_hole { hole; subst = TS_id }
 
 let tp_hole () =
   let hole = { link = None } in
