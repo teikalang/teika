@@ -263,32 +263,9 @@ module Lparser = struct
   let tests = ("lparser", List.map test tests)
 end
 
-module Ttree_utils = struct
-  open Teika
-  open Context
-
-  let infer_term term = Typer_context.run @@ fun () -> Typer.infer_term term
-
-  (* let dump code =
-       let stree = Slexer.from_string Sparser.term_opt code |> Option.get in
-       let ltree = Lparser.from_stree stree in
-       let ttree =
-         match infer_term ltree with
-         | Ok ttree -> ttree
-         | Error error ->
-             Format.eprintf "%a\n%!" Context.pp_error error;
-             failwith "infer"
-       in
-       let (TT_typed { term = _ttree; annot = ttree }) = ttree in
-       Format.eprintf "%a\n%!" Tprinter.pp_term ttree;
-       assert false
-
-     let () = dump {|(id = (A : Type) => (x : A) => x; id)|} *)
-end
-
 module Typer = struct
   open Teika
-  open Ttree_utils
+  open Context
 
   type test =
     | Check of { name : string; annotated_term : string }
@@ -404,10 +381,10 @@ module Typer = struct
   let rank_2_propagate_let =
     check "rank_2_propagate"
       {|
-            Unit = (A : Type) -> (x : A) -> A;
-            (noop : (u : Unit) -> Unit) = u => u Unit u;
-            noop
-          |}
+        Unit = (A : Type) -> (x : A) -> A;
+        (noop : (u : Unit) -> Unit) = u => u Unit u;
+        noop
+      |}
 
   let invalid_annotation = fail "invalid_annotation" {|(String : "A")|}
   let simplest_escape_check = fail "simplest_escape_check" "x => A => (x : A)"
@@ -419,7 +396,13 @@ module Typer = struct
         (never : (A : Type) -> A) => call never
       |}
 
-  let tests =
+  let hole_lowering_check =
+    fail "hole_lowering_check"
+      {|
+        x => (A : Type) => y => (id => (_ = (id x); _ = id y; (y : A))) (x => x)
+      |}
+
+  let _tests =
     [
       univ_type;
       string_type;
@@ -445,7 +428,10 @@ module Typer = struct
       invalid_annotation;
       simplest_escape_check;
       bound_var_escape_check;
+      hole_lowering_check;
     ]
+
+  let tests = [ id ]
 
   (* alcotest *)
   let test test =
@@ -455,10 +441,15 @@ module Typer = struct
       match actual with
       | Some stree -> (
           let ltree = Lparser.from_stree stree in
-          match infer_term ltree with
-          | Ok _ttree ->
-              Format.eprintf "%a\n%!" Tprinter.pp_term _ttree;
-              ()
+          let open Typer_context in
+          match
+            run @@ fun () ->
+            let* ttree = Typer.infer_term ltree in
+            let* pp_term = pp_term () in
+            Format.eprintf "%a\n%!" pp_term ttree;
+            pure ()
+          with
+          | Ok () -> ()
           | Error error ->
               failwith
               @@ Format.asprintf "error: %a\n%!" Tprinter.pp_error error)
@@ -470,8 +461,9 @@ module Typer = struct
       match actual with
       | Some stree -> (
           let ltree = Lparser.from_stree stree in
-          match infer_term ltree with
-          | Ok _ttree -> failwith "failed but should had worked "
+          let open Typer_context in
+          match run @@ fun () -> Typer.infer_term ltree with
+          | Ok _ttree -> failwith "worked but should had failed"
           (* TODO: check for specific error *)
           | Error _error -> ())
       | None -> failwith "failed to parse"

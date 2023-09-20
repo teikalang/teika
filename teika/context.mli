@@ -88,12 +88,15 @@ module Typer_context : sig
     (unit -> 'a typer_context) ->
     'a typer_context
 
-  (* TODO: this is a hack *)
   val lookup_var : name:Name.t -> (Level.t * term) typer_context
 
   (* locs *)
   val with_loc :
     loc:Location.t -> (unit -> 'a typer_context) -> 'a typer_context
+
+  (* tools *)
+  val pp_term : unit -> (Format.formatter -> term -> unit) typer_context
+  val pp_error : unit -> (Format.formatter -> error -> unit) typer_context
 
   (* context *)
   val with_var_context :
