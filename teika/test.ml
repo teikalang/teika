@@ -402,7 +402,7 @@ module Typer = struct
         x => (A : Type) => y => (id => (_ = (id x); _ = id y; (y : A))) (x => x)
       |}
 
-  let _tests =
+  let tests =
     [
       univ_type;
       string_type;
@@ -430,8 +430,6 @@ module Typer = struct
       bound_var_escape_check;
       hole_lowering_check;
     ]
-
-  let tests = [ id ]
 
   (* alcotest *)
   let test test =
