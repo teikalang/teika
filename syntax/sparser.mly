@@ -13,12 +13,12 @@ let mk (loc_start, loc_end) =
 %token COMMA (* , *)
 %token AMPERSAND (* & *)
 %token SEMICOLON (* ; *)
-%token <string> STRING (* ".." *)
+%token <string> STRING (* "abc" *)
 %token LEFT_PARENS (* ( *)
 %token RIGHT_PARENS (* ) *)
 %token LEFT_BRACE (* { *)
 %token RIGHT_BRACE (* } *)
-%token <string> EXTENSION (* @x *)
+%token <string> EXTENSION (* %x *)
 
 %token EOF
 
@@ -32,7 +32,19 @@ let term_opt :=
   | term = term; EOF;
     { Some term }
 
-let term := term_rec_semi
+let term := term_rec_pair
+
+let term_rec_pair :=
+  | term_rec_both
+  | term_pair(term_rec_pair, term_rec_both)
+
+let term_rec_both :=
+  | term_rec_annot
+  | term_both(term_rec_both, term_rec_annot)
+
+let term_rec_annot :=
+  | term_rec_semi
+  | term_annot(term_rec_annot, term_rec_funct)
 
 let term_rec_semi :=
   | term_rec_bind
@@ -55,22 +67,8 @@ let term_atom :=
   | term_var
   | term_extension
   | term_string
-  | term_parens(term_wrapped)
-  | term_braces(term_wrapped)
-
-let term_wrapped := term_rec_pair
-
-let term_rec_pair :=
-  | term_rec_both
-  | term_pair(term_rec_pair, term_rec_both)
-
-let term_rec_both :=
-  | term_rec_annot
-  | term_both(term_rec_both, term_rec_annot)
-
-let term_rec_annot :=
-  | term
-  | term_annot(term_rec_annot, term_rec_funct)
+  | term_parens(term)
+  | term_braces(term)
 
 let term_var ==
   | var = VAR;
