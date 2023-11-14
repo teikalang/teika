@@ -1,1 +1,1 @@
-val parse_term : loc:Warnings.loc -> Stree.term -> Ltree.term
+val parse_term : loc:Warnings.loc -> Ctree.term -> Ltree.term

@@ -1,5 +1,5 @@
 %{
-open Stree
+open Ctree
 
 let mk (loc_start, loc_end) =
   Location.{ loc_start; loc_end; loc_ghost = false }
@@ -25,7 +25,7 @@ let mk (loc_start, loc_end) =
 
 %token EOF
 
-%start <Stree.term option> term_opt
+%start <Ctree.term option> term_opt
 
 %%
 
@@ -81,49 +81,49 @@ let term_atom :=
 
 let term_var ==
   | var = VAR;
-    { st_var (mk $loc) ~var:(Name.make var) }
+    { ct_var (mk $loc) ~var:(Name.make var) }
 let term_extension ==
   | extension = EXTENSION;
-    { st_extension (mk $loc) ~extension:(Name.make extension) }
+    { ct_extension (mk $loc) ~extension:(Name.make extension) }
 let term_forall(self, lower) ==
   | param = lower; ARROW; return = self;
-    { st_forall (mk $loc) ~param ~return }
+    { ct_forall (mk $loc) ~param ~return }
 let term_lambda(self, lower) ==
   | param = lower; FAT_ARROW; return = self;
-    { st_lambda (mk $loc) ~param ~return }
+    { ct_lambda (mk $loc) ~param ~return }
 let term_apply(self, lower) ==
   | lambda = self; arg = lower;
-    { st_apply (mk $loc) ~lambda ~arg }
+    { ct_apply (mk $loc) ~lambda ~arg }
 let term_self(self, lower) ==
   | self = lower; SELF_ARROW; body = self;
-    { st_self (mk $loc) ~self ~body }
+    { ct_self (mk $loc) ~self ~body }
 let term_fix(self, lower) ==
   | self = lower; FIX_ARROW; body = self;
-    { st_fix (mk $loc) ~self ~body }
+    { ct_fix (mk $loc) ~self ~body }
 let term_unroll(self) ==
   | UNROLL; term = self;
-    { st_unroll (mk $loc) ~term }
+    { ct_unroll (mk $loc) ~term }
 let term_pair(self, lower) ==
   | left = lower; COMMA; right = self;
-    { st_pair (mk $loc) ~left ~right }
+    { ct_pair (mk $loc) ~left ~right }
 let term_both(self, lower) ==
   | left = lower; AMPERSAND; right = self;
-    { st_both (mk $loc) ~left ~right }
+    { ct_both (mk $loc) ~left ~right }
 let term_bind(self, lower) ==
   | bound = lower; EQUAL; value = lower;
-    { st_bind (mk $loc) ~bound ~value }
+    { ct_bind (mk $loc) ~bound ~value }
 let term_semi(self, lower) ==
   | left = lower; SEMICOLON; right = self;
-    { st_semi (mk $loc) ~left ~right }
+    { ct_semi (mk $loc) ~left ~right }
 let term_annot(self, lower) ==
   | value = lower; COLON; annot = self;
-    { st_annot (mk $loc) ~value ~annot }
+    { ct_annot (mk $loc) ~value ~annot }
 let term_string ==
   | literal = STRING;
-    { st_string (mk $loc) ~literal }
+    { ct_string (mk $loc) ~literal }
 let term_parens(content) ==
   | LEFT_PARENS; content = content; RIGHT_PARENS;
-    { st_parens (mk $loc) ~content }
+    { ct_parens (mk $loc) ~content }
 let term_braces(content) ==
   | LEFT_BRACE; content = content; RIGHT_BRACE;
-    { st_braces (mk $loc) ~content }
+    { ct_braces (mk $loc) ~content }
