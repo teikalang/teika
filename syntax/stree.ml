@@ -1,6 +1,6 @@
 type term =
   (* TODO: printer location *)
-  | ST_loc of { loc : Location.t; [@opaque] term : term }
+  | ST_loc of { term : term; loc : Location.t [@opaque] }
   | ST_var of { var : Name.t }
   | ST_extension of { extension : Name.t }
   | ST_forall of { param : term; return : term }

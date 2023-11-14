@@ -1,5 +1,5 @@
 type term =
-  | ST_loc of { loc : Location.t; term : term }
+  | ST_loc of { term : term; loc : Location.t }
   | ST_var of { var : Name.t }
   | ST_extension of { extension : Name.t }
   | ST_forall of { param : term; return : term }
