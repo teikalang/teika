@@ -10,10 +10,10 @@ type term =
   | LT_lambda of { param : pat; return : term }
   (* l a *)
   | LT_apply of { lambda : term; arg : term }
-  (* P @-> m *)
-  | LT_self of { bound : pat; body : term }
-  (* P @=> m *)
-  | LT_fix of { bound : pat; body : term }
+  (* x @-> m *)
+  | LT_self of { self : pat; body : term }
+  (* (@T : A) @=> m *)
+  | LT_fix of { self : pat; body : term }
   (* @m *)
   | LT_unroll of { term : term }
   (* p = v; r *)

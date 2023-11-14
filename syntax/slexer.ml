@@ -19,6 +19,9 @@ let rec tokenizer buf =
   | ":" -> COLON
   | "->" -> ARROW
   | "=>" -> FAT_ARROW
+  | "@->" -> SELF_ARROW
+  | "@=>" -> FIX_ARROW
+  | "@" -> UNROLL
   | "=" -> EQUAL
   | "," -> COMMA
   | "&" -> AMPERSAND
