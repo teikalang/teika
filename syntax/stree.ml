@@ -6,6 +6,9 @@ type term =
   | ST_forall of { param : term; return : term }
   | ST_lambda of { param : term; return : term }
   | ST_apply of { lambda : term; arg : term }
+  | ST_self of { self : term; body : term }
+  | ST_fix of { self : term; body : term }
+  | ST_unroll of { term : term }
   | ST_pair of { left : term; right : term }
   | ST_both of { left : term; right : term }
   | ST_bind of { bound : term; value : term }
@@ -22,6 +25,9 @@ let st_extension loc ~extension = st_loc loc (ST_extension { extension })
 let st_forall loc ~param ~return = st_loc loc (ST_forall { param; return })
 let st_lambda loc ~param ~return = st_loc loc (ST_lambda { param; return })
 let st_apply loc ~lambda ~arg = st_loc loc (ST_apply { lambda; arg })
+let st_self loc ~self ~body = st_loc loc (ST_self { self; body })
+let st_fix loc ~self ~body = st_loc loc (ST_fix { self; body })
+let st_unroll loc ~term = st_loc loc (ST_unroll { term })
 let st_pair loc ~left ~right = st_loc loc (ST_pair { left; right })
 let st_both loc ~left ~right = st_loc loc (ST_both { left; right })
 let st_bind loc ~bound ~value = st_loc loc (ST_bind { bound; value })

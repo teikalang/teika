@@ -22,6 +22,17 @@ let rec parse_term ~loc term =
       let return = parse_term ~loc return in
       LT_lambda { param; return }
   | ST_apply { lambda; arg } -> parse_apply ~loc ~lambda ~arg
+  | ST_self { self; body } ->
+      let self = parse_pat ~loc self in
+      let body = parse_term ~loc body in
+      LT_self { self; body }
+  | ST_fix { self; body } ->
+      let self = parse_pat ~loc self in
+      let body = parse_term ~loc body in
+      LT_fix { self; body }
+  | ST_unroll { term } ->
+      let term = parse_term ~loc term in
+      LT_unroll { term }
   | ST_pair { left = _; right = _ } ->
       (* TODO: better error *)
       invalid_notation loc
@@ -46,8 +57,8 @@ and parse_bind ~loc term =
       let value = parse_term ~loc value in
       LBind { loc; pat; value }
   | ST_var _ | ST_extension _ | ST_forall _ | ST_lambda _ | ST_apply _
-  | ST_pair _ | ST_both _ | ST_semi _ | ST_annot _ | ST_string _ | ST_parens _
-  | ST_braces _ ->
+  | ST_self _ | ST_fix _ | ST_unroll _ | ST_pair _ | ST_both _ | ST_semi _
+  | ST_annot _ | ST_string _ | ST_parens _ | ST_braces _ ->
       invalid_notation loc
 
 and parse_apply ~loc ~lambda ~arg =
@@ -65,19 +76,23 @@ and parse_apply ~loc ~lambda ~arg =
       let arg = parse_term ~loc arg in
       LT_apply { lambda; arg }
 
-and parse_pat ~loc term =
+and parse_pat ~loc pat =
   (* TODO: Stack of locs? *)
-  match term with
-  | ST_loc { term; loc } ->
-      let pat = parse_pat ~loc term in
+  match pat with
+  | ST_loc { term = pat; loc } ->
+      let pat = parse_pat ~loc pat in
       LP_loc { pat; loc }
   | ST_parens { content } -> parse_pat ~loc content
   | ST_var { var } -> LP_var { var }
+  | ST_unroll { term = pat } ->
+      let pat = parse_pat ~loc pat in
+      LP_unroll { pat }
   | ST_pair { left = _; right = _ } -> invalid_notation loc
   | ST_annot { value = pat; annot } ->
       let pat = parse_pat ~loc pat in
       let annot = parse_term ~loc annot in
       LP_annot { pat; annot }
-  | ST_extension _ | ST_forall _ | ST_lambda _ | ST_apply _ | ST_both _
-  | ST_bind _ | ST_semi _ | ST_string _ | ST_braces _ ->
+  | ST_extension _ | ST_forall _ | ST_lambda _ | ST_self _ | ST_fix _
+  | ST_apply _ | ST_both _ | ST_bind _ | ST_semi _ | ST_string _ | ST_braces _
+    ->
       invalid_notation loc

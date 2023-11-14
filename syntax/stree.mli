@@ -5,6 +5,9 @@ type term =
   | ST_forall of { param : term; return : term }
   | ST_lambda of { param : term; return : term }
   | ST_apply of { lambda : term; arg : term }
+  | ST_self of { self : term; body : term }
+  | ST_fix of { self : term; body : term }
+  | ST_unroll of { term : term }
   | ST_pair of { left : term; right : term }
   | ST_both of { left : term; right : term }
   | ST_bind of { bound : term; value : term }
@@ -20,6 +23,9 @@ val st_extension : Location.t -> extension:Name.t -> term
 val st_forall : Location.t -> param:term -> return:term -> term
 val st_lambda : Location.t -> param:term -> return:term -> term
 val st_apply : Location.t -> lambda:term -> arg:term -> term
+val st_self : Location.t -> self:term -> body:term -> term
+val st_fix : Location.t -> self:term -> body:term -> term
+val st_unroll : Location.t -> term:term -> term
 val st_pair : Location.t -> left:term -> right:term -> term
 val st_both : Location.t -> left:term -> right:term -> term
 val st_bind : Location.t -> bound:term -> value:term -> term

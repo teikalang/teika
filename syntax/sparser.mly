@@ -9,6 +9,9 @@ let mk (loc_start, loc_end) =
 %token COLON (* : *)
 %token ARROW (* -> *)
 %token FAT_ARROW (* => *)
+%token SELF_ARROW (* @-> *)
+%token FIX_ARROW (* @=> *)
+%token UNROLL (* @ *)
 %token EQUAL (* = *)
 %token COMMA (* , *)
 %token AMPERSAND (* & *)
@@ -58,10 +61,16 @@ let term_rec_funct :=
   | term_rec_apply
   | term_forall(term_rec_funct, term_rec_apply)
   | term_lambda(term_rec_funct, term_rec_apply)
+  | term_self(term_rec_funct, term_rec_apply)
+  | term_fix(term_rec_funct, term_rec_apply)
 
 let term_rec_apply :=
+  | term_rec_unroll
+  | term_apply(term_rec_apply, term_rec_unroll)
+
+let term_rec_unroll :=
   | term_atom
-  | term_apply(term_rec_apply, term_atom)
+  | term_unroll(term_rec_unroll)
 
 let term_atom :=
   | term_var
@@ -85,6 +94,15 @@ let term_lambda(self, lower) ==
 let term_apply(self, lower) ==
   | lambda = self; arg = lower;
     { st_apply (mk $loc) ~lambda ~arg }
+let term_self(self, lower) ==
+  | self = lower; SELF_ARROW; body = self;
+    { st_self (mk $loc) ~self ~body }
+let term_fix(self, lower) ==
+  | self = lower; FIX_ARROW; body = self;
+    { st_fix (mk $loc) ~self ~body }
+let term_unroll(self) ==
+  | UNROLL; term = self;
+    { st_unroll (mk $loc) ~term }
 let term_pair(self, lower) ==
   | left = lower; COMMA; right = self;
     { st_pair (mk $loc) ~left ~right }

@@ -5,8 +5,8 @@ type term =
   | LT_forall of { param : pat; return : term }
   | LT_lambda of { param : pat; return : term }
   | LT_apply of { lambda : term; arg : term }
-  | LT_self of { bound : pat; body : term }
-  | LT_fix of { bound : pat; body : term }
+  | LT_self of { self : pat; body : term }
+  | LT_fix of { self : pat; body : term }
   | LT_unroll of { term : term }
   | LT_let of { bound : bind; return : term }
   | LT_annot of { term : term; annot : term }
