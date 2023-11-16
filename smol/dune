@@ -1,19 +1,10 @@
 (library
  (name smol)
- (libraries menhirLib compiler-libs.common)
+ (libraries syntax)
  (modules
-  (:standard \ Test Repl))
+  (:standard \ Test))
  (preprocess
-  (pps ppx_deriving.show sedlex.ppx)))
-
-(menhir
- (modules sparser)
- (flags --dump --explain))
-
-(executable
- (name repl)
- (modules Repl)
- (libraries smol eio eio_main))
+  (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord sedlex.ppx)))
 
 (executable
  (name test)
