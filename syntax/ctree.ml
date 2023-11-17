@@ -3,6 +3,7 @@ type term =
   | CT_loc of { term : term; loc : Location.t [@opaque] }
   | CT_var of { var : Name.t }
   | CT_extension of { extension : Name.t }
+  | CT_grade of { term : term; grade : term }
   | CT_forall of { param : term; return : term }
   | CT_lambda of { param : term; return : term }
   | CT_apply of { lambda : term; arg : term }
@@ -15,6 +16,7 @@ type term =
   | CT_semi of { left : term; right : term }
   | CT_annot of { value : term; annot : term }
   | CT_string of { literal : string }
+  | CT_number of { literal : int }
   | CT_parens of { content : term }
   | CT_braces of { content : term }
 [@@deriving show { with_path = false }]
@@ -22,6 +24,7 @@ type term =
 let ct_loc loc term = CT_loc { loc; term }
 let ct_var loc ~var = ct_loc loc (CT_var { var })
 let ct_extension loc ~extension = ct_loc loc (CT_extension { extension })
+let ct_grade loc ~term ~grade = ct_loc loc (CT_grade { term; grade })
 let ct_forall loc ~param ~return = ct_loc loc (CT_forall { param; return })
 let ct_lambda loc ~param ~return = ct_loc loc (CT_lambda { param; return })
 let ct_apply loc ~lambda ~arg = ct_loc loc (CT_apply { lambda; arg })
@@ -34,5 +37,6 @@ let ct_bind loc ~bound ~value = ct_loc loc (CT_bind { bound; value })
 let ct_semi loc ~left ~right = ct_loc loc (CT_semi { left; right })
 let ct_annot loc ~value ~annot = ct_loc loc (CT_annot { value; annot })
 let ct_string loc ~literal = ct_loc loc (CT_string { literal })
+let ct_number loc ~literal = ct_loc loc (CT_number { literal })
 let ct_parens loc ~content = ct_loc loc (CT_parens { content })
 let ct_braces loc ~content = ct_loc loc (CT_braces { content })

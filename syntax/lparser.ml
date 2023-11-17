@@ -13,6 +13,7 @@ let rec parse_term ~loc term =
   | CT_parens { content } -> parse_term ~loc content
   | CT_var { var } -> LT_var { var }
   | CT_extension _ -> invalid_notation loc
+  | CT_grade _ -> invalid_notation loc
   | CT_forall { param; return } ->
       let param = parse_pat ~loc param in
       let return = parse_term ~loc return in
@@ -47,6 +48,7 @@ let rec parse_term ~loc term =
       let annot = parse_term ~loc annot in
       LT_annot { term; annot }
   | CT_string { literal } -> LT_string { literal }
+  | CT_number _ -> invalid_notation loc
   | CT_braces _ -> invalid_notation loc
 
 and parse_bind ~loc term =
@@ -56,9 +58,10 @@ and parse_bind ~loc term =
       let pat = parse_pat ~loc pat in
       let value = parse_term ~loc value in
       LBind { loc; pat; value }
-  | CT_var _ | CT_extension _ | CT_forall _ | CT_lambda _ | CT_apply _
-  | CT_self _ | CT_fix _ | CT_unroll _ | CT_pair _ | CT_both _ | CT_semi _
-  | CT_annot _ | CT_string _ | CT_parens _ | CT_braces _ ->
+  | CT_var _ | CT_extension _ | CT_grade _ | CT_forall _ | CT_lambda _
+  | CT_apply _ | CT_self _ | CT_fix _ | CT_unroll _ | CT_pair _ | CT_both _
+  | CT_semi _ | CT_annot _ | CT_string _ | CT_number _ | CT_parens _
+  | CT_braces _ ->
       invalid_notation loc
 
 and parse_apply ~loc ~lambda ~arg =
@@ -85,6 +88,10 @@ and parse_pat ~loc pat =
       LP_loc { pat; loc }
   | CT_parens { content } -> parse_pat ~loc content
   | CT_var { var } -> LP_var { var }
+  | CT_grade { term = pat; grade } ->
+      let pat = parse_pat ~loc pat in
+      let erasable = parse_grade ~loc grade in
+      LP_grade { pat; erasable }
   | CT_unroll { term = pat } ->
       let pat = parse_pat ~loc pat in
       LP_unroll { pat }
@@ -94,6 +101,22 @@ and parse_pat ~loc pat =
       let annot = parse_term ~loc annot in
       LP_annot { pat; annot }
   | CT_extension _ | CT_forall _ | CT_lambda _ | CT_self _ | CT_fix _
-  | CT_apply _ | CT_both _ | CT_bind _ | CT_semi _ | CT_string _ | CT_braces _
-    ->
+  | CT_apply _ | CT_both _ | CT_bind _ | CT_semi _ | CT_string _ | CT_number _
+  | CT_braces _ ->
+      invalid_notation loc
+
+and parse_grade ~loc grade =
+  match grade with
+  | CT_loc { term = grade; loc } ->
+      (* TODO: store grade loc *)
+      parse_grade ~loc grade
+  | CT_parens { content } -> parse_grade ~loc content
+  | CT_number { literal } -> (
+      match literal with
+      | 0 -> true
+      | 1 -> false
+      | _ -> invalid_notation loc (* TODO: annot *))
+  | CT_var _ | CT_grade _ | CT_unroll _ | CT_extension _ | CT_forall _
+  | CT_lambda _ | CT_self _ | CT_fix _ | CT_apply _ | CT_pair _ | CT_both _
+  | CT_bind _ | CT_semi _ | CT_string _ | CT_annot _ | CT_braces _ ->
       invalid_notation loc
