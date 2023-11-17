@@ -5,4 +5,3 @@ let make t = t
 let repr t = t
 
 module Map = Map.Make (String)
-module Tbl = Hashtbl.Make (String)

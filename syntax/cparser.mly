@@ -7,6 +7,7 @@ let mk (loc_start, loc_end) =
 %}
 %token <string> VAR (* x *)
 %token COLON (* : *)
+%token GRADE (* $ *)
 %token ARROW (* -> *)
 %token FAT_ARROW (* => *)
 %token SELF_ARROW (* @-> *)
@@ -17,6 +18,7 @@ let mk (loc_start, loc_end) =
 %token AMPERSAND (* & *)
 %token SEMICOLON (* ; *)
 %token <string> STRING (* "abc" *)
+%token <int> NUMBER (* 123 *)
 %token LEFT_PARENS (* ( *)
 %token RIGHT_PARENS (* ) *)
 %token LEFT_BRACE (* { *)
@@ -46,8 +48,12 @@ let term_rec_both :=
   | term_both(term_rec_both, term_rec_annot)
 
 let term_rec_annot :=
-  | term_rec_semi
+  | term_rec_grade
   | term_annot(term_rec_annot, term_rec_funct)
+
+let term_rec_grade :=
+  | term_rec_semi
+  | term_grade(term_rec_annot, term_rec_funct)
 
 let term_rec_semi :=
   | term_rec_bind
@@ -76,6 +82,7 @@ let term_atom :=
   | term_var
   | term_extension
   | term_string
+  | term_number
   | term_parens(term)
   | term_braces(term)
 
@@ -85,6 +92,9 @@ let term_var ==
 let term_extension ==
   | extension = EXTENSION;
     { ct_extension (mk $loc) ~extension:(Name.make extension) }
+let term_grade(self, lower) ==
+  | term = lower; GRADE; grade = self;
+    { ct_grade (mk $loc) ~term ~grade }
 let term_forall(self, lower) ==
   | param = lower; ARROW; return = self;
     { ct_forall (mk $loc) ~param ~return }
@@ -121,6 +131,9 @@ let term_annot(self, lower) ==
 let term_string ==
   | literal = STRING;
     { ct_string (mk $loc) ~literal }
+let term_number ==
+  | literal = NUMBER;
+    { ct_number (mk $loc) ~literal }
 let term_parens(content) ==
   | LEFT_PARENS; content = content; RIGHT_PARENS;
     { ct_parens (mk $loc) ~content }

@@ -6,4 +6,3 @@ val repr : name -> string
 
 (* TODO: stop exposing this? *)
 module Map : Map.S with type key = name
-module Tbl : Hashtbl.S with type key = name

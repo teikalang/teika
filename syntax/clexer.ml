@@ -17,6 +17,7 @@ let rec tokenizer buf =
   | variable -> VAR (lexeme buf)
   | extension -> EXTENSION (lexeme buf)
   | ":" -> COLON
+  | "$" -> GRADE
   | "->" -> ARROW
   | "=>" -> FAT_ARROW
   | "@->" -> SELF_ARROW
