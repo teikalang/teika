@@ -20,6 +20,7 @@ and pat =
   | SP_loc of { pat : pat; loc : Location.t [@opaque] }
   (* TODO: extract Syntax.Name *)
   | SP_var of { var : Syntax.Name.t }
+  | SP_erasable of { pat : pat }
   (* TODO: SP_unroll *)
   | SP_annot of { pat : pat; annot : term }
 [@@deriving show]

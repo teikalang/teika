@@ -77,6 +77,9 @@ module Machinery = struct
         let pat = open_pat ~from ~to_ pat in
         SP_loc { pat; loc }
     | SP_var { var } -> SP_var { var }
+    | SP_erasable { pat } ->
+        let pat = open_pat ~from ~to_ pat in
+        SP_erasable { pat }
     | SP_annot { pat; annot } ->
         let pat = open_pat ~from ~to_ pat in
         let annot = open_term ~from ~to_ annot in
@@ -157,6 +160,9 @@ module Machinery = struct
         let pat = close_pat ~from ~to_ pat in
         SP_loc { pat; loc }
     | SP_var { var } -> SP_var { var }
+    | SP_erasable { pat } ->
+        let pat = close_pat ~from ~to_ pat in
+        SP_erasable { pat }
     | SP_annot { pat; annot } ->
         let pat = close_pat ~from ~to_ pat in
         let annot = close_term ~from ~to_ annot in
@@ -270,13 +276,34 @@ module Machinery = struct
     let () = equal_pat ~received:received_pat ~expected:expected_pat in
     equal_term ~received:received_type ~expected:expected_type
 
-  and equal_pat ~received:_ ~expected:_ =
-    (* TODO : check pat? *)
-    ()
+  and equal_pat ~received ~expected =
+    (* TODO: normalize pattern *)
+    (* TODO: check pat? *)
+    match (received, expected) with
+    (* TODO: locs *)
+    | SP_loc { pat = received; loc = _ }, expected
+    | received, SP_loc { pat = expected; loc = _ } ->
+        equal_pat ~received ~expected
+    | SP_var { var = _ }, SP_var { var = _ } -> ()
+    | SP_erasable { pat = received }, SP_erasable { pat = expected } ->
+        equal_pat ~received ~expected
+    | SP_annot { pat = received; annot = _ }, expected
+    | received, SP_annot { pat = expected; annot = _ } ->
+        equal_pat ~received ~expected
+    | (SP_var _ | SP_erasable _), (SP_var _ | SP_erasable _) ->
+        failwith "pattern clash"
 
   let typeof_pat pat =
-    let (SP_typed { pat = _; type_ }) = pat in
-    type_
+    let (SP_typed { pat; type_ }) = pat in
+    let rec is_erasable pat =
+      match pat with
+      (* TODO: weird *)
+      | SP_loc { pat; loc = _ } -> is_erasable pat
+      | SP_var { var = _ } -> false
+      | SP_erasable { pat = _ } -> true
+      | SP_annot { pat; annot = _ } -> is_erasable pat
+    in
+    (type_, `Erasability (is_erasable pat))
 end
 
 module Assume = struct
@@ -285,6 +312,7 @@ module Assume = struct
   open Ltree
   open Stree
 
+  (* TODO: linearity on assume? *)
   module Context : sig
     type 'a context
     type 'a t = 'a context
@@ -404,6 +432,9 @@ module Assume = struct
         wrap ~enter ~type_ @@ SP_loc { pat; loc }
     | LP_var _ -> failwith "missing annotation"
     | LP_unroll _ -> failwith "unroll patterns are not supported"
+    | LP_erasable _ ->
+        let* SP_typed { pat; type_ }, enter = assume_ty_pat pat in
+        wrap ~enter ~type_ @@ SP_erasable { pat }
     | LP_annot { pat; annot } ->
         let* annot = assume_term annot in
         let* pat, enter = assume_pat pat in
@@ -425,6 +456,9 @@ module Assume = struct
           close_term term
         in
         pure @@ (SP_var { var }, enter)
+    | LP_erasable { pat } ->
+        let* pat, enter = assume_pat pat in
+        pure @@ (SP_erasable { pat }, enter)
     | LP_unroll _ -> failwith "unroll patterns are not supported"
     | LP_annot { pat; annot } ->
         let* annot = assume_term annot in
@@ -453,8 +487,13 @@ module Context : sig
   (* locs *)
   val with_loc : Location.t -> (unit -> 'a context) -> 'a context
 
+  (* mode *)
+  val enter_erasable_zone : (unit -> 'a context) -> 'a context
+
   (* vars *)
-  val enter : Name.t -> type_:term -> (unit -> 'a context) -> 'a context
+  val enter :
+    Name.t -> erasable:bool -> type_:term -> (unit -> 'a context) -> 'a context
+
   val lookup : Name.t -> ([ `Type of term ] * Level.t) context
 
   (* machinery *)
@@ -466,14 +505,17 @@ module Context : sig
 end = struct
   open Machinery
 
+  type status = Var_pending | Var_used
+
   (* TODO: names map vs names list / stack *)
   (* TODO: vars map vs vars list / stack *)
   type 'a context =
     level:Level.t ->
     loc:Location.t ->
     names:Level.t Name.Map.t ->
-    vars:term Level.Map.t ->
-    'a
+    types:term Level.Map.t ->
+    grades:status Level.Map.t ->
+    status Level.Map.t * 'a
 
   type 'a t = 'a context
 
@@ -483,61 +525,110 @@ end = struct
     let loc = Location.none in
     (* TODO: move this to Name? *)
     let names = Name.Map.(add (Name.make "Type") Level.zero empty) in
-    let vars = Level.Map.(add Level.zero st_type empty) in
-    k () ~level ~loc ~names ~vars
+    let types = Level.Map.(add Level.zero st_type empty) in
+    let grades = Level.Map.(add Level.zero Var_used empty) in
+    let _grades, x = k () ~level ~loc ~names ~types ~grades in
+    (* TODO: check grades here *)
+    x
 
-  let pure x ~level:_ ~loc:_ ~names:_ ~vars:_ = x
+  let pure x ~level:_ ~loc:_ ~names:_ ~types:_ ~grades = (grades, x)
 
-  let ( let* ) ctx f ~level ~loc ~names ~vars =
-    f (ctx ~level ~loc ~names ~vars) ~level ~loc ~names ~vars
+  let ( let* ) ctx f ~level ~loc ~names ~types ~grades =
+    let grades, x = ctx ~level ~loc ~names ~types ~grades in
+    f x ~level ~loc ~names ~types ~grades
 
-  let with_loc loc f ~level ~loc:_ ~names ~vars = f () ~level ~loc ~names ~vars
+  let with_loc loc f ~level ~loc:_ ~names ~types ~grades =
+    f () ~level ~loc ~names ~types ~grades
 
-  let enter name ~type_ f ~level ~loc ~names ~vars =
+  let enter_erasable_zone f ~level ~loc ~names ~types ~grades =
+    let _grades, x = f () ~level ~loc ~names ~types ~grades:Level.Map.empty in
+    (* TODO: check grades to be empty here *)
+    (grades, x)
+
+  let enter_linear name ~type_ f ~level ~loc ~names ~types ~grades =
     let level = Level.next level in
     let names = Name.Map.add name level names in
-    let vars = Level.Map.add level type_ vars in
-    f () ~level ~loc ~names ~vars
+    let types = Level.Map.add level type_ types in
+    let grades = Level.Map.add level Var_pending grades in
+    let grades, x = f () ~level ~loc ~names ~types ~grades in
+    match Level.Map.find_opt level grades with
+    | Some Var_pending -> failwith "variable not used"
+    | Some Var_used -> (Level.Map.remove level grades, x)
+    | None -> failwith "invariant violated"
 
-  let lookup name ~level:_ ~loc:_ ~names ~vars =
+  let enter_erasable name ~type_ f ~level ~loc ~names ~types ~grades =
+    let level = Level.next level in
+    let names = Name.Map.add name level names in
+    let types = Level.Map.add level type_ types in
+    (* TODO: explain why it enters variable as used *)
+    (* TODO: Var_erasable? *)
+    let grades = Level.Map.add level Var_used grades in
+    let grades, x = f () ~level ~loc ~names ~types ~grades in
+    (Level.Map.remove level grades, x)
+
+  let enter name ~erasable ~type_ f ~level ~loc ~names ~types ~grades =
+    match erasable with
+    | true -> enter_erasable name ~type_ f ~level ~loc ~names ~types ~grades
+    | false -> enter_linear name ~type_ f ~level ~loc ~names ~types ~grades
+
+  let lookup name ~level:_ ~loc:_ ~names ~types ~grades =
     match Name.Map.find_opt name names with
     | Some level -> (
-        match Level.Map.find_opt level vars with
-        | Some type_ -> (`Type type_, level)
+        match Level.Map.find_opt level types with
+        | Some type_ -> (
+            match Level.Map.find_opt level grades with
+            | Some Var_pending ->
+                let grades = Level.Map.add level Var_used grades in
+                (grades, (`Type type_, level))
+            | Some Var_used -> failwith "var already used"
+            | None ->
+                (* removed by erasable zone *)
+                (grades, (`Type type_, level)))
         | None -> failwith "vars invariant violation")
     | None -> failwith "unknown name"
 
-  let assume_self ~self ~body ~level ~loc ~names ~vars:_ =
-    let open Assume in
-    Context.run ~level ~loc ~names @@ fun () -> assume_self ~self ~body
+  let assume_self ~self ~body ~level ~loc ~names ~types:_ ~grades =
+    let x =
+      let open Assume in
+      Context.run ~level ~loc ~names @@ fun () -> assume_self ~self ~body
+    in
+    (grades, x)
 
-  let assume_fix ~self ~body ~level ~loc ~names ~vars:_ =
-    let open Assume in
-    Context.run ~level ~loc ~names @@ fun () -> assume_fix ~self ~body
+  let assume_fix ~self ~body ~level ~loc ~names ~types:_ ~grades =
+    let x =
+      let open Assume in
+      Context.run ~level ~loc ~names @@ fun () -> assume_fix ~self ~body
+    in
+    (grades, x)
 
-  let subst_term ~to_ term ~level:_ ~loc:_ ~names:_ ~vars:_ =
-    open_term ~to_ term
+  let subst_term ~to_ term ~level:_ ~loc:_ ~names:_ ~types:_ ~grades =
+    (grades, open_term ~to_ term)
 
-  let open_term term ~level ~loc:_ ~names:_ ~vars:_ =
-    open_term ~to_:(ST_free_var { level }) term
+  let open_term term ~level ~loc:_ ~names:_ ~types:_ ~grades =
+    (grades, open_term ~to_:(ST_free_var { level }) term)
 
-  let close_term term ~level ~loc:_ ~names:_ ~vars:_ =
-    close_term ~from:level ~to_:Index.zero term
+  let close_term term ~level ~loc:_ ~names:_ ~types:_ ~grades =
+    (grades, close_term ~from:level ~to_:Index.zero term)
 end
 
 open Context
 
 (* TODO: think better about enter pat *)
-let rec enter_pat pat ~type_ k =
+let rec enter_pat ~erasable pat ~type_ k =
   match pat with
   (* TODO: weird *)
-  | SP_loc { pat; loc = _ } -> enter_pat pat ~type_ k
-  | SP_var { var } -> enter var ~type_ k
-  | SP_annot { pat; annot = _ } -> enter_pat pat ~type_ k
+  | SP_loc { pat; loc = _ } -> enter_pat pat ~erasable ~type_ k
+  | SP_var { var } -> enter ~erasable var ~type_ k
+  | SP_erasable { pat } -> enter_pat ~erasable:true pat ~type_ k
+  | SP_annot { pat; annot = _ } -> enter_pat pat ~erasable ~type_ k
 
-let enter_ty_pat pat k =
+let enter_ty_pat ~erasable pat k =
   let (SP_typed { pat; type_ }) = pat in
-  enter_pat pat ~type_ k
+  enter_pat pat ~erasable ~type_ k
+
+(* TODO: this is clearly bad *)
+let enter_erasable_zone_conditional ~erasable k =
+  match erasable with true -> enter_erasable_zone k | false -> k ()
 
 let rec infer_term term =
   let wrap ~type_ term = pure @@ ST_typed { term; type_ } in
@@ -553,12 +644,15 @@ let rec infer_term term =
   | LT_extension _ -> failwith "extension not supported"
   | LT_forall { param; return } ->
       let* param = infer_ty_pat param in
-      let* return = check_term_with_ty_pat param return ~expected:st_type in
+      let* return =
+        enter_erasable_zone @@ fun () ->
+        check_term_with_ty_pat ~erasable:true param return ~expected:st_type
+      in
       wrap ~type_:st_type @@ ST_forall { param; return }
   | LT_lambda { param; return } ->
       let* param = infer_ty_pat param in
       let* (ST_typed { term = return; type_ = return_type }) =
-        infer_term_with_ty_pat param return
+        infer_term_with_ty_pat ~erasable:false param return
       in
       let type_ = ST_forall { param; return = return_type } in
       wrap ~type_ @@ ST_lambda { param; return }
@@ -568,7 +662,8 @@ let rec infer_term term =
       match expand_head_term forall with
       | ST_forall { param; return } ->
           let* arg =
-            let expected = typeof_pat param in
+            let expected, `Erasability erasable = typeof_pat param in
+            enter_erasable_zone_conditional ~erasable @@ fun () ->
             check_term arg ~expected
           in
           let* type_ = subst_term ~to_:arg return in
@@ -579,7 +674,9 @@ let rec infer_term term =
       let* assumed_self = assume_self ~self ~body in
       let* self = check_pat self ~expected:assumed_self in
       let* body =
-        check_term_with_pat self ~type_:assumed_self body ~expected:st_type
+        enter_erasable_zone @@ fun () ->
+        check_term_with_pat ~erasable:true self ~type_:assumed_self body
+          ~expected:st_type
       in
       let self = ST_self { self; body } in
       (* this equality is about peace of mind *)
@@ -587,8 +684,11 @@ let rec infer_term term =
       wrap ~type_:st_type @@ self
   | LT_fix { self; body } ->
       let* self = infer_ty_pat self in
-      let type_ = typeof_pat self in
-      let* body = check_term_with_ty_pat self body ~expected:type_ in
+      let type_, `Erasability erasable = typeof_pat self in
+      let* body =
+        enter_erasable_zone_conditional ~erasable @@ fun () ->
+        check_term_with_ty_pat ~erasable:false self body ~expected:type_
+      in
       wrap ~type_ @@ ST_fix { self; body }
   | LT_unroll { term } -> (
       (* TODO: rename to fix *)
@@ -607,17 +707,20 @@ let rec infer_term term =
       (* TODO: remove need for typing of let *)
       let* bound = infer_ty_pat bound in
       let* value =
-        let value_type = typeof_pat bound in
+        let value_type, `Erasability erasable = typeof_pat bound in
+        enter_erasable_zone_conditional ~erasable @@ fun () ->
         check_term value ~expected:value_type
       in
       let* (ST_typed { term = return; type_ = return_type }) =
-        infer_term_with_ty_pat bound return
+        infer_term_with_ty_pat ~erasable:false bound return
       in
       (* TODO: could use let at type level *)
       let* type_ = subst_term ~to_:value return_type in
       wrap ~type_ @@ ST_let { bound; value; return }
   | LT_annot { term; annot } ->
-      let* annot = check_term annot ~expected:st_type in
+      let* annot =
+        enter_erasable_zone @@ fun () -> check_term annot ~expected:st_type
+      in
       let* term = check_term term ~expected:annot in
       wrap ~type_:annot @@ ST_annot { term; annot }
   | LT_string _ -> failwith "string not supported"
@@ -632,17 +735,28 @@ and check_term term ~expected =
   | ( LT_lambda { param; return },
       ST_forall { param = expected_param; return = expected_return } ) ->
       let* param =
-        let expected_param_type = typeof_pat expected_param in
+        (* TODO: use this erasable? *)
+        let expected_param_type, `Erasability _erasable =
+          typeof_pat expected_param
+        in
         check_ty_pat param ~expected:expected_param_type
       in
+      let () = equal_ty_pat ~received:param ~expected:expected_param in
       let* return =
-        check_term_with_ty_pat param return ~expected:expected_return
+        check_term_with_ty_pat ~erasable:false param return
+          ~expected:expected_return
       in
       pure @@ ST_lambda { param; return }
   | ( LT_fix { self; body },
-      (ST_self { self = _expected_self; body = expected_body } as expected) ) ->
+      (ST_self { self = expected_self; body = expected_body } as expected) ) ->
       let* self = check_ty_pat self ~expected in
-      let* body = check_term_with_ty_pat self body ~expected:expected_body in
+      let () =
+        let (SP_typed { pat = self; type_ = _ }) = self in
+        equal_pat ~received:self ~expected:expected_self
+      in
+      let* body =
+        check_term_with_ty_pat ~erasable:false self body ~expected:expected_body
+      in
       pure @@ ST_fix { self; body }
   | term, expected ->
       let* (ST_typed { term; type_ = received }) = infer_term term in
@@ -657,9 +771,14 @@ and infer_ty_pat pat =
       let* (SP_typed { pat; type_ }) = infer_ty_pat pat in
       wrap ~type_ @@ SP_loc { pat; loc }
   | LP_var _ -> failwith "missing annotation"
+  | LP_erasable { pat } ->
+      let* (SP_typed { pat; type_ }) = infer_ty_pat pat in
+      wrap ~type_ @@ SP_erasable { pat }
   | LP_unroll _ -> failwith "unroll patterns are not supported"
   | LP_annot { pat; annot } ->
-      let* annot = check_term annot ~expected:st_type in
+      let* annot =
+        enter_erasable_zone @@ fun () -> check_term annot ~expected:st_type
+      in
       check_ty_pat pat ~expected:annot
 
 and check_ty_pat pat ~expected =
@@ -673,29 +792,34 @@ and check_pat pat ~expected =
       let* pat = check_pat pat ~expected in
       pure @@ SP_loc { pat; loc }
   | LP_var { var } -> pure @@ SP_var { var }
+  | LP_erasable { pat } ->
+      let* pat = check_pat pat ~expected in
+      pure @@ SP_erasable { pat }
   | LP_unroll _ -> failwith "unroll patterns are not supported"
   | LP_annot { pat; annot } ->
-      let* annot = check_term annot ~expected:st_type in
+      let* annot =
+        enter_erasable_zone @@ fun () -> check_term annot ~expected:st_type
+      in
       let* pat = check_pat pat ~expected:annot in
       let () = equal_term ~received:annot ~expected in
       pure @@ SP_annot { pat; annot }
 
-and infer_term_with_ty_pat pat term =
-  enter_ty_pat pat @@ fun () ->
+and infer_term_with_ty_pat ~erasable pat term =
+  enter_ty_pat ~erasable pat @@ fun () ->
   let* (ST_typed { term; type_ }) = infer_term term in
   let* term = close_term term in
   let* type_ = close_term type_ in
   pure @@ ST_typed { term; type_ }
 
-and check_term_with_ty_pat pat term ~expected =
-  enter_ty_pat pat @@ fun () ->
+and check_term_with_ty_pat ~erasable pat term ~expected =
+  enter_ty_pat ~erasable pat @@ fun () ->
   (* TODO: open and close should probably not be here *)
   let* expected = open_term expected in
   let* term = check_term term ~expected in
   close_term term
 
-and check_term_with_pat pat ~type_ term ~expected =
-  enter_pat pat ~type_ @@ fun () ->
+and check_term_with_pat ~erasable pat ~type_ term ~expected =
+  enter_pat ~erasable pat ~type_ @@ fun () ->
   let* expected = open_term expected in
   let* term = check_term term ~expected in
   close_term term
