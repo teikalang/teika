@@ -15,7 +15,7 @@ type term =
 and pat =
   | LP_loc of { pat : pat; loc : Location.t [@opaque] }
   | LP_var of { var : Name.t }
-  | LP_grade of { pat : pat; erasable : bool }
+  | LP_erasable of { pat : pat }
   | LP_unroll of { pat : pat }
   | LP_annot of { pat : pat; annot : term }
 

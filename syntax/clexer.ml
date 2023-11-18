@@ -10,6 +10,7 @@ let digit = [%sedlex.regexp? '0' .. '9']
 let variable = [%sedlex.regexp? (alphabet | '_'), Star (alphabet | digit | '_')]
 let extension = [%sedlex.regexp? '%', variable]
 let string = [%sedlex.regexp? '"', Star (Sub (any, '"')), '"']
+let number = [%sedlex.regexp? Plus '0' .. '9']
 
 let rec tokenizer buf =
   match%sedlex buf with
@@ -33,6 +34,12 @@ let rec tokenizer buf =
       (* TODO: this is dangerous *)
       let literal = String.sub literal 1 (String.length literal - 2) in
       STRING literal
+  | number ->
+      (* TODO: this should probably be somewhere else *)
+      let literal = lexeme buf in
+      (* TODO: this is dangerous *)
+      let literal = int_of_string literal in
+      NUMBER literal
   | "(" -> LEFT_PARENS
   | ")" -> RIGHT_PARENS
   | "{" -> LEFT_BRACE
