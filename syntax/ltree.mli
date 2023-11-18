@@ -27,8 +27,8 @@ and pat =
   | LP_loc of { pat : pat; loc : Location.t }
   (* x *)
   | LP_var of { var : Name.t }
-  (* (p $ n) *)
-  | LP_grade of { pat : pat; erasable : bool }
+  (* (p $ 0) *)
+  | LP_erasable of { pat : pat }
   (* @p *)
   | LP_unroll of { pat : pat }
   (* (p : T) *)

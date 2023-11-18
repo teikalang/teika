@@ -18,5 +18,6 @@ and ty_pat = SP_typed of { pat : pat; type_ : term }
 and pat =
   | SP_loc of { pat : pat; loc : Location.t }
   | SP_var of { var : Syntax.Name.t }
+  | SP_erasable of { pat : pat }
   | SP_annot of { pat : pat; annot : term }
 [@@deriving show]

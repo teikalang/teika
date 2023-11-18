@@ -90,8 +90,8 @@ and parse_pat ~loc pat =
   | CT_var { var } -> LP_var { var }
   | CT_grade { term = pat; grade } ->
       let pat = parse_pat ~loc pat in
-      let erasable = parse_grade ~loc grade in
-      LP_grade { pat; erasable }
+      let () = parse_grade ~loc grade in
+      LP_erasable { pat }
   | CT_unroll { term = pat } ->
       let pat = parse_pat ~loc pat in
       LP_unroll { pat }
@@ -112,10 +112,7 @@ and parse_grade ~loc grade =
       parse_grade ~loc grade
   | CT_parens { content } -> parse_grade ~loc content
   | CT_number { literal } -> (
-      match literal with
-      | 0 -> true
-      | 1 -> false
-      | _ -> invalid_notation loc (* TODO: annot *))
+      match literal with 0 -> () | _ -> invalid_notation loc (* TODO: annot *))
   | CT_var _ | CT_grade _ | CT_unroll _ | CT_extension _ | CT_forall _
   | CT_lambda _ | CT_self _ | CT_fix _ | CT_apply _ | CT_pair _ | CT_both _
   | CT_bind _ | CT_semi _ | CT_string _ | CT_annot _ | CT_braces _ ->

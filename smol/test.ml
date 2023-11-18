@@ -5,13 +5,21 @@ type test = { name : string; term : string }
 
 let type_term name term = { name; term }
 
+(* TODO: used variable still usable on type level *)
 let id =
   type_term "id"
-    {|((A : Type) => (x : A) => x
-      :(A : Type) -> (x : A) -> A)|}
+    {|((A : Type $ 0) => (x : A) => x
+      :(A : Type $ 0) -> (x : A) -> A)|}
 
 let id_propagate =
-  type_term "id_propagate" {|(A => x => x : (A : Type) -> (x : A) -> A)|}
+  type_term "id_propagate"
+    {|((A $ 0) => x => x : (A : Type $ 0) -> (x : A) -> A)|}
+
+let apply_erasable =
+  type_term "apply_erasable"
+    {|
+      (A : Type $ 0) => ((A : Type $ 0) => (x : A) => x) A
+    |}
 
 let sequence =
   type_term "sequence"
@@ -219,7 +227,7 @@ let ind_Unit =
   in
   type_term "ind_Unit" code
 
-let tests =
+let _tests =
   [
     id;
     id_propagate;
@@ -232,6 +240,8 @@ let tests =
     ind_False;
     ind_Unit;
   ]
+
+let tests = [ id; id_propagate; apply_erasable ]
 
 let type_term term =
   let term = Clexer.from_string Cparser.term_opt term in

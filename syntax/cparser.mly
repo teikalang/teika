@@ -44,16 +44,16 @@ let term_rec_pair :=
   | term_pair(term_rec_pair, term_rec_both)
 
 let term_rec_both :=
-  | term_rec_annot
-  | term_both(term_rec_both, term_rec_annot)
-
-let term_rec_annot :=
   | term_rec_grade
-  | term_annot(term_rec_annot, term_rec_funct)
+  | term_both(term_rec_both, term_rec_grade)
 
 let term_rec_grade :=
+  | term_rec_annot
+  | term_grade(term_rec_grade, term_rec_annot)
+
+let term_rec_annot :=
   | term_rec_semi
-  | term_grade(term_rec_annot, term_rec_funct)
+  | term_annot(term_rec_annot, term_rec_funct)
 
 let term_rec_semi :=
   | term_rec_bind
