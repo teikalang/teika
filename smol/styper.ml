@@ -1,7 +1,91 @@
 (* TODO: remove all failwith *)
 
+module Error = struct
+  open Syntax
+
+  type error =
+    | E_loc of { error : error; loc : Location.t }
+    (* machinery *)
+    | E_free_var_clash
+    | E_bound_var_clash
+    | E_type_clash
+    | E_pattern_clash
+    (* context *)
+    | E_unknown_var of { var : Name.t }
+    | E_variable_used of { var : Name.t }
+    | E_variable_unused of { var : Name.t }
+    | E_grades_invariant_violated
+    | E_types_invariant_violated
+    (* typer *)
+    | E_unsupported_extensions
+    | E_string_not_supported
+    | E_missing_annotations
+    | E_unroll_pattern_not_supported
+    | E_expected_forall
+    | E_expected_self
+
+  exception Error of { error : error }
+
+  let rec pp_error fmt error =
+    let open Format in
+    match error with
+    | E_loc { error; loc = _ } -> pp_error fmt error
+    | E_free_var_clash -> fprintf fmt "free var clash"
+    | E_bound_var_clash -> fprintf fmt "bound var clash"
+    | E_type_clash -> fprintf fmt "type clash"
+    | E_pattern_clash -> fprintf fmt "pattern clash"
+    | E_unknown_var { var } -> fprintf fmt "unknown variable: %a" Name.pp var
+    (* TODO: show all other occurrences *)
+    | E_variable_used { var } ->
+        fprintf fmt "duplicated variable: %a" Name.pp var
+    (* TODO: show error on pattern *)
+    | E_variable_unused { var } ->
+        fprintf fmt "variable not used: %a" Name.pp var
+    | E_grades_invariant_violated ->
+        fprintf fmt "compiler bug, grades invariant"
+    | E_types_invariant_violated -> fprintf fmt "compiler bug, types invariant"
+    | E_unsupported_extensions -> fprintf fmt "extensions are not supported"
+    | E_string_not_supported -> fprintf fmt "strings are not supported"
+    | E_missing_annotations -> fprintf fmt "not enough annotations here"
+    | E_unroll_pattern_not_supported ->
+        fprintf fmt "unroll patterns are not supported"
+    | E_expected_forall -> fprintf fmt "expected a function"
+    | E_expected_self -> fprintf fmt "expected a fixpoint"
+
+  let pp_loc fmt loc =
+    let open Format in
+    (* TODO: loc ghost?*)
+    let Location.{ loc_start; loc_end; loc_ghost = _ } = loc in
+    fprintf fmt "[%d:%d .. %d:%d]" loc_start.pos_lnum
+      (loc_start.pos_cnum - loc_start.pos_bol)
+      loc_end.pos_lnum
+      (loc_end.pos_cnum - loc_end.pos_bol)
+
+  let rec pp_error_loc ~loc fmt error =
+    let open Format in
+    match error with
+    | E_loc { error; loc = new_loc } -> (
+        match Location.is_none new_loc with
+        | true -> pp_error_loc ~loc:new_loc fmt error
+        | false -> pp_error_loc ~loc:new_loc fmt error)
+    | error -> (
+        match Location.is_none loc with
+        | true -> fprintf fmt "type error : %a" pp_error error
+        | false -> fprintf fmt "type error at %a : %a" pp_loc loc pp_error error
+        )
+
+  let () =
+    Printexc.register_printer @@ function
+    | Error { error } ->
+        Some (Format.asprintf "%a" (pp_error_loc ~loc:Location.none) error)
+    | _ -> None
+
+  let error error = raise (Error { error })
+end
+
 module Machinery = struct
   open Stree
+  open Error
 
   let rec open_term ~from ~to_ term =
     let open_term ~from term = open_term ~from ~to_ term in
@@ -208,11 +292,11 @@ module Machinery = struct
     | ST_free_var { level = received }, ST_free_var { level = expected } -> (
         match Level.equal received expected with
         | true -> ()
-        | false -> failwith "free var clash")
+        | false -> error E_free_var_clash)
     | ST_bound_var { index = received }, ST_bound_var { index = expected } -> (
         match Index.equal received expected with
         | true -> ()
-        | false -> failwith "bound var clash")
+        | false -> error E_bound_var_clash)
     | ( ST_forall { param = received_param; return = received_return },
         ST_forall { param = expected_param; return = expected_return } ) ->
         let () =
@@ -268,7 +352,7 @@ module Machinery = struct
         | ST_apply _ | ST_self _ | ST_fix _ | ST_unroll _ | ST_let _ ),
         ( ST_free_var _ | ST_bound_var _ | ST_forall _ | ST_lambda _
         | ST_apply _ | ST_self _ | ST_fix _ | ST_unroll _ | ST_let _ ) ) ->
-        failwith "type clash"
+        error E_type_clash
 
   and equal_ty_pat ~received ~expected =
     let (SP_typed { pat = received_pat; type_ = received_type }) = received in
@@ -291,7 +375,7 @@ module Machinery = struct
     | received, SP_annot { pat = expected; annot = _ } ->
         equal_pat ~received ~expected
     | (SP_var _ | SP_erasable _), (SP_var _ | SP_erasable _) ->
-        failwith "pattern clash"
+        error E_pattern_clash
 
   let typeof_pat pat =
     let (SP_typed { pat; type_ }) = pat in
@@ -320,11 +404,7 @@ module Assume = struct
     (* monad *)
     (* TODO: this should not be exposed *)
     val run :
-      level:Level.t ->
-      loc:Location.t ->
-      names:Level.t Name.Map.t ->
-      (unit -> 'a context) ->
-      'a
+      level:Level.t -> names:Level.t Name.Map.t -> (unit -> 'a context) -> 'a
 
     val pure : 'a -> 'a context
     val ( let* ) : 'a context -> ('a -> 'b context) -> 'b context
@@ -340,36 +420,38 @@ module Assume = struct
     val close_term : term -> term context
   end = struct
     open Machinery
+    open Error
 
     (* TODO: names map vs names list / stack *)
-    type 'a context =
-      level:Level.t -> loc:Location.t -> names:Level.t Name.Map.t -> 'a
-
+    type 'a context = level:Level.t -> names:Level.t Name.Map.t -> 'a
     type 'a t = 'a context
 
-    let run ~level ~loc ~names f = f () ~level ~loc ~names
-    let pure x ~level:_ ~loc:_ ~names:_ = x
+    let run ~level ~names f = f () ~level ~names
+    let pure x ~level:_ ~names:_ = x
+    let ( let* ) ctx f ~level ~names = f (ctx ~level ~names) ~level ~names
 
-    let ( let* ) ctx f ~level ~loc ~names =
-      f (ctx ~level ~loc ~names) ~level ~loc ~names
+    let with_loc loc f ~level ~names =
+      try f () ~level ~names
+      with Error { error } ->
+        let error = E_loc { error; loc } in
+        raise (Error { error })
 
-    let with_loc loc f ~level ~loc:_ ~names = f () ~level ~loc ~names
-
-    let enter name f ~level ~loc ~names =
+    let enter name f ~level ~names =
       let level = Level.next level in
       let names = Name.Map.add name level names in
-      f () ~level ~loc ~names
+      f () ~level ~names
 
-    let lookup name ~level:_ ~loc:_ ~names =
+    let lookup name ~level:_ ~names =
       match Name.Map.find_opt name names with
       | Some level -> level
-      | None -> failwith "unknown name"
+      | None -> error (E_unknown_var { var = name })
 
-    let close_term term ~level ~loc:_ ~names:_ =
+    let close_term term ~level ~names:_ =
       close_term ~from:level ~to_:Index.zero term
   end
 
   open Context
+  open Error
 
   let rec assume_term term =
     match term with
@@ -379,7 +461,7 @@ module Assume = struct
     | LT_var { var } ->
         let* level = lookup var in
         pure @@ ST_free_var { level }
-    | LT_extension _ -> failwith "extension not supported"
+    | LT_extension _ -> error E_unsupported_extensions
     | LT_forall { param; return } ->
         let* param, enter = assume_ty_pat param in
         let* return = enter @@ fun () -> assume_term return in
@@ -410,7 +492,7 @@ module Assume = struct
         let* annot = assume_term annot in
         let* term = assume_term term in
         pure @@ ST_annot { term; annot }
-    | LT_string _ -> failwith "string not supported"
+    | LT_string _ -> error E_string_not_supported
 
   and assume_self ~self ~body =
     let* self, enter = assume_pat self in
@@ -430,8 +512,8 @@ module Assume = struct
           with_loc loc @@ fun () -> assume_ty_pat pat
         in
         wrap ~enter ~type_ @@ SP_loc { pat; loc }
-    | LP_var _ -> failwith "missing annotation"
-    | LP_unroll _ -> failwith "unroll patterns are not supported"
+    | LP_var _ -> error E_missing_annotations
+    | LP_unroll _ -> error E_unroll_pattern_not_supported
     | LP_erasable _ ->
         let* SP_typed { pat; type_ }, enter = assume_ty_pat pat in
         wrap ~enter ~type_ @@ SP_erasable { pat }
@@ -459,7 +541,7 @@ module Assume = struct
     | LP_erasable { pat } ->
         let* pat, enter = assume_pat pat in
         pure @@ (SP_erasable { pat }, enter)
-    | LP_unroll _ -> failwith "unroll patterns are not supported"
+    | LP_unroll _ -> error E_unroll_pattern_not_supported
     | LP_annot { pat; annot } ->
         let* annot = assume_term annot in
         let* pat, enter = assume_pat pat in
@@ -504,6 +586,7 @@ module Context : sig
   val close_term : term -> term context
 end = struct
   open Machinery
+  open Error
 
   type status = Var_pending | Var_used
 
@@ -511,7 +594,6 @@ end = struct
   (* TODO: vars map vs vars list / stack *)
   type 'a context =
     level:Level.t ->
-    loc:Location.t ->
     names:Level.t Name.Map.t ->
     types:term Level.Map.t ->
     grades:status Level.Map.t ->
@@ -521,57 +603,58 @@ end = struct
 
   let run k =
     let level = Level.(next zero) in
-    (* TODO: better than none here? *)
-    let loc = Location.none in
     (* TODO: move this to Name? *)
     let names = Name.Map.(add (Name.make "Type") Level.zero empty) in
     let types = Level.Map.(add Level.zero st_type empty) in
     let grades = Level.Map.(add Level.zero Var_used empty) in
-    let _grades, x = k () ~level ~loc ~names ~types ~grades in
+    let _grades, x = k () ~level ~names ~types ~grades in
     (* TODO: check grades here *)
     x
 
-  let pure x ~level:_ ~loc:_ ~names:_ ~types:_ ~grades = (grades, x)
+  let pure x ~level:_ ~names:_ ~types:_ ~grades = (grades, x)
 
-  let ( let* ) ctx f ~level ~loc ~names ~types ~grades =
-    let grades, x = ctx ~level ~loc ~names ~types ~grades in
-    f x ~level ~loc ~names ~types ~grades
+  let ( let* ) ctx f ~level ~names ~types ~grades =
+    let grades, x = ctx ~level ~names ~types ~grades in
+    f x ~level ~names ~types ~grades
 
-  let with_loc loc f ~level ~loc:_ ~names ~types ~grades =
-    f () ~level ~loc ~names ~types ~grades
+  let with_loc loc f ~level ~names ~types ~grades =
+    try f () ~level ~names ~types ~grades
+    with Error { error } ->
+      let error = E_loc { error; loc } in
+      raise (Error { error })
 
-  let enter_erasable_zone f ~level ~loc ~names ~types ~grades =
-    let _grades, x = f () ~level ~loc ~names ~types ~grades:Level.Map.empty in
+  let enter_erasable_zone f ~level ~names ~types ~grades =
+    let _grades, x = f () ~level ~names ~types ~grades:Level.Map.empty in
     (* TODO: check grades to be empty here *)
     (grades, x)
 
-  let enter_linear name ~type_ f ~level ~loc ~names ~types ~grades =
+  let enter_linear name ~type_ f ~level ~names ~types ~grades =
     let level = Level.next level in
     let names = Name.Map.add name level names in
     let types = Level.Map.add level type_ types in
     let grades = Level.Map.add level Var_pending grades in
-    let grades, x = f () ~level ~loc ~names ~types ~grades in
+    let grades, x = f () ~level ~names ~types ~grades in
     match Level.Map.find_opt level grades with
-    | Some Var_pending -> failwith "variable not used"
+    | Some Var_pending -> error (E_variable_unused { var = name })
     | Some Var_used -> (Level.Map.remove level grades, x)
-    | None -> failwith "invariant violated"
+    | None -> error E_grades_invariant_violated
 
-  let enter_erasable name ~type_ f ~level ~loc ~names ~types ~grades =
+  let enter_erasable name ~type_ f ~level ~names ~types ~grades =
     let level = Level.next level in
     let names = Name.Map.add name level names in
     let types = Level.Map.add level type_ types in
     (* TODO: explain why it enters variable as used *)
     (* TODO: Var_erasable? *)
     let grades = Level.Map.add level Var_used grades in
-    let grades, x = f () ~level ~loc ~names ~types ~grades in
+    let grades, x = f () ~level ~names ~types ~grades in
     (Level.Map.remove level grades, x)
 
-  let enter name ~erasable ~type_ f ~level ~loc ~names ~types ~grades =
+  let enter name ~erasable ~type_ f ~level ~names ~types ~grades =
     match erasable with
-    | true -> enter_erasable name ~type_ f ~level ~loc ~names ~types ~grades
-    | false -> enter_linear name ~type_ f ~level ~loc ~names ~types ~grades
+    | true -> enter_erasable name ~type_ f ~level ~names ~types ~grades
+    | false -> enter_linear name ~type_ f ~level ~names ~types ~grades
 
-  let lookup name ~level:_ ~loc:_ ~names ~types ~grades =
+  let lookup name ~level:_ ~names ~types ~grades =
     match Name.Map.find_opt name names with
     | Some level -> (
         match Level.Map.find_opt level types with
@@ -580,38 +663,39 @@ end = struct
             | Some Var_pending ->
                 let grades = Level.Map.add level Var_used grades in
                 (grades, (`Type type_, level))
-            | Some Var_used -> failwith "var already used"
+            | Some Var_used -> error (E_variable_used { var = name })
             | None ->
                 (* removed by erasable zone *)
                 (grades, (`Type type_, level)))
-        | None -> failwith "vars invariant violation")
-    | None -> failwith "unknown name"
+        | None -> error E_types_invariant_violated)
+    | None -> error (E_unknown_var { var = name })
 
-  let assume_self ~self ~body ~level ~loc ~names ~types:_ ~grades =
+  let assume_self ~self ~body ~level ~names ~types:_ ~grades =
     let x =
       let open Assume in
-      Context.run ~level ~loc ~names @@ fun () -> assume_self ~self ~body
+      Context.run ~level ~names @@ fun () -> assume_self ~self ~body
     in
     (grades, x)
 
-  let assume_fix ~self ~body ~level ~loc ~names ~types:_ ~grades =
+  let assume_fix ~self ~body ~level ~names ~types:_ ~grades =
     let x =
       let open Assume in
-      Context.run ~level ~loc ~names @@ fun () -> assume_fix ~self ~body
+      Context.run ~level ~names @@ fun () -> assume_fix ~self ~body
     in
     (grades, x)
 
-  let subst_term ~to_ term ~level:_ ~loc:_ ~names:_ ~types:_ ~grades =
+  let subst_term ~to_ term ~level:_ ~names:_ ~types:_ ~grades =
     (grades, open_term ~to_ term)
 
-  let open_term term ~level ~loc:_ ~names:_ ~types:_ ~grades =
+  let open_term term ~level ~names:_ ~types:_ ~grades =
     (grades, open_term ~to_:(ST_free_var { level }) term)
 
-  let close_term term ~level ~loc:_ ~names:_ ~types:_ ~grades =
+  let close_term term ~level ~names:_ ~types:_ ~grades =
     (grades, close_term ~from:level ~to_:Index.zero term)
 end
 
 open Context
+open Error
 
 (* TODO: think better about enter pat *)
 let rec enter_pat ~erasable pat ~type_ k =
@@ -641,7 +725,7 @@ let rec infer_term term =
   | LT_var { var } ->
       let* `Type type_, level = lookup var in
       wrap ~type_ @@ ST_free_var { level }
-  | LT_extension _ -> failwith "extension not supported"
+  | LT_extension _ -> error E_unsupported_extensions
   | LT_forall { param; return } ->
       let* param = infer_ty_pat param in
       let* return =
@@ -669,7 +753,7 @@ let rec infer_term term =
           let* type_ = subst_term ~to_:arg return in
           wrap ~type_ @@ ST_apply { lambda; arg }
       (* TODO: expand cases *)
-      | _ -> failwith "expected forall")
+      | _ -> error E_expected_forall)
   | LT_self { self; body } ->
       let* assumed_self = assume_self ~self ~body in
       let* self = check_pat self ~expected:assumed_self in
@@ -699,7 +783,7 @@ let rec infer_term term =
           let* type_ = subst_term ~to_:term body in
           wrap ~type_ @@ ST_unroll { term }
       (* TODO: expand cases *)
-      | _ -> failwith "expected self")
+      | _ -> error E_expected_self)
   | LT_let { bound; return } ->
       (* TODO: check bind? *)
       (* TODO: use this loc *)
@@ -723,7 +807,7 @@ let rec infer_term term =
       in
       let* term = check_term term ~expected:annot in
       wrap ~type_:annot @@ ST_annot { term; annot }
-  | LT_string _ -> failwith "string not supported"
+  | LT_string _ -> error E_string_not_supported
 
 and check_term term ~expected =
   (* TODO: check term equality for nested annot ((x : A) : B)? *)
@@ -741,7 +825,10 @@ and check_term term ~expected =
         in
         check_ty_pat param ~expected:expected_param_type
       in
-      let () = equal_ty_pat ~received:param ~expected:expected_param in
+      let () =
+        (* TODO : loc for error message *)
+        equal_ty_pat ~received:param ~expected:expected_param
+      in
       let* return =
         check_term_with_ty_pat ~erasable:false param return
           ~expected:expected_return
@@ -751,6 +838,7 @@ and check_term term ~expected =
       (ST_self { self = expected_self; body = expected_body } as expected) ) ->
       let* self = check_ty_pat self ~expected in
       let () =
+        (* TODO : loc for error message *)
         let (SP_typed { pat = self; type_ = _ }) = self in
         equal_pat ~received:self ~expected:expected_self
       in
@@ -770,11 +858,11 @@ and infer_ty_pat pat =
       with_loc loc @@ fun () ->
       let* (SP_typed { pat; type_ }) = infer_ty_pat pat in
       wrap ~type_ @@ SP_loc { pat; loc }
-  | LP_var _ -> failwith "missing annotation"
+  | LP_var _ -> error E_missing_annotations
   | LP_erasable { pat } ->
       let* (SP_typed { pat; type_ }) = infer_ty_pat pat in
       wrap ~type_ @@ SP_erasable { pat }
-  | LP_unroll _ -> failwith "unroll patterns are not supported"
+  | LP_unroll _ -> error E_unroll_pattern_not_supported
   | LP_annot { pat; annot } ->
       let* annot =
         enter_erasable_zone @@ fun () -> check_term annot ~expected:st_type
@@ -795,7 +883,7 @@ and check_pat pat ~expected =
   | LP_erasable { pat } ->
       let* pat = check_pat pat ~expected in
       pure @@ SP_erasable { pat }
-  | LP_unroll _ -> failwith "unroll patterns are not supported"
+  | LP_unroll _ -> error E_unroll_pattern_not_supported
   | LP_annot { pat; annot } ->
       let* annot =
         enter_erasable_zone @@ fun () -> check_term annot ~expected:st_type
