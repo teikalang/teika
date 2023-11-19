@@ -53,6 +53,17 @@ let provider buf () =
   (token, start, stop)
 
 let from_string parser string =
-  let buf = from_string string in
+  (* TODO: from string seems to not trigger new line, likely a bug in sedlex *)
+  let index = ref 0 in
+  let length = String.length string in
+  let buf =
+    from_gen (fun () ->
+        match !index < length with
+        | true ->
+            let char = String.get string !index in
+            incr index;
+            Some char
+        | false -> None)
+  in
   let provider = provider buf in
   MenhirLib.Convert.Simplified.traditional2revised parser provider
