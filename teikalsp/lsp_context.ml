@@ -3,6 +3,7 @@ open Lsp_error
 module Document_uri_map = Map.Make (DocumentUri)
 
 (* TODO: capabilities *)
+(* TODO: initialized *)
 type status = Handshake | Running
 
 type context = {

@@ -95,6 +95,7 @@ end = struct
 end
 
 module Lsp_io = Lsp.Io.Make (Io) (Chan)
+open Jsonrpc
 open Lsp_error
 
 (* TODO: is a mutex needed for write? *)
@@ -132,7 +133,11 @@ let notification_of_jsonrpc notification =
   | Error error -> fail (Error_invalid_notification { error })
 
 type on_request = {
-  f : 'response. channel -> 'response Lsp.Client_request.t -> 'response;
+  f :
+    'response.
+    channel ->
+    'response Lsp.Client_request.t ->
+    ('response, Response.Error.t) result;
 }
 
 let listen ~input ~output ~on_request ~on_notification =
@@ -140,13 +145,11 @@ let listen ~input ~output ~on_request ~on_notification =
     (* TODO: error handling *)
     let result =
       let (E request) = request_of_jsonrpc request in
-      Lsp.Client_request.yojson_of_result request
-      @@ on_request.f channel request
+      match on_request.f channel request with
+      | Ok result -> Ok (Lsp.Client_request.yojson_of_result request result)
+      | Error _error as error -> error
     in
-    let response =
-      let id = request.id in
-      Jsonrpc.Response.{ id; result = Ok result }
-    in
+    let response = Jsonrpc.Response.{ id = request.id; result } in
     respond channel response
   in
   let on_notification channel notification =

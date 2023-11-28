@@ -1,10 +1,16 @@
+open Jsonrpc
+
 type channel
 type t = channel
 
 val notify : channel -> Lsp.Server_notification.t -> unit
 
 type on_request = {
-  f : 'response. channel -> 'response Lsp.Client_request.t -> 'response;
+  f :
+    'response.
+    channel ->
+    'response Lsp.Client_request.t ->
+    ('response, Response.Error.t) result;
 }
 
 (* TODO: request*)

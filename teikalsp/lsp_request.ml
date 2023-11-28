@@ -28,10 +28,11 @@ module Server_life_cycle = struct
           } =
       params
     in
+    let () = Lsp_context.initialize context in
     (* TODO: better capabilities *)
     let capabilities =
       ServerCapabilities.create ~textDocumentSync:(`TextDocumentSyncKind Full)
-        ()
+        ~hoverProvider:(`Bool true) ()
     in
     (* TODO: server_info *)
     InitializeResult.create ~capabilities ()

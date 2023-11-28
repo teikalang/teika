@@ -2,6 +2,11 @@ open Lsp.Types
 open Lsp_context
 open Lsp_error
 
+module Server_life_cycle = struct
+  (* TODO: do something here?*)
+  let initialized _context = ()
+end
+
 module Text_document_sync = struct
   let did_open context ~params =
     let DidOpenTextDocumentParams.{ textDocument = text_document } = params in
