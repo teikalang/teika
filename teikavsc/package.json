@@ -1,0 +1,135 @@
+{
+  "name": "teikavsc",
+  "displayName": "Teika",
+  "description": "Teika language extension for VSCode",
+  "license": "MIT",
+  "version": "0.0.1",
+  "publisher": "teikalang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/teikalang/teika"
+  },
+  "bugs": {
+    "url": "https://github.com/teikalang/teika/issues"
+  },
+  "homepage": "my home page",
+  "main": "./dist/main.js",
+  "engines": {
+    "vscode": "^1.64.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/*.te",
+    "workspaceContains:**/*.tei"
+  ],
+  "_icon": "assets/logo.png",
+  "contributes": {
+    "viewsWelcome": [],
+    "viewsContainers": {},
+    "views": {},
+    "commands": [
+      {
+        "command": "teika.server.restart",
+        "category": "Teika",
+        "title": "Restart Language Server"
+      }
+    ],
+    "keybindings": [],
+    "menus": {
+      "editor/context": [],
+      "commandPalette": [],
+      "editor/title": [],
+      "view/title": [],
+      "view/item/context": []
+    },
+    "configuration": {
+      "title": "Teika",
+      "properties": {
+        "teika.server.path": {
+          "type": "string",
+          "default": null,
+          "description": "teikalsp path"
+        },
+        "teika.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[teika]": {
+        "editor.tabSize": 2
+      }
+    },
+    "problemMatchers": [],
+    "taskDefinitions": [],
+    "languages": [
+      {
+        "id": "teika",
+        "aliases": [
+          "Teika",
+          "teika"
+        ],
+        "extensions": [
+          ".te",
+          ".tei"
+        ],
+        "configuration": "./teika.language.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "teika",
+        "scopeName": "source.teika",
+        "path": "./teika.syntax.json"
+      },
+      {
+        "scopeName": "markdown.teika.codeblock",
+        "path": "./teika.markdown.codeblock.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.teika": "teika"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "teika",
+        "path": "./teika.snippets.json"
+      }
+    ],
+    "jsonValidation": [],
+    "customEditors": []
+  },
+  "scripts": {
+    "package": "vsce package --out vscode-teika.vsix --yarn",
+    "deploy:vsce": "vsce publish --packagePath vscode-teika.vsix --yarn",
+    "fmt:check": "prettier . --check",
+    "fmt": "prettier . --write"
+  },
+  "dependencies": {
+    "vscode-languageclient": "*"
+  },
+  "devDependencies": {
+    "@types/vscode": "*",
+    "@types/node": "*",
+    "prettier": "*",
+    "vsce": "*",
+    "typescript": "*"
+  },
+  "prettier": {
+    "proseWrap": "always",
+    "overrides": []
+  }
+}
