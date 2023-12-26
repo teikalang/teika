@@ -17,7 +17,6 @@ module Var_context = struct
 
   let error_unfold_found term = fail @@ TError_misc_unfold_found { term }
   let error_annot_found term = fail @@ TError_misc_annot_found { term }
-  let error_var_occurs ~hole ~in_ = fail @@ TError_misc_var_occurs { hole; in_ }
   let error_var_escape ~var = fail @@ TError_misc_var_escape { var }
 
   let with_free_var f ~level =
@@ -97,6 +96,8 @@ module Typer_context = struct
     | Ok value -> f value ~level ~vars ~aliases
     | Error _ as error -> error
 
+  let error_not_a_forall ~type_ = fail @@ TError_typer_not_a_forall { type_ }
+
   let error_pairs_not_implemented () =
     fail @@ TError_typer_pairs_not_implemented
 
@@ -105,6 +106,8 @@ module Typer_context = struct
 
   let error_unknown_extension ~extension ~payload =
     fail @@ TError_typer_unknown_extension { extension; payload }
+
+  let error_missing_annotation () = fail @@ TError_typer_missing_annotation
 
   let error_unknown_native ~native =
     fail @@ TError_typer_unknown_native { native }
@@ -115,10 +118,6 @@ module Typer_context = struct
   let enter_level f ~level ~vars ~aliases =
     let level = Level.next level in
     f () ~level ~vars ~aliases
-
-  let tt_hole () ~level ~vars:_ ~aliases:_ =
-    let hole = { link = None } in
-    Ok (TT_hole { hole; level; subst = TS_id })
 
   let with_free_vars ~name ~type_ ~alias f ~level ~vars ~aliases =
     let level = Level.next level in

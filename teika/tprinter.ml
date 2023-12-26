@@ -1,7 +1,9 @@
+(* TODO: remove this *)
+[@@@ocaml.warning "-unused-constructor"]
+
 open Syntax
 open Ttree
 open Terror
-open Tmachinery
 
 module Ptree = struct
   open Format
@@ -22,8 +24,6 @@ module Ptree = struct
     | PT_subst of { term : term; subst : subst }
     | PT_var_index of { name : Name.t option; index : Index.t }
     | PT_var_level of { name : Name.t option; level : Level.t }
-    (* TODO: also print id of hole *)
-    | PT_hole_level of { name : Name.t; level : Level.t }
 
   and subst =
     | PS_id
@@ -69,8 +69,6 @@ module Ptree = struct
         | Some name -> fprintf fmt "%s\\-%a" (Name.repr name) Level.pp level
         (* TODO: should this syntax be supported? Maybe as extension *)
         | None -> fprintf fmt "\\+%a" Level.pp level)
-    | PT_hole_level { name; level } ->
-        fprintf fmt "_%s\\+%a" (Name.repr name) Level.pp level
 
   let pp_subst_syntax ~pp_wrapped ~pp_atom fmt term =
     match term with
@@ -91,7 +89,7 @@ module Ptree = struct
     match (term, prec) with
     (* TODO: subst as atom is weird *)
     | ( ( PT_var _ | PT_hole _ | PT_string _ | PT_subst _ | PT_var_index _
-        | PT_var_level _ | PT_hole_level _ ),
+        | PT_var_level _ ),
         (T_wrapped | T_let | T_funct | T_apply | T_atom) )
     | (PT_apply _ | PT_native _), (T_wrapped | T_let | T_funct | T_apply)
     | (PT_forall _ | PT_lambda _), (T_wrapped | T_let | T_funct)
@@ -126,7 +124,6 @@ module Perror = struct
   type error =
     | PE_loc of { loc : Location.t; error : error }
     | PE_fallback of { error : Terror.error }
-    | PE_var_occurs of { hole : term; in_ : term }
     | PE_var_escape of { var : Level.t }
     | PE_bound_var_clash of { expected : Index.t; received : Index.t }
     | PE_free_var_clash of { expected : Level.t; received : Level.t }
@@ -138,6 +135,7 @@ module Perror = struct
     | PE_erasable_not_implemented
     | PE_unknown_extension of { extension : Name.t }
     | PE_unknown_native of { native : string }
+    | PE_missing_annotation
 
   let pp_pos fmt pos =
     let Lexing.{ pos_fname; pos_lnum; pos_bol; pos_cnum = _ } = pos in
@@ -154,9 +152,6 @@ module Perror = struct
     match error with
     | PE_loc { loc; error } -> fprintf fmt "%a\n%a" pp_loc loc pp_error error
     | PE_fallback { error } -> Terror.pp fmt error
-    | PE_var_occurs { hole; in_ } ->
-        fprintf fmt "cycle would be made\nhole : %a\nin_ : %a" pp_term hole
-          pp_term in_
     | PE_var_escape { var } ->
         fprintf fmt "var +%a would escape the scope" Level.pp var
     | PE_bound_var_clash { expected; received } ->
@@ -179,10 +174,9 @@ module Perror = struct
     | PE_unknown_extension { extension } ->
         fprintf fmt "unknown extension : %a" Name.pp extension
     | PE_unknown_native { native } -> fprintf fmt "unknown native : %S" native
+    (* TODO: rename missing annotation *)
+    | PE_missing_annotation -> fprintf fmt "not enough annotations"
 end
-
-(* TODO: this is hackish *)
-type ex_hole = Ex_hole : _ hole -> ex_hole [@@ocaml.unboxed]
 
 (* TODO: move this into the context *)
 let debug = ref false
@@ -193,17 +187,13 @@ module Printer_context : sig
   val create :
     bound_vars:Name.t list -> free_vars:Name.t Level.Map.t -> printer_context
 
-  val name_of_hole : printer_context -> ex_hole -> Name.t
   val name_of_bound : printer_context -> Index.t -> Name.t option
   val name_of_free : printer_context -> Level.t -> Name.t option
   val with_var_bound : printer_context -> name:Name.t -> (unit -> 'a) -> 'a
 end = struct
   (* TODO: aliases? *)
   type printer_context = {
-    mutable next : int;
     (* not locally closed terms *)
-    (* TODO: reuse names *)
-    holes : (ex_hole, Name.t) Hashtbl.t;
     (* TODO: use stack *)
     (* TODO: free bound vars *)
     mutable bound_vars : Name.t list;
@@ -212,37 +202,7 @@ end = struct
     free_vars : Name.t Level.Map.t;
   }
 
-  let create ~bound_vars ~free_vars =
-    (* TODO: better magic numbers *)
-    (* TODO: reuse tables *)
-    let holes = Hashtbl.create 2 in
-    { next = 0; holes; bound_vars; free_vars }
-
-  let var_name n =
-    let rec letters acc n =
-      (* TODO : make this fast *)
-      let alphabet = 26 in
-      let base = Char.code 'a' in
-      let letter = Char.chr @@ (base + (n mod alphabet)) in
-      let acc = letter :: acc in
-      match n < 26 with true -> acc | false -> letters acc ((n - 26) / 26)
-    in
-    let letters = letters [] n in
-    String.of_seq @@ List.to_seq letters
-
-  let next_var ctx =
-    let var = ctx.next in
-    ctx.next <- var + 1;
-    Name.make (var_name var)
-
-  let name_of_hole ctx hole =
-    match Hashtbl.find_opt ctx.holes hole with
-    | Some var -> var
-    | None ->
-        let var = next_var ctx in
-        Hashtbl.add ctx.holes hole var;
-        var
-
+  let create ~bound_vars ~free_vars = { bound_vars; free_vars }
   let name_of_bound ctx index = List.nth_opt ctx.bound_vars (Index.repr index)
   let name_of_free ctx level = Level.Map.find_opt level ctx.free_vars
 
@@ -254,29 +214,25 @@ end = struct
     value
 end
 
-open Ptree
 open Perror
 open Printer_context
 
 (* TODO: this is hackish *)
-let name_of_core_pat ctx pat =
-  match pat with
-  | TP_var { name } -> name
-  | TP_hole { hole } -> name_of_hole ctx @@ Ex_hole hole
+let name_of_core_pat pat = match pat with TP_var { name } -> name
 
-let name_of_typed_pat ctx pat =
+let name_of_typed_pat pat =
   let (TPat { pat; type_ = _ }) = pat in
-  name_of_core_pat ctx pat
+  name_of_core_pat pat
 
 let with_var_typed_bound ctx param k =
-  let name = name_of_typed_pat ctx param in
+  let name = name_of_typed_pat param in
   with_var_bound ctx ~name k
 
 let rec ptree_of_term ctx term =
   let open Ptree in
   (* TODO: print details *)
   (* TODO: handle aliases *)
-  match tt_match term with
+  match term with
   | TT_bound_var { index } -> (
       let name = name_of_bound ctx index in
       match (name, !debug) with
@@ -287,8 +243,6 @@ let rec ptree_of_term ctx term =
       match (name, !debug) with
       | None, _ | _, true -> PT_var_level { name; level }
       | Some name, false -> PT_var { name })
-  | TT_hole { hole; level; subst } ->
-      ptree_of_tt_hole ctx ~level ~subst @@ Ex_hole hole
   | TT_forall { param; return } ->
       let return =
         with_var_typed_bound ctx param @@ fun () -> ptree_of_term ctx return
@@ -343,40 +297,14 @@ and ptree_of_typed_pat ctx pat =
   let open Ptree in
   let (TPat { pat; type_ }) = pat in
   (* TODO: calling this term is weird *)
-  let term = ptree_of_core_pat ctx pat in
+  let term = ptree_of_core_pat pat in
   let type_ = ptree_of_term ctx type_ in
   PT_annot { term; annot = type_ }
 
-and ptree_of_core_pat ctx pat =
+and ptree_of_core_pat pat =
   let open Ptree in
   (* TODO: expand head here? *)
-  match tp_repr pat with
-  | TP_hole { hole } -> ptree_of_tpat_hole ctx @@ Ex_hole hole
-  | TP_var { name } -> PT_var { name }
-
-and ptree_of_tt_hole ctx hole ~level ~subst =
-  (* TODO: allow to print link *)
-  let name = name_of_hole ctx hole in
-  let term =
-    match !debug with
-    | false -> PT_hole { name }
-    | true -> PT_hole_level { name; level }
-  in
-  (* TODO: print subst *)
-  let _ =
-    match subst with
-    | TS_id -> term
-    | subst ->
-        let subst = ptree_of_subst ctx subst in
-        PT_subst { term; subst }
-  in
-
-  term
-
-and ptree_of_tpat_hole ctx hole =
-  (* TODO: allow to print link *)
-  let name = name_of_hole ctx hole in
-  PT_hole { name }
+  match pat with TP_var { name } -> PT_var { name }
 
 and perror_of_error ctx error =
   match error with
@@ -398,17 +326,6 @@ and perror_of_error ctx error =
       (* TODO: drop falback *)
       PE_fallback { error }
   | TError_misc_annot_found _ -> PE_fallback { error }
-  (* TODO: print hole *)
-  | TError_misc_var_occurs { hole; in_ } ->
-      (* TODO: subst *)
-      (* TODO: Level.zero here is hackish *)
-      let hole =
-        ptree_of_tt_hole ctx ~level:Level.zero ~subst:TS_id @@ Ex_hole hole
-      in
-      let in_ =
-        ptree_of_tt_hole ctx ~level:Level.zero ~subst:TS_id @@ Ex_hole in_
-      in
-      PE_var_occurs { hole; in_ }
   | TError_misc_var_escape { var } -> PE_var_escape { var }
   | TError_unify_unfold_found _ -> PE_fallback { error }
   | TError_unify_annot_found _ -> PE_fallback { error }
@@ -433,18 +350,11 @@ and perror_of_error ctx error =
   | TError_typer_unknown_extension { extension; payload = _ } ->
       PE_unknown_extension { extension }
   | TError_typer_unknown_native { native } -> PE_unknown_native { native }
+  | TError_typer_missing_annotation -> PE_missing_annotation
 
 let raw_pp_term ~bound_vars ~free_vars fmt term =
   let ctx = Printer_context.create ~bound_vars ~free_vars in
   let pterm = ptree_of_term ctx term in
-  Ptree.pp_term fmt pterm
-
-let raw_pp_term_hole ~bound_vars ~free_vars fmt hole =
-  let ctx = Printer_context.create ~bound_vars ~free_vars in
-  (* TODO: subst and level *)
-  let pterm =
-    ptree_of_tt_hole ctx ~level:Level.zero ~subst:TS_id @@ Ex_hole hole
-  in
   Ptree.pp_term fmt pterm
 
 let raw_pp_subst ~bound_vars ~free_vars fmt subst =
@@ -459,9 +369,6 @@ let raw_pp_error ~bound_vars ~free_vars fmt error =
 
 let pp_term fmt term =
   raw_pp_term ~bound_vars:[] ~free_vars:Level.Map.empty fmt term
-
-let pp_term_hole fmt hole =
-  raw_pp_term_hole ~bound_vars:[] ~free_vars:Level.Map.empty fmt hole
 
 let pp_subst fmt subst =
   raw_pp_subst ~bound_vars:[] ~free_vars:Level.Map.empty fmt subst

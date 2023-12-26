@@ -1,18 +1,11 @@
 open Syntax
 
-type loc = Loc
-type typed = Typed
-type core = Core
-type sugar = Sugar
-
 type term =
   (* x/-n *)
   | TT_bound_var of { index : Index.t }
   (* x/+n *)
   | TT_free_var of { level : Level.t }
   (* TODO: I really don't like this ex_term *)
-  (* _x/+n[s] *)
-  | TT_hole of { hole : term hole; level : Level.t; subst : subst }
   (* (x : A) -> B *)
   | TT_forall of { param : typed_pat; return : term }
   (* (x : A) => e *)
@@ -31,12 +24,8 @@ type term =
 (* TODO: this could probably be avoided if there were dependent types *)
 and typed_pat = TPat of { pat : core_pat; type_ : term }
 
-and core_pat =
-  | TP_hole of { hole : core_pat hole }
-  (* x *)
+and core_pat = (* x *)
   | TP_var of { name : Name.t }
-
-and 'a hole = { mutable link : 'a option }
 
 and subst =
   (* id *)
@@ -56,10 +45,6 @@ val nil_level : Level.t
 val type_level : Level.t
 val string_level : Level.t
 
-(* utils *)
-val tp_repr : core_pat -> core_pat
-
 (* constructors *)
 val tt_type : term
 val string_type : term
-val tp_hole : unit -> core_pat
