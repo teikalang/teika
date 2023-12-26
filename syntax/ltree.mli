@@ -10,12 +10,6 @@ type term =
   | LT_lambda of { param : pat; return : term }
   (* l a *)
   | LT_apply of { lambda : term; arg : term }
-  (* x @-> m *)
-  | LT_self of { self : pat; body : term }
-  (* (@T : A) @=> m *)
-  | LT_fix of { self : pat; body : term }
-  (* @m *)
-  | LT_unroll of { term : term }
   (* p = v; r *)
   | LT_let of { bound : bind; return : term }
   (* (v : T) *)
@@ -29,8 +23,6 @@ and pat =
   | LP_var of { var : Name.t }
   (* (p $ 0) *)
   | LP_erasable of { pat : pat }
-  (* @p *)
-  | LP_unroll of { pat : pat }
   (* (p : T) *)
   | LP_annot of { pat : pat; annot : term }
 
