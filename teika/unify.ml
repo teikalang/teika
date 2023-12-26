@@ -28,7 +28,6 @@ let rec tt_occurs ~aliases ~max_level hole ~in_ =
   let tpat_occurs ~in_ = tpat_occurs ~aliases hole ~max_level ~in_ in
   match tt_match @@ tt_expand_head ~aliases in_ with
   (* TODO: frozen and subst *)
-  | TT_unfold _ -> error_unfold_found in_
   | TT_annot _ -> error_annot_found in_ (* TODO: escape check *)
   | TT_bound_var { index = _ } ->
       (* TODO: test escape check here *)
@@ -53,9 +52,6 @@ let rec tt_occurs ~aliases ~max_level hole ~in_ =
   | TT_apply { lambda; arg } ->
       let* () = tt_occurs ~in_:lambda in
       tt_occurs ~in_:arg
-  | TT_self { var = _; body } | TT_fix { var = _; body } ->
-      with_free_var @@ fun () -> tt_occurs ~in_:body
-  | TT_unroll { term } -> tt_occurs ~in_:term
   | TT_let { bound; value; return } ->
       let* () = tpat_occurs ~in_:bound in
       let* () = tt_occurs ~in_:value in
@@ -98,7 +94,6 @@ let rec tt_unify ~aliases ~expected ~received =
       tt_match @@ tt_expand_head ~aliases received )
   with
   (* TODO: annot and unfold equality?  *)
-  | TT_unfold _, _ | _, TT_unfold _ -> error_unfold_found ~expected ~received
   | TT_annot _, _ | _, TT_annot _ -> error_annot_found ~expected ~received
   | TT_bound_var { index = expected }, TT_bound_var { index = received } -> (
       match Index.equal expected received with
@@ -128,14 +123,6 @@ let rec tt_unify ~aliases ~expected ~received =
       TT_apply { lambda = received_lambda; arg = received_arg } ) ->
       let* () = tt_unify ~expected:expected_lambda ~received:received_lambda in
       tt_unify ~expected:expected_arg ~received:received_arg
-  | ( TT_self { var = _; body = expected_body },
-      TT_self { var = _; body = received_body } )
-  | ( TT_fix { var = _; body = expected_body },
-      TT_fix { var = _; body = received_body } ) ->
-      with_free_vars @@ fun () ->
-      tt_unify ~expected:expected_body ~received:received_body
-  | TT_unroll { term = expected }, TT_unroll { term = received } ->
-      tt_unify ~expected ~received
   | ( TT_let
         {
           bound = expected_bound;
@@ -159,11 +146,9 @@ let rec tt_unify ~aliases ~expected ~received =
   | TT_native { native = expected }, TT_native { native = received } ->
       unify_native ~expected ~received
   | ( ( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-      | TT_self _ | TT_fix _ | TT_unroll _ | TT_let _ | TT_string _
-      | TT_native _ ),
+      | TT_let _ | TT_string _ | TT_native _ ),
       ( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-      | TT_self _ | TT_fix _ | TT_unroll _ | TT_let _ | TT_string _
-      | TT_native _ ) ) ->
+      | TT_let _ | TT_string _ | TT_native _ ) ) ->
       error_type_clash ~expected ~received
 
 and tpat_unify ~aliases ~expected ~received =

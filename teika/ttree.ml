@@ -20,10 +20,6 @@ type term =
   | TT_forall of { param : typed_pat; return : term }
   | TT_lambda of { param : typed_pat; return : term }
   | TT_apply of { lambda : term; arg : term }
-  | TT_self of { var : core_pat; body : term }
-  | TT_fix of { var : core_pat; body : term }
-  | TT_unroll of { term : term }
-  | TT_unfold of { term : term }
   | TT_let of { bound : typed_pat; value : term; return : term }
   | TT_annot of { term : term; annot : term }
   | TT_string of { literal : string }

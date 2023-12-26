@@ -7,9 +7,6 @@ type term =
   | CT_forall of { param : term; return : term }
   | CT_lambda of { param : term; return : term }
   | CT_apply of { lambda : term; arg : term }
-  | CT_self of { self : term; body : term }
-  | CT_fix of { self : term; body : term }
-  | CT_unroll of { term : term }
   | CT_pair of { left : term; right : term }
   | CT_both of { left : term; right : term }
   | CT_bind of { bound : term; value : term }
@@ -28,9 +25,6 @@ let ct_grade loc ~term ~grade = ct_loc loc (CT_grade { term; grade })
 let ct_forall loc ~param ~return = ct_loc loc (CT_forall { param; return })
 let ct_lambda loc ~param ~return = ct_loc loc (CT_lambda { param; return })
 let ct_apply loc ~lambda ~arg = ct_loc loc (CT_apply { lambda; arg })
-let ct_self loc ~self ~body = ct_loc loc (CT_self { self; body })
-let ct_fix loc ~self ~body = ct_loc loc (CT_fix { self; body })
-let ct_unroll loc ~term = ct_loc loc (CT_unroll { term })
 let ct_pair loc ~left ~right = ct_loc loc (CT_pair { left; right })
 let ct_both loc ~left ~right = ct_loc loc (CT_both { left; right })
 let ct_bind loc ~bound ~value = ct_loc loc (CT_bind { bound; value })

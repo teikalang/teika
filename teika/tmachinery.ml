@@ -76,18 +76,6 @@ let rec tt_apply_subst term subst =
       let lambda = tt_apply_subst lambda subst in
       let arg = tt_apply_subst arg subst in
       TT_apply { lambda; arg }
-  | TT_self { var; body } ->
-      let body = tt_apply_subst body @@ with_var subst in
-      TT_self { var; body }
-  | TT_fix { var; body } ->
-      let body = tt_apply_subst body @@ with_var subst in
-      TT_fix { var; body }
-  | TT_unroll { term } ->
-      let term = tt_apply_subst term subst in
-      TT_unroll { term }
-  | TT_unfold { term } ->
-      let term = tt_apply_subst term subst in
-      TT_unfold { term }
   | TT_let { bound; value; return } ->
       let bound = tpat_apply_subst bound subst in
       let value = tt_apply_subst value subst in
@@ -151,18 +139,6 @@ let rec tt_open term ~from ~to_ =
       let lambda = tt_open_flat lambda in
       let arg = tt_open_flat arg in
       TT_apply { lambda; arg }
-  | TT_self { var; body } ->
-      let body = tt_open_under body in
-      TT_self { var; body }
-  | TT_fix { var; body } ->
-      let body = tt_open_under body in
-      TT_fix { var; body }
-  | TT_unroll { term } ->
-      let term = tt_open_flat term in
-      TT_unroll { term }
-  | TT_unfold { term } ->
-      let term = tt_open_flat term in
-      TT_unfold { term }
   | TT_let { bound; value; return } ->
       let bound = tpat_open bound in
       let value = tt_open_flat value in
@@ -206,10 +182,6 @@ let rec tt_expand_head ~aliases term =
           tt_expand_head @@ tt_open return ~to_:arg
       | TT_native { native } -> expand_head_native ~aliases native ~arg
       | _lambda -> term)
-  | TT_self _ -> term
-  | TT_fix _ -> term
-  | TT_unroll _ -> term
-  | TT_unfold { term } -> tt_expand_head term
   | TT_let { bound = _; value; return } ->
       tt_expand_head @@ tt_open return ~to_:value
   | TT_annot { term; annot = _ } -> tt_expand_head term
@@ -218,39 +190,6 @@ let rec tt_expand_head ~aliases term =
 
 and expand_head_native ~aliases native ~arg =
   match native with TN_debug -> tt_expand_head ~aliases arg
-
-(* TODO: better place for this *)
-let rec tt_unfold_fix ~aliases term =
-  let tt_unfold_fix term = tt_unfold_fix ~aliases term in
-  (* TODO: not ideal to expand head *)
-  match tt_repr term with
-  | TT_bound_var _ -> term
-  | TT_free_var _ -> term
-  | TT_hole _ -> term
-  | TT_forall _ -> term
-  | TT_lambda _ -> term
-  | TT_apply { lambda; arg } ->
-      let lambda = tt_unfold_fix lambda in
-      let arg = tt_unfold_fix arg in
-      TT_apply { lambda; arg }
-  | TT_self _ -> term
-  | TT_fix _ -> term
-  | TT_unroll { term = fix } -> (
-      (* TODO: why expand head? *)
-      match tt_match @@ tt_expand_head ~aliases fix with
-      | TT_fix { var = _; body } -> tt_open body ~to_:fix
-      | _ -> term)
-  | TT_unfold { term } ->
-      let term = tt_unfold_fix term in
-      TT_unfold { term }
-      (* TODO: unfold under let?  *)
-  | TT_let _ -> term
-  | TT_annot { term; annot } ->
-      let term = tt_unfold_fix term in
-      let annot = tt_unfold_fix annot in
-      TT_annot { term; annot }
-  | TT_string _ -> term
-  | TT_native _ -> term
 
 let rec ts_inverse subst =
   match subst with

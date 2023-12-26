@@ -8,11 +8,6 @@ open Unify
 let unify_term ~expected ~received =
   with_unify_context @@ fun ~aliases -> tt_unify ~aliases ~expected ~received
 
-let tt_unfold_fix term =
-  let open Var_context in
-  (* TODO: weird hack *)
-  with_var_context @@ fun ~aliases -> pure @@ tt_unfold_fix ~aliases term
-
 let tt_open_level term =
   let* to_ = level () in
   let to_ = TT_free_var { level = to_ } in
@@ -30,13 +25,6 @@ let split_forall type_ =
   let expected = TT_forall { param; return } in
   let* () = unify_term ~received:type_ ~expected in
   pure (param_type, return)
-
-let split_self type_ =
-  let var = tp_hole () in
-  let* body = tt_hole () in
-  let expected = TT_self { var; body } in
-  let* () = unify_term ~received:type_ ~expected in
-  pure body
 
 (* TODO: does having expected_term also improves inference?
      Maybe with self and fix? But maybe not worth it
@@ -124,55 +112,6 @@ and check_term_extension ~extension ~payload ~expected =
   | _, LT_loc { term = payload; loc = _ } ->
       (* TODO: use location *)
       check_term_extension ~extension ~payload ~expected
-  | "@self", LT_forall { param = self; return = body } ->
-      (* TODO: this could in theory be improved by expected term *)
-      (* TODO: this could also be checked after the return *)
-      let* () = unify_term ~received:tt_type ~expected in
-      let* self_type = tt_hole () in
-      let* expected_body = split_self self_type in
-      let* name, var = check_core_pat self ~expected:self_type in
-      let* body =
-        with_free_vars ~name ~type_:self_type ~alias:None @@ fun () ->
-        (* TODO: pattern on self *)
-        let* body = check_annot body in
-        let* body = tt_close_level body in
-        (* TODO: this unify here is weird *)
-        let* () = unify_term ~received:body ~expected:expected_body in
-        pure body
-      in
-      pure @@ TT_self { var; body }
-  | "@fix", LT_lambda { param = self; return = body } ->
-      let* expected_body_type = split_self expected in
-      let* name, var = check_core_pat self ~expected in
-      let* body =
-        with_free_vars ~name ~type_:expected ~alias:None @@ fun () ->
-        (* TODO: pattern on fix *)
-        let* body =
-          let* expected_body_type = tt_open_level expected_body_type in
-          check_term body ~expected:expected_body_type
-        in
-        tt_close_level body
-      in
-      pure @@ TT_fix { var; body }
-  | "@unroll", fix ->
-      let* fix_type = tt_hole () in
-      let* fix = check_term fix ~expected:fix_type in
-      (* TODO: this could be better? avoiding split self? *)
-      let* body_type = split_self fix_type in
-      let* () =
-        let received = tt_open body_type ~to_:fix in
-        unify_term ~received ~expected
-      in
-      pure @@ TT_unroll { term = fix }
-  | "@unfold", term ->
-      (* TODO: breaks propagation *)
-      let* term_type = tt_hole () in
-      let* term = check_term term ~expected:term_type in
-      let* () =
-        let* received = tt_unfold_fix term_type in
-        unify_term ~received ~expected
-      in
-      pure @@ TT_unfold { term }
   | "@native", LT_string { literal = native } ->
       check_term_native ~native ~expected
   | _ -> error_unknown_extension ~extension ~payload
