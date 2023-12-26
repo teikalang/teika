@@ -17,17 +17,6 @@ type term =
   | TT_lambda of { param : typed_pat; return : term }
   (* l a *)
   | TT_apply of { lambda : term; arg : term }
-  (* @self(x -> e)*)
-  (* TODO: why core pat? *)
-  | TT_self of { var : core_pat; body : term }
-  (* @fix(x => e)*)
-  (* TODO: why core pat? *)
-  | TT_fix of { var : core_pat; body : term }
-  (* @unroll(e)*)
-  | TT_unroll of { term : term }
-  (* @unfold(e)*)
-  (* TODO: technically not sugar *)
-  | TT_unfold of { term : term }
   (* x = t; u *)
   | TT_let of { bound : typed_pat; value : term; return : term }
   (* (v : T) *)

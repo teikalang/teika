@@ -11,10 +11,6 @@ module Ptree = struct
     | PT_forall of { param : term; return : term }
     | PT_lambda of { param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
-    | PT_self of { bound : term; body : term }
-    | PT_fix of { bound : term; body : term }
-    | PT_unroll of { term : term }
-    | PT_unfold of { term : term }
     | PT_let of { bound : term; value : term; return : term }
     | PT_annot of { term : term; annot : term }
     | PT_string of { literal : string }
@@ -49,12 +45,6 @@ module Ptree = struct
         fprintf fmt "%a => %a" pp_atom param pp_funct return
     | PT_apply { lambda; arg } ->
         fprintf fmt "%a %a" pp_apply lambda pp_atom arg
-    | PT_self { bound; body } ->
-        fprintf fmt "@self(%a -> %a)" pp_atom bound pp_wrapped body
-    | PT_fix { bound; body } ->
-        fprintf fmt "@fix(%a => %a)" pp_atom bound pp_wrapped body
-    | PT_unroll { term } -> fprintf fmt "@unroll(%a)" pp_wrapped term
-    | PT_unfold { term } -> fprintf fmt "@unfold(%a)" pp_wrapped term
     | PT_let { bound; value; return } ->
         fprintf fmt "%a = %a; %a" pp_atom bound pp_funct value pp_let return
     | PT_annot { term; annot } ->
@@ -102,17 +92,13 @@ module Ptree = struct
     | ( ( PT_var _ | PT_hole _ | PT_string _ | PT_subst _ | PT_var_index _
         | PT_var_level _ | PT_hole_level _ ),
         (T_wrapped | T_let | T_funct | T_apply | T_atom) )
-    | ( ( PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _ | PT_unfold _
-        | PT_native _ ),
-        (T_wrapped | T_let | T_funct | T_apply) )
+    | (PT_apply _ | PT_native _), (T_wrapped | T_let | T_funct | T_apply)
     | (PT_forall _ | PT_lambda _), (T_wrapped | T_let | T_funct)
     | PT_let _, (T_wrapped | T_let)
     | PT_annot _, T_wrapped ->
         pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom
           ~pp_subst_wrapped fmt term
-    | ( ( PT_apply _ | PT_self _ | PT_fix _ | PT_unroll _ | PT_unfold _
-        | PT_native _ ),
-        T_atom )
+    | (PT_apply _ | PT_native _), T_atom
     | (PT_forall _ | PT_lambda _), (T_apply | T_atom)
     | PT_let _, (T_funct | T_apply | T_atom)
     | PT_annot _, (T_let | T_funct | T_apply | T_atom) ->
@@ -279,10 +265,6 @@ let name_of_typed_pat ctx pat =
   let (TPat { pat; type_ = _ }) = pat in
   name_of_core_pat ctx pat
 
-let with_var_core_bound ctx bound k =
-  let name = name_of_core_pat ctx bound in
-  with_var_bound ctx ~name k
-
 let with_var_typed_bound ctx param k =
   let name = name_of_typed_pat ctx param in
   with_var_bound ctx ~name k
@@ -322,26 +304,6 @@ let rec ptree_of_term ctx term =
       let lambda = ptree_of_term ctx lambda in
       let arg = ptree_of_term ctx arg in
       PT_apply { lambda; arg }
-  | TT_self { var; body } ->
-      let body =
-        with_var_core_bound ctx var @@ fun () -> ptree_of_term ctx body
-      in
-      (* TODO: weird order *)
-      let bound = ptree_of_core_pat ctx var in
-      PT_self { bound; body }
-  | TT_fix { var; body } ->
-      let body =
-        with_var_core_bound ctx var @@ fun () -> ptree_of_term ctx body
-      in
-      (* TODO: weird order *)
-      let bound = ptree_of_core_pat ctx var in
-      PT_fix { bound; body }
-  | TT_unroll { term } ->
-      let term = ptree_of_term ctx term in
-      PT_unroll { term }
-  | TT_unfold { term } ->
-      let term = ptree_of_term ctx term in
-      PT_unfold { term }
   | TT_let { bound; value; return } ->
       let value = ptree_of_term ctx value in
       let return =

@@ -6,5 +6,4 @@ val tt_apply_subst : term -> subst -> term
 val tt_open : term -> to_:term -> term
 val tt_close : term -> from:Level.t -> term
 val tt_expand_head : aliases:term Level.Map.t -> term -> term
-val tt_unfold_fix : aliases:term Level.Map.t -> term -> term
 val ts_inverse : subst -> subst
