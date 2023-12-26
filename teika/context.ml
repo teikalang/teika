@@ -15,7 +15,6 @@ module Var_context = struct
     | Ok value -> f value ~level
     | Error _ as error -> error
 
-  let error_unfold_found term = fail @@ TError_misc_unfold_found { term }
   let error_annot_found term = fail @@ TError_misc_annot_found { term }
   let error_var_escape ~var = fail @@ TError_misc_var_escape { var }
 
@@ -37,9 +36,6 @@ module Unify_context = struct
     match context ~level with
     | Ok value -> f value ~level
     | Error _ as error -> error
-
-  let error_unfold_found ~expected ~received =
-    fail @@ TError_unify_unfold_found { expected; received }
 
   let error_annot_found ~expected ~received =
     fail @@ TError_unify_annot_found { expected; received }

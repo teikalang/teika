@@ -11,7 +11,6 @@ module Var_context : sig
   val ( let* ) : 'a var_context -> ('a -> 'b var_context) -> 'b var_context
 
   (* errors *)
-  val error_unfold_found : term -> 'a var_context
   val error_annot_found : term -> 'a var_context
   val error_var_escape : var:Level.t -> 'a var_context
 
@@ -31,7 +30,6 @@ module Unify_context : sig
     'a unify_context -> ('a -> 'b unify_context) -> 'b unify_context
 
   (* error *)
-  val error_unfold_found : expected:term -> received:term -> 'a unify_context
   val error_annot_found : expected:term -> received:term -> 'a unify_context
 
   val error_bound_var_clash :

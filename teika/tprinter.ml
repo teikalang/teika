@@ -322,12 +322,9 @@ and perror_of_error ctx error =
             PE_loc { loc; error }
       in
       loop loc error
-  | TError_misc_unfold_found _ ->
-      (* TODO: drop falback *)
-      PE_fallback { error }
+  (* TODO: drop falback *)
   | TError_misc_annot_found _ -> PE_fallback { error }
   | TError_misc_var_escape { var } -> PE_var_escape { var }
-  | TError_unify_unfold_found _ -> PE_fallback { error }
   | TError_unify_annot_found _ -> PE_fallback { error }
   | TError_unify_bound_var_clash { expected; received } ->
       PE_bound_var_clash { expected; received }

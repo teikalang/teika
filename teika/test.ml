@@ -85,24 +85,6 @@ module Typer = struct
         ) : @self(False -> (f : @self(f -> @unroll False f)) -> Type))
       |}
 
-  let unfold_false =
-    let ind_false =
-      {|
-        (@fix(False => f =>
-          (P : (f : @self(f -> @unroll False f)) -> Type) -> P f
-        ) : @self(False -> (f : @self(f -> @unroll False f)) -> Type))
-      |}
-    in
-    let code =
-      Format.sprintf
-        {|((P => x => @unfold x) : 
-          (P : (False : (f : @self(f -> @unroll (%s) f)) -> Type) -> Type) ->
-          (x : P (@unroll (%s))) -> P ((f : @self(f -> @unroll (%s) f)) =>
-              (P : (f : @self(f -> @unroll (%s) f)) -> Type) -> P f))|}
-        ind_false ind_false ind_false ind_false
-    in
-    check "unfold False" code
-
   let let_alias =
     check "let_alias"
       {|
@@ -161,7 +143,6 @@ module Typer = struct
       false_;
       ind_false_T;
       ind_false;
-      unfold_false;
       let_alias;
       simple_string;
       rank_2_propagate;

@@ -35,7 +35,7 @@ let rec tt_unify ~aliases ~expected ~received =
   match
     (tt_expand_head ~aliases expected, tt_expand_head ~aliases received)
   with
-  (* TODO: annot and unfold equality?  *)
+  (* TODO: annot equality?  *)
   | TT_annot _, _ | _, TT_annot _ -> error_annot_found ~expected ~received
   | TT_bound_var { index = expected }, TT_bound_var { index = received } -> (
       match Index.equal expected received with
