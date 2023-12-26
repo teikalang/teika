@@ -1,5 +1,8 @@
+open Syntax
 open Ttree
 
+(* TODO: too much work to add errors,
+   adding here and context is bad*)
 type error =
   (* TODO: why track nested locations?
          Probably because things like macros exists *)
@@ -21,6 +24,7 @@ type error =
   | TError_typer_unknown_var of { name : Name.t }
   | TError_typer_not_a_forall of { type_ : term }
   | TError_typer_pairs_not_implemented
+  | TError_typer_erasable_not_implemented
   | TError_typer_unknown_extension of {
       extension : Name.t;
       payload : Ltree.term;

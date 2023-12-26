@@ -1,3 +1,4 @@
+open Syntax
 open Ttree
 open Terror
 
@@ -66,6 +67,7 @@ module Typer_context : sig
 
   (* error *)
   val error_pairs_not_implemented : unit -> 'a typer_context
+  val error_erasable_not_implemented : unit -> 'a typer_context
 
   val error_unknown_extension :
     extension:Name.t -> payload:Ltree.term -> 'a typer_context

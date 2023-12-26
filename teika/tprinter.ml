@@ -1,3 +1,4 @@
+open Syntax
 open Ttree
 open Terror
 open Tmachinery
@@ -134,6 +135,7 @@ module Perror = struct
     | PE_unknown_var of { name : Name.t }
     | PE_not_a_forall of { type_ : term }
     | PE_pairs_not_implemented
+    | PE_erasable_not_implemented
     | PE_unknown_extension of { extension : Name.t }
     | PE_unknown_native of { native : string }
 
@@ -173,6 +175,7 @@ module Perror = struct
     | PE_not_a_forall { type_ } ->
         fprintf fmt "expected forall\nreceived : %a" pp_term type_
     | PE_pairs_not_implemented -> fprintf fmt "pairs not implemented"
+    | PE_erasable_not_implemented -> fprintf fmt "erasable not implemented"
     | PE_unknown_extension { extension } ->
         fprintf fmt "unknown extension : %a" Name.pp extension
     | PE_unknown_native { native } -> fprintf fmt "unknown native : %S" native
@@ -425,6 +428,8 @@ and perror_of_error ctx error =
       PE_not_a_forall { type_ }
   | TError_typer_pairs_not_implemented ->
       PE_pairs_not_implemented (* TODO: print payload *)
+  | TError_typer_erasable_not_implemented ->
+      PE_erasable_not_implemented (* TODO: print payload *)
   | TError_typer_unknown_extension { extension; payload = _ } ->
       PE_unknown_extension { extension }
   | TError_typer_unknown_native { native } -> PE_unknown_native { native }

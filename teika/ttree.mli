@@ -1,3 +1,5 @@
+open Syntax
+
 type loc = Loc
 type typed = Typed
 type core = Core

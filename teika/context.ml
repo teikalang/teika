@@ -1,3 +1,4 @@
+open Syntax
 open Ttree
 open Terror
 
@@ -98,6 +99,9 @@ module Typer_context = struct
 
   let error_pairs_not_implemented () =
     fail @@ TError_typer_pairs_not_implemented
+
+  let error_erasable_not_implemented () =
+    fail @@ TError_typer_erasable_not_implemented
 
   let error_unknown_extension ~extension ~payload =
     fail @@ TError_typer_unknown_extension { extension; payload }
