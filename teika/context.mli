@@ -13,7 +13,6 @@ module Var_context : sig
   (* errors *)
   val error_unfold_found : term -> 'a var_context
   val error_annot_found : term -> 'a var_context
-  val error_var_occurs : hole:term hole -> in_:term hole -> 'a var_context
   val error_var_escape : var:Level.t -> 'a var_context
 
   (* TODO: this should be removed *)
@@ -66,6 +65,7 @@ module Typer_context : sig
     'a typer_context -> ('a -> 'b typer_context) -> 'b typer_context
 
   (* error *)
+  val error_not_a_forall : type_:term -> 'a typer_context
   val error_pairs_not_implemented : unit -> 'a typer_context
   val error_erasable_not_implemented : unit -> 'a typer_context
 
@@ -73,12 +73,12 @@ module Typer_context : sig
     extension:Name.t -> payload:Ltree.term -> 'a typer_context
 
   val error_unknown_native : native:string -> 'a typer_context
+  val error_missing_annotation : unit -> 'a typer_context
 
   (* TODO: this should be removed *)
   val level : unit -> Level.t typer_context
   val aliases : unit -> term Level.Map.t typer_context
   val enter_level : (unit -> 'a typer_context) -> 'a typer_context
-  val tt_hole : unit -> term typer_context
 
   (* vars *)
 

@@ -48,7 +48,7 @@ let rec repr_free_var level subst =
 let rec tt_apply_subst term subst =
   (* TODO: ignore meaningless substitutions *)
   let with_var subst = TS_lift { subst } in
-  match tt_repr term with
+  match term with
   | TT_bound_var { index } -> (
       match repr_bound_var index subst with
       | Some (level, subst) ->
@@ -61,9 +61,6 @@ let rec tt_apply_subst term subst =
           let to_ = TT_bound_var { index } in
           tt_apply_subst to_ subst
       | None -> term)
-  | TT_hole { hole; level; subst = first } ->
-      let subst = TS_cons { subst = first; next = subst } in
-      TT_hole { hole; level; subst }
   | TT_forall { param; return } ->
       let param = tpat_apply_subst param subst in
       let return = tt_apply_subst return @@ with_var subst in
@@ -93,21 +90,6 @@ and tpat_apply_subst pat subst =
   let type_ = tt_apply_subst type_ subst in
   TPat { pat; type_ }
 
-and tt_repr term =
-  (* TODO: path compression *)
-  match term with
-  | TT_hole { hole; level = _; subst } -> (
-      match hole.link with
-      | Some term ->
-          let term = tt_repr term in
-          tt_apply_subst term subst
-      | None -> term)
-  (* TODO: ignore meaningless substitutions *)
-  (* TODO: expand cases here  *)
-  | _ -> term
-
-let tt_match term = tt_repr term
-
 let rec tt_open term ~from ~to_ =
   (* TODO: ignore meaningless substitutions *)
   let tpat_open pat = tpat_open pat ~from ~to_ in
@@ -116,17 +98,10 @@ let rec tt_open term ~from ~to_ =
     let from = Index.next from in
     tt_open term ~from ~to_
   in
-  match tt_repr term with
+  match term with
   | TT_bound_var { index } -> (
       match Index.equal from index with true -> to_ | false -> term)
   | TT_free_var { level = _ } -> term
-  | TT_hole { hole; level; subst } -> (
-      (* only capture inversible substitutions *)
-      match to_ with
-      | TT_free_var { level = to_ } ->
-          let subst = TS_cons { subst; next = TS_open { to_ } } in
-          TT_hole { hole; level; subst }
-      | _ -> term)
   | TT_forall { param; return } ->
       let param = tpat_open param in
       let return = tt_open_under return in
@@ -165,19 +140,18 @@ let tt_close term ~from = tt_apply_subst term @@ TS_close { from }
 let rec tt_expand_head ~aliases term =
   (* TODO: aliases here is hackish *)
   let tt_expand_head term = tt_expand_head ~aliases term in
-  match tt_repr term with
+  match term with
   | TT_bound_var _ -> term
   | TT_free_var { level } -> (
       (* TODO: possibly infinite loop, consume aliases *)
       match Level.Map.find_opt level aliases with
       | Some alias -> tt_expand_head alias
       | None -> term)
-  | TT_hole _ -> term
   | TT_forall _ -> term
   | TT_lambda _ -> term
   | TT_apply { lambda; arg } -> (
       (* TODO: use expanded lambda? *)
-      match tt_match (tt_expand_head lambda) with
+      match tt_expand_head lambda with
       | TT_lambda { param = _; return } ->
           tt_expand_head @@ tt_open return ~to_:arg
       | TT_native { native } -> expand_head_native ~aliases native ~arg

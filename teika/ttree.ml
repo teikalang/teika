@@ -10,15 +10,10 @@ open Syntax
    means that this cache will probably be dependent on holes *)
 
 (* TODO: try parametric hoas *)
-type loc = Loc
-type typed = Typed
-type core = Core
-type sugar = Sugar
 
 type term =
   | TT_bound_var of { index : Index.t }
   | TT_free_var of { level : Level.t }
-  | TT_hole of { hole : term hole; level : Level.t; subst : subst }
   | TT_forall of { param : typed_pat; return : term }
   | TT_lambda of { param : typed_pat; return : term }
   | TT_apply of { lambda : term; arg : term }
@@ -29,12 +24,8 @@ type term =
 
 and typed_pat = TPat of { pat : core_pat; type_ : term }
 
-and core_pat =
-  | TP_hole of { hole : core_pat hole }
-  (* x *)
+and core_pat = (* x *)
   | TP_var of { name : Name.t }
-
-and 'a hole = { mutable link : 'a option }
 
 and subst =
   | TS_id
@@ -53,18 +44,6 @@ let nil_level = Level.zero
 let type_level = Level.next nil_level
 let string_level = Level.next type_level
 
-(* TODO: path compression *)
-
-let rec tp_repr pat =
-  match pat with
-  | TP_hole { hole } -> (
-      match hole.link with Some pat -> tp_repr pat | None -> pat)
-  | TP_var _ -> pat
-
 (* TODO: loc *)
 let tt_type = TT_free_var { level = type_level }
 let string_type = TT_free_var { level = string_level }
-
-let tp_hole () =
-  let hole = { link = None } in
-  TP_hole { hole }

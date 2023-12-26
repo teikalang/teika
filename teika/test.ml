@@ -27,10 +27,14 @@ module Typer = struct
 
   let let_id =
     check "let_id"
-      {|((id = A => (x : A) => x; id) : (A : Type) -> (x : A) -> A)|}
+      {|((
+        (id : (A : Type) -> (x : A) -> A) = A => (x : A) => x;
+        id
+      ) : (A : Type) -> (x : A) -> A)|}
 
   let id_type =
-    check "id_type" {|((A => (x : A) => x) Type
+    check "id_type"
+      {|(((A : Type) => (x : A) => x) Type
         : (x : Type) -> Type)|}
 
   let id_type_never =
@@ -102,8 +106,8 @@ module Typer = struct
   let let_alias =
     check "let_alias"
       {|
-        Id = (A : Type) => A;
-        (A => (x : A) => (x : Id A))
+        (Id : (A : Type) -> Type) = (A : Type) => A;
+        ((A : Type) => (x : A) => (x : Id A))
       |}
 
   let simple_string = check "simple_string" {|("simple string" : String)|}

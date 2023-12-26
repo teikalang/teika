@@ -8,7 +8,6 @@ type error =
   | TError_misc_unfold_found of { term : term }
   | TError_misc_annot_found of { term : term }
   (* TODO: lazy names for errors *)
-  | TError_misc_var_occurs of { hole : term hole; in_ : term hole }
   | TError_misc_var_escape of { var : Level.t }
   (* unify *)
   | TError_unify_unfold_found of { expected : term; received : term }
@@ -28,5 +27,6 @@ type error =
     }
   (* TODO: native should not be a string *)
   | TError_typer_unknown_native of { native : string }
+  | TError_typer_missing_annotation
 
 type t = error [@@deriving show]
