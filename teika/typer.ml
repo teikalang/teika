@@ -1,3 +1,4 @@
+open Syntax
 open Ltree
 open Ttree
 open Context
@@ -72,8 +73,6 @@ let rec check_term term ~expected =
         unify_term ~received ~expected
       in
       pure @@ TT_apply { lambda; arg }
-  | LT_exists _ -> error_pairs_not_implemented ()
-  | LT_pair _ -> error_pairs_not_implemented ()
   | LT_let { bound; return } ->
       (* TODO: use this loc *)
       let (LBind { loc = _; pat; value }) = bound in
@@ -136,12 +135,12 @@ and check_core_pat pat ~expected =
   (* TODO: expected should be a pattern, to achieve strictness *)
   match pat with
   | LP_var { var = name } -> pure (name, TP_var { name })
-  | LP_pair _ -> error_pairs_not_implemented ()
   | LP_annot { pat; annot } ->
       (* TODO: TP_annot *)
       let* annot = check_annot annot in
       let* () = unify_term ~received:annot ~expected in
       check_core_pat pat ~expected:annot
+  | LP_erasable _ -> error_erasable_not_implemented ()
   | LP_loc { pat; loc } ->
       with_loc ~loc @@ fun () -> check_core_pat pat ~expected
 

@@ -1,3 +1,4 @@
+open Syntax
 open Ttree
 open Terror
 

@@ -1,3 +1,5 @@
+open Syntax
+
 (* TODO: use hole var so that x => x, the hole var is something like _X
    to print as (x : _X) => x
 
