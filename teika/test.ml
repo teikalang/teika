@@ -141,10 +141,10 @@ module Typer = struct
       true_;
       true_unify;
       false_;
-      ind_false_T;
-      ind_false;
       let_alias;
       simple_string;
+      ind_false_T;
+      ind_false;
       rank_2_propagate;
       rank_2_propagate_let;
       invalid_annotation;

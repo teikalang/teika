@@ -7,7 +7,7 @@ open Tmachinery
 open Unify
 
 let unify_term ~expected ~received =
-  with_unify_context @@ fun ~aliases -> tt_unify ~aliases ~expected ~received
+  with_unify_context @@ fun () -> tt_unify ~expected ~received
 
 let tt_open_level term =
   let* to_ = level () in
@@ -18,11 +18,37 @@ let tt_close_level term =
   let* from = level () in
   pure @@ tt_close term ~from
 
-let tt_expand_head term =
-  let* aliases = aliases () in
-  pure @@ tt_expand_head ~aliases term
+let rec tt_expand_head term =
+  match term with
+  | TT_bound_var _ -> pure term
+  | TT_free_var { level = var } -> (
+      (* TODO: better errors here when equality was consumed *)
+      let* alias = find_free_var_alias ~var in
+      (* TODO: consume alias *)
+      match alias with
+      | Some expected -> tt_expand_head expected
+      | None -> pure term)
+  | TT_forall _ -> pure term
+  | TT_lambda _ -> pure term
+  | TT_apply { lambda; arg } -> (
+      (* TODO: use expanded lambda? *)
+      let* lambda = tt_expand_head lambda in
+      match lambda with
+      | TT_lambda { param = _; return } ->
+          tt_expand_head @@ tt_open return ~to_:arg
+      | TT_native { native } -> expand_head_native native ~arg
+      | _lambda -> pure term)
+  | TT_let { bound = _; value; return } ->
+      tt_expand_head @@ tt_open return ~to_:value
+  | TT_annot { term; annot = _ } -> tt_expand_head term
+  | TT_string _ -> pure term
+  | TT_native _ -> pure term
+
+and expand_head_native native ~arg =
+  match native with TN_debug -> tt_expand_head arg
 
 let split_forall type_ =
+  (* TODO: aliases *)
   let* type_ = tt_expand_head type_ in
   match type_ with
   | TT_forall { param; return } ->

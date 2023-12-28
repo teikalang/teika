@@ -3,38 +3,16 @@ open Ttree
 open Terror
 
 (* TODO: benchmark with @inline and continuations *)
-module Var_context = struct
-  type 'a var_context = level:Level.t -> ('a, error) result
-  type 'a t = 'a var_context
-
-  let pure value ~level:_ = Ok value
-  let fail desc ~level:_ = Error desc
-
-  let ( let* ) context f ~level =
-    match context ~level with
-    | Ok value -> f value ~level
-    | Error _ as error -> error
-
-  let error_annot_found term = fail @@ TError_misc_annot_found { term }
-  let error_var_escape ~var = fail @@ TError_misc_var_escape { var }
-
-  let with_free_var f ~level =
-    let level = Level.next level in
-    f () ~level
-
-  let level () ~level = Ok level
-end
-
 module Unify_context = struct
-  type 'a unify_context = level:Level.t -> ('a, error) result
+  type 'a unify_context = aliases:term Level.Map.t -> ('a, error) result
   type 'a t = 'a unify_context
 
-  let pure value ~level:_ = Ok value
-  let fail desc ~level:_ = Error desc
+  let pure value ~aliases:_ = Ok value
+  let fail desc ~aliases:_ = Error desc
 
-  let ( let* ) context f ~level =
-    match context ~level with
-    | Ok value -> f value ~level
+  let ( let* ) context f ~aliases =
+    match context ~aliases with
+    | Ok value -> f value ~aliases
     | Error _ as error -> error
 
   let error_annot_found ~expected ~received =
@@ -52,13 +30,7 @@ module Unify_context = struct
   let error_string_clash ~expected ~received =
     fail @@ TError_unify_string_clash { expected; received }
 
-  let with_free_vars f ~level =
-    let level = Level.next level in
-    f () ~level
-
-  (* context *)
-  let with_expected_var_context f ~level = f () ~level
-  let with_received_var_context f ~level = f () ~level
+  let find_free_var_alias ~var ~aliases = Ok (Level.Map.find_opt var aliases)
 end
 
 module Typer_context = struct
@@ -109,11 +81,9 @@ module Typer_context = struct
     fail @@ TError_typer_unknown_native { native }
 
   let level () ~level ~vars:_ ~aliases:_ = Ok level
-  let aliases () ~level:_ ~vars:_ ~aliases = Ok aliases
 
-  let enter_level f ~level ~vars ~aliases =
-    let level = Level.next level in
-    f () ~level ~vars ~aliases
+  let find_free_var_alias ~var ~level:_ ~vars:_ ~aliases =
+    Ok (Level.Map.find_opt var aliases)
 
   let with_free_vars ~name ~type_ ~alias f ~level ~vars ~aliases =
     let level = Level.next level in
@@ -152,6 +122,5 @@ module Typer_context = struct
     | Ok _value as ok -> ok
     | Error desc -> Error (TError_loc { error = desc; loc })
 
-  let with_var_context f ~level ~vars:_ ~aliases = f ~aliases ~level
-  let with_unify_context f ~level ~vars:_ ~aliases = f ~aliases ~level
+  let with_unify_context f ~level:_ ~vars:_ ~aliases = f () ~aliases
 end
