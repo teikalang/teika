@@ -2,24 +2,6 @@ open Syntax
 open Ttree
 open Terror
 
-module Var_context : sig
-  type 'a var_context
-  type 'a t = 'a var_context
-
-  (* monad *)
-  val pure : 'a -> 'a var_context
-  val ( let* ) : 'a var_context -> ('a -> 'b var_context) -> 'b var_context
-
-  (* errors *)
-  val error_unfold_found : term -> 'a var_context
-  val error_annot_found : term -> 'a var_context
-  val error_var_escape : var:Level.t -> 'a var_context
-
-  (* TODO: this should be removed *)
-  val with_free_var : (unit -> 'a var_context) -> 'a var_context
-  val level : unit -> Level.t var_context
-end
-
 module Unify_context : sig
   type 'a unify_context
   type 'a t = 'a unify_context
@@ -31,7 +13,6 @@ module Unify_context : sig
     'a unify_context -> ('a -> 'b unify_context) -> 'b unify_context
 
   (* error *)
-  val error_unfold_found : expected:term -> received:term -> 'a unify_context
   val error_annot_found : expected:term -> received:term -> 'a unify_context
 
   val error_bound_var_clash :
@@ -46,11 +27,7 @@ module Unify_context : sig
     expected:string -> received:string -> 'a unify_context
 
   (* vars *)
-  val with_free_vars : (unit -> 'a unify_context) -> 'a unify_context
-
-  (* context *)
-  val with_expected_var_context : (unit -> 'a Var_context.t) -> 'a unify_context
-  val with_received_var_context : (unit -> 'a Var_context.t) -> 'a unify_context
+  val find_free_var_alias : var:Level.t -> term option unify_context
 end
 
 module Typer_context : sig
@@ -77,10 +54,9 @@ module Typer_context : sig
 
   (* TODO: this should be removed *)
   val level : unit -> Level.t typer_context
-  val aliases : unit -> term Level.Map.t typer_context
-  val enter_level : (unit -> 'a typer_context) -> 'a typer_context
 
   (* vars *)
+  val find_free_var_alias : var:Level.t -> term option typer_context
 
   (* TODO: names from both sides *)
   val with_free_vars :
@@ -101,9 +77,5 @@ module Typer_context : sig
   val pp_error : unit -> (Format.formatter -> error -> unit) typer_context
 
   (* context *)
-  val with_var_context :
-    (aliases:term Level.Map.t -> 'a Var_context.t) -> 'a typer_context
-
-  val with_unify_context :
-    (aliases:term Level.Map.t -> 'a Unify_context.t) -> 'a typer_context
+  val with_unify_context : (unit -> 'a Unify_context.t) -> 'a typer_context
 end

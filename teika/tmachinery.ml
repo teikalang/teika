@@ -137,34 +137,6 @@ let tt_open term ~to_ =
 
 let tt_close term ~from = tt_apply_subst term @@ TS_close { from }
 
-let rec tt_expand_head ~aliases term =
-  (* TODO: aliases here is hackish *)
-  let tt_expand_head term = tt_expand_head ~aliases term in
-  match term with
-  | TT_bound_var _ -> term
-  | TT_free_var { level } -> (
-      (* TODO: possibly infinite loop, consume aliases *)
-      match Level.Map.find_opt level aliases with
-      | Some alias -> tt_expand_head alias
-      | None -> term)
-  | TT_forall _ -> term
-  | TT_lambda _ -> term
-  | TT_apply { lambda; arg } -> (
-      (* TODO: use expanded lambda? *)
-      match tt_expand_head lambda with
-      | TT_lambda { param = _; return } ->
-          tt_expand_head @@ tt_open return ~to_:arg
-      | TT_native { native } -> expand_head_native ~aliases native ~arg
-      | _lambda -> term)
-  | TT_let { bound = _; value; return } ->
-      tt_expand_head @@ tt_open return ~to_:value
-  | TT_annot { term; annot = _ } -> tt_expand_head term
-  | TT_string _ -> term
-  | TT_native _ -> term
-
-and expand_head_native ~aliases native ~arg =
-  match native with TN_debug -> tt_expand_head ~aliases arg
-
 let rec ts_inverse subst =
   match subst with
   | TS_id -> TS_id

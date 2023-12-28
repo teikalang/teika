@@ -26,16 +26,42 @@ open Tmachinery
 (* TODO: for complete terms, there is no need to open during equality *)
 open Unify_context
 
-let rec tt_unify ~aliases ~expected ~received =
-  let tt_unify ~expected ~received = tt_unify ~aliases ~expected ~received in
-  let tpat_unify ~expected ~received =
-    tpat_unify ~aliases ~expected ~received
-  in
+(* TODO: duplicating this is bad *)
+let rec tt_expand_head term =
+  match term with
+  | TT_bound_var _ -> pure term
+  | TT_free_var { level = var } -> (
+      (* TODO: better errors here when equality was consumed *)
+      let* alias = find_free_var_alias ~var in
+      (* TODO: consume alias *)
+      match alias with
+      | Some expected -> tt_expand_head expected
+      | None -> pure term)
+  | TT_forall _ -> pure term
+  | TT_lambda _ -> pure term
+  | TT_apply { lambda; arg } -> (
+      (* TODO: use expanded lambda? *)
+      let* lambda = tt_expand_head lambda in
+      match lambda with
+      | TT_lambda { param = _; return } ->
+          tt_expand_head @@ tt_open return ~to_:arg
+      | TT_native { native } -> expand_head_native native ~arg
+      | _lambda -> pure term)
+  | TT_let { bound = _; value; return } ->
+      tt_expand_head @@ tt_open return ~to_:value
+  | TT_annot { term; annot = _ } -> tt_expand_head term
+  | TT_string _ -> pure term
+  | TT_native _ -> pure term
+
+and expand_head_native native ~arg =
+  match native with TN_debug -> tt_expand_head arg
+
+let rec tt_unify ~expected ~received =
   (* TODO: short circuit physical equality *)
-  match
-    (tt_expand_head ~aliases expected, tt_expand_head ~aliases received)
-  with
-  (* TODO: annot and unfold equality?  *)
+  let* expected = tt_expand_head expected in
+  let* received = tt_expand_head received in
+  match (expected, received) with
+  (* TODO: annot equality?  *)
   | TT_annot _, _ | _, TT_annot _ -> error_annot_found ~expected ~received
   | TT_bound_var { index = expected }, TT_bound_var { index = received } -> (
       match Index.equal expected received with
@@ -45,6 +71,20 @@ let rec tt_unify ~aliases ~expected ~received =
       match Level.equal expected received with
       | true -> pure ()
       | false -> error_free_var_clash ~expected ~received)
+  | TT_free_var { level = var }, received -> (
+      (* TODO: better errors here when equality was consumed *)
+      let* alias = find_free_var_alias ~var in
+      (* TODO: consume alias *)
+      match alias with
+      | Some expected -> tt_unify ~expected ~received
+      | None -> error_type_clash ~expected ~received)
+  | expected, TT_free_var { level = var } -> (
+      (* TODO: better errors here when equality was consumed *)
+      let* alias = find_free_var_alias ~var in
+      (* TODO: consume alias *)
+      match alias with
+      | Some received -> tt_unify ~expected ~received
+      | None -> error_type_clash ~expected ~received)
   (* TODO: track whenever it is unified and locations, visualizing inference *)
   | ( TT_forall { param = expected_param; return = expected_return },
       TT_forall { param = received_param; return = received_return } )
@@ -52,7 +92,6 @@ let rec tt_unify ~aliases ~expected ~received =
       TT_lambda { param = received_param; return = received_return } ) ->
       (* TODO: contravariance *)
       let* () = tpat_unify ~expected:expected_param ~received:received_param in
-      with_free_vars @@ fun () ->
       tt_unify ~expected:expected_return ~received:received_return
   | ( TT_apply { lambda = expected_lambda; arg = expected_arg },
       TT_apply { lambda = received_lambda; arg = received_arg } ) ->
@@ -80,18 +119,18 @@ let rec tt_unify ~aliases ~expected ~received =
       | false -> error_string_clash ~expected ~received)
   | TT_native { native = expected }, TT_native { native = received } ->
       unify_native ~expected ~received
-  | ( ( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-      | TT_let _ | TT_string _ | TT_native _ ),
-      ( TT_bound_var _ | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _
-      | TT_let _ | TT_string _ | TT_native _ ) ) ->
+  | ( ( TT_bound_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_let _
+      | TT_string _ | TT_native _ ),
+      ( TT_bound_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_let _
+      | TT_string _ | TT_native _ ) ) ->
       error_type_clash ~expected ~received
 
-and tpat_unify ~aliases ~expected ~received =
+and tpat_unify ~expected ~received =
   (* TODO: pat? *)
   let (TPat { pat = expected_pat; type_ = expected_type }) = expected in
   let (TPat { pat = received_pat; type_ = received_type }) = received in
   let* () = tp_unify ~expected:expected_pat ~received:received_pat in
-  tt_unify ~aliases ~expected:expected_type ~received:received_type
+  tt_unify ~expected:expected_type ~received:received_type
 
 and tp_unify ~expected ~received =
   match (expected, received) with TP_var _, TP_var _ -> pure ()
