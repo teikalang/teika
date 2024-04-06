@@ -1,3 +1,4 @@
+open Utils
 open Syntax
 open Ttree
 
@@ -7,26 +8,44 @@ type error =
   (* TODO: why track nested locations?
          Probably because things like macros exists *)
   | TError_loc of { error : error; loc : Location.t [@opaque] }
-  (* misc *)
-  | TError_misc_annot_found of { term : term }
-  (* TODO: lazy names for errors *)
-  | TError_misc_var_escape of { var : Level.t }
-  (* unify *)
-  | TError_unify_annot_found of { expected : term; received : term }
-  | TError_unify_bound_var_clash of { expected : Index.t; received : Index.t }
-  | TError_unify_free_var_clash of { expected : Level.t; received : Level.t }
-  | TError_unify_type_clash of { expected : term; received : term }
-  | TError_unify_string_clash of { expected : string; received : string }
+  (* equal *)
+  | TError_var_clash of { left : var; right : var }
+  | TError_type_clash of { left : term; right : term }
+  | TError_string_clash of { left : string; right : string }
   (* typer *)
-  | TError_typer_unknown_var of { name : Name.t }
-  | TError_typer_not_a_forall of { type_ : term }
-  | TError_typer_pairs_not_implemented
-  | TError_typer_erasable_not_implemented
-  | TError_typer_unknown_extension of {
-      extension : Name.t;
-      payload : Ltree.term;
-    }
-  | TError_typer_unknown_native of { native : string }
-  | TError_typer_missing_annotation
+  | TError_unknown_var of { name : Name.t }
+  | TError_not_a_forall of { type_ : term }
+  | TError_extensions_not_implemented
+  | TError_pairs_not_implemented
+  | TError_erasable_not_implemented
+  | TError_unknown_extension of { extension : Name.t; payload : Ltree.term }
+  | TError_unknown_native of { native : string }
+  | TError_missing_annotation
 
 and t = error [@@deriving show { with_path = false }]
+
+exception TError of { error : error }
+
+let terror error = raise (TError { error })
+let error_var_clash ~left ~right = terror @@ TError_var_clash { left; right }
+let error_type_clash ~left ~right = terror @@ TError_type_clash { left; right }
+
+let error_string_clash ~left ~right =
+  terror @@ TError_string_clash { left; right }
+
+let error_unknown_var ~name = terror @@ TError_unknown_var { name }
+let error_not_a_forall ~type_ = terror @@ TError_not_a_forall { type_ }
+
+let error_extensions_not_implemented () =
+  terror @@ TError_extensions_not_implemented
+
+let error_pairs_not_implemented () = terror @@ TError_pairs_not_implemented
+
+let error_erasable_not_implemented () =
+  terror @@ TError_erasable_not_implemented
+
+let error_unknown_extension ~extension ~payload =
+  terror @@ TError_unknown_extension { extension; payload }
+
+let error_unknown_native ~native = terror @@ TError_unknown_native { native }
+let error_missing_annotation () = terror @@ TError_missing_annotation

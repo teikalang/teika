@@ -1,6 +1,5 @@
 open Syntax
-open Ttree
-open Context
-open Typer_context
 
-val infer_term : Ltree.term -> term typer_context
+module Infer : sig
+  val infer_term : Ltree.term -> (Ttree.term, Terror.error) result
+end
