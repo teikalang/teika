@@ -1,3 +1,5 @@
+open Utils
+
 type term =
   | CT_loc of { term : term; loc : Location.t }
   | CT_var of { var : Name.t }
