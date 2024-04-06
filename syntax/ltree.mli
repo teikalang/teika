@@ -1,3 +1,5 @@
+open Utils
+
 type term =
   | LT_loc of { term : term; loc : Location.t }
   (* x *)

@@ -1,25 +1,23 @@
 self: super:
 with super; {
-  # ocaml-ng = builtins.mapAttrs (_: ocamlVersion: ocamlVersion) super.ocaml-ng;
-  # TODO: this is clearly not right, I should be overriding only 4_14
   ocaml-ng = ocaml-ng // (with ocaml-ng; {
-    ocamlPackages_5_0 = ocamlPackages_5_0.overrideScope'
+    ocamlPackages_5_1 = ocamlPackages_5_1.overrideScope'
       (_: super: {
         ocaml-lsp = super.ocaml-lsp.overrideAttrs (_: {
           src = fetchFromGitHub {
-            owner = "EduardoRFS";
+            owner = "ocaml";
             repo = "ocaml-lsp";
-            rev = "72202cd2bb9ff65845b623d20f513f6ed5b82ab8";
-            sha256 = "49E7L50i9RZTrQDPmdqyeOaBSXjRo/ijjrsj9oztduM=";
+            rev = "922a726d2dcd816263c34df7d8d0f44fd4700be2";
+            sha256 = "9Mt5hD3W0hDyIcPos9anTFRW7RHjEg3+2inj6jOY2S4=";
             fetchSubmodules = true;
           };
         });
         jsonrpc = super.jsonrpc.overrideAttrs (_: {
           src = fetchFromGitHub {
-            owner = "EduardoRFS";
+            owner = "ocaml";
             repo = "ocaml-lsp";
-            rev = "72202cd2bb9ff65845b623d20f513f6ed5b82ab8";
-            sha256 = "49E7L50i9RZTrQDPmdqyeOaBSXjRo/ijjrsj9oztduM=";
+            rev = "922a726d2dcd816263c34df7d8d0f44fd4700be2";
+            sha256 = "9Mt5hD3W0hDyIcPos9anTFRW7RHjEg3+2inj6jOY2S4=";
             fetchSubmodules = true;
           };
         });

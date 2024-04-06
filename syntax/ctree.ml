@@ -1,3 +1,5 @@
+open Utils
+
 type term =
   (* TODO: printer location *)
   | CT_loc of { term : term; loc : Location.t [@opaque] }

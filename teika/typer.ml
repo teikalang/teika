@@ -1,204 +1,398 @@
+open Utils
 open Syntax
-open Ltree
-open Ttree
-open Context
-open Typer_context
-open Tmachinery
-open Unify
 
-let unify_term ~expected ~received =
-  with_unify_context @@ fun () -> tt_unify ~expected ~received
+module Machinery = struct
+  open Ttree
+  open Terror
 
-let tt_open_level term =
-  let* to_ = level () in
-  let to_ = TT_free_var { level = to_ } in
-  pure @@ tt_open term ~to_
+  let tt_syntax_of term =
+    match term with TTerm { term; type_ = _ } -> term | TType { term } -> term
 
-let tt_close_level term =
-  let* from = level () in
-  pure @@ tt_close term ~from
+  let tt_type_of term =
+    match term with
+    | TTerm { term = _; type_ } -> type_
+    | TType { term = _ } -> tt_global_univ
 
-let rec tt_expand_head term =
-  match term with
-  | TT_bound_var _ -> pure term
-  | TT_free_var { level = var } -> (
-      (* TODO: better errors here when equality was consumed *)
-      let* alias = find_free_var_alias ~var in
-      (* TODO: consume alias *)
-      match alias with
-      | Some expected -> tt_expand_head expected
-      | None -> pure term)
-  | TT_forall _ -> pure term
-  | TT_lambda _ -> pure term
-  | TT_apply { lambda; arg } -> (
-      (* TODO: use expanded lambda? *)
-      let* lambda = tt_expand_head lambda in
-      match lambda with
-      | TT_lambda { param = _; return } ->
-          tt_expand_head @@ tt_open return ~to_:arg
-      | TT_native { native } -> expand_head_native native ~arg
-      | _lambda -> pure term)
-  | TT_let { bound = _; value; return } ->
-      tt_expand_head @@ tt_open return ~to_:value
-  | TT_annot { term; annot = _ } -> tt_expand_head term
-  | TT_string _ -> pure term
-  | TT_native _ -> pure term
+  let tp_type_of pat = match pat with TPat { pat = _; type_ } -> type_
 
-and expand_head_native native ~arg =
-  match native with TN_debug -> tt_expand_head arg
+  let rec tp_var_of pat =
+    match pat with TPat { pat; type_ = _ } -> tp_syntax_var_of pat
 
-let split_forall type_ =
-  (* TODO: aliases *)
-  let* type_ = tt_expand_head type_ in
-  match type_ with
-  | TT_forall { param; return } ->
-      let (TPat { pat = TP_var _; type_ = param_type }) = param in
-      pure (param_type, return)
-  | _ ->
-      (* TODO: print non expanded *)
-      error_not_a_forall ~type_
+  and tp_syntax_var_of pat =
+    match pat with
+    | TP_annot { pat; annot = _ } -> tp_var_of pat
+    | TP_var { var } -> var
 
-(* TODO: does having expected_term also improves inference?
-     Maybe with self and fix? But maybe not worth it
-   Seems to help with many cases such as expected on annotation *)
-let rec infer_term term =
-  match term with
-  | LT_loc { term; loc = _ } ->
-      (* TODO: use loc *)
-      infer_term term
-  | LT_var { var = name } ->
-      let* level, type_ = lookup_var ~name in
-      pure @@ (TT_free_var { level }, type_)
-  | LT_extension _ ->
-      (* TODO: support annotations here? *)
-      error_missing_annotation ()
-  | LT_forall { param; return } ->
-      let* name, param, param_type = infer_typed_pat param in
-      let* return =
-        with_free_vars ~name ~type_:param_type ~alias:None @@ fun () ->
-        let* return = check_annot return in
-        tt_close_level return
+  let tv_fresh_of var =
+    let (TVar { name; link = _; rename = _ }) = var in
+    tv_fresh name
+
+  (* TODO: accumulate rename, such that rename becomes amortized O(1) *)
+  (* TODO: reduce allocations? Maybe cata over term? *)
+  (* TODO: tag terms without bound variables, aka no rename *)
+  (* TODO: lazy rename, rename + link *)
+  let rec tt_rename term =
+    match term with
+    | TTerm { term; type_ } ->
+        let term = tt_syntax_rename term in
+        let type_ = tt_rename type_ in
+        tterm ~type_ term
+    | TType { term } ->
+        let term = tt_syntax_rename term in
+        ttype term
+
+  and tt_syntax_rename term =
+    match term with
+    | TT_annot { term; annot } ->
+        let term = tt_rename term in
+        let annot = tt_rename annot in
+        tt_annot ~term ~annot
+    | TT_var { var } as term -> (
+        match is_renamed var with
+        | true ->
+            let (TVar var) = var in
+            tt_var ~var:var.rename
+        | false -> term)
+    | TT_forall { param; return } ->
+        with_tp_rename param @@ fun param ->
+        let return = tt_rename return in
+        tt_forall ~param ~return
+    | TT_lambda { param; return } ->
+        with_tp_rename param @@ fun param ->
+        let return = tt_rename return in
+        tt_lambda ~param ~return
+    | TT_apply { lambda; arg } ->
+        let lambda = tt_rename lambda in
+        let arg = tt_rename arg in
+        tt_apply ~lambda ~arg
+    | TT_let { bound; value; return } ->
+        with_tp_rename bound @@ fun bound ->
+        let value = tt_rename value in
+        let return = tt_rename return in
+        tt_let ~bound ~value ~return
+    | TT_string { literal } -> tt_string ~literal
+
+  and with_tp_rename : type k. _ -> (_ -> k) -> k =
+   fun pat k ->
+    match pat with
+    | TPat { pat; type_ } ->
+        let type_ = tt_rename type_ in
+        with_tp_syntax_rename pat @@ fun pat -> k @@ tpat ~type_ pat
+
+  and with_tp_syntax_rename : type k. _ -> (_ -> k) -> k =
+   fun pat k ->
+    match pat with
+    | TP_annot { pat; annot } ->
+        (* TODO: should annot be lazily renamed? *)
+        let annot = tt_rename annot in
+        with_tp_rename pat @@ fun pat -> k @@ tp_annot ~pat ~annot
+    | TP_var { var } ->
+        let to_ = tv_fresh_of var in
+        with_tv_rename var ~to_ @@ fun () -> k @@ tp_var ~var:to_
+
+  (* TODO: avoid cyclical expansion *)
+  (* TODO: avoid allocating term nodes *)
+  (* TODO: gas count *)
+
+  (* invariant, expand head returns head binders ready to link *)
+  let rec with_tt_expand_head ~with_tp_subst term k =
+    let with_tt_syntax_expand_head term k =
+      with_tt_syntax_expand_head ~with_tp_subst term k
+    in
+    match term with
+    | TTerm { term; type_ } ->
+        with_tt_syntax_expand_head term @@ fun term -> k @@ tterm ~type_ term
+    | TType { term } ->
+        with_tt_syntax_expand_head term @@ fun term -> k @@ ttype term
+
+  and with_tt_syntax_expand_head ~with_tp_subst term k =
+    let with_tt_expand_head term k =
+      with_tt_expand_head ~with_tp_subst term k
+    in
+    let with_tt_syntax_expand_head term k =
+      with_tt_syntax_expand_head ~with_tp_subst term k
+    in
+    match term with
+    | TT_annot { term; annot = _ } ->
+        with_tt_syntax_expand_head (tt_syntax_of term) k
+    | TT_var { var } as term -> (
+        match is_linked var with
+        | true ->
+            let to_ =
+              let (TVar var) = var in
+              tt_rename var.link
+            in
+            with_tt_syntax_expand_head (tt_syntax_of to_) k
+        | false -> (
+            match is_renamed var with
+            | true ->
+                let (TVar { name = _; link = _; rename = to_ }) = var in
+                with_tt_syntax_expand_head (tt_var ~var:to_) k
+            | false -> k term))
+    | TT_forall { param = _; return = _ } as term -> k term
+    | TT_lambda { param = _; return = _ } as term -> k term
+    | TT_apply { lambda; arg } -> (
+        (* TODO: this is hackish *)
+        with_tt_expand_head lambda @@ fun lambda ->
+        match tt_syntax_of lambda with
+        | TT_lambda { param; return } ->
+            with_tp_subst param ~to_:arg @@ fun () ->
+            with_tt_syntax_expand_head (tt_syntax_of return) k
+        | _lambda -> k @@ tt_apply ~lambda ~arg)
+    | TT_let { bound; value; return } ->
+        with_tp_subst bound ~to_:value @@ fun () ->
+        with_tt_syntax_expand_head (tt_syntax_of return) k
+    | TT_string { literal = _ } as term -> k term
+
+  let rec with_tp_subst pat ~to_ k =
+    match pat with
+    | TPat { pat; type_ = _ } ->
+        (* TODO: check type_ in debug mode *)
+        with_tp_syntax_subst pat ~to_ k
+
+  and with_tp_syntax_subst pat ~to_ k =
+    match pat with
+    | TP_annot { pat; annot = _ } ->
+        (* TODO: check type_ in debug mode *)
+        with_tp_subst pat ~to_ k
+    | TP_var { var } -> with_tv_link var ~to_ k
+
+  (* invariant, expand head returns head binders ready to link *)
+  let with_tt_match_syntax_expand_head_both ~left ~right k =
+    with_tt_expand_head ~with_tp_subst left @@ fun left_head_normal ->
+    with_tt_expand_head ~with_tp_subst right @@ fun right_head_normal ->
+    k (tt_syntax_of left_head_normal, tt_syntax_of right_head_normal)
+
+  (* TODO: optimization, avoid expanding when left_lambda is equal to right_lambda *)
+  (* TODO: short on physical equality *)
+  let rec tt_equal ~left ~right =
+    match (left, right) with
+    | TType { term = _ }, TType { term = _ } -> tt_syntax_equal ~left ~right
+    | ( TTerm { term = _; type_ = left_type },
+        TTerm { term = _; type_ = right_type } ) ->
+        tt_equal ~left:left_type ~right:right_type;
+        tt_syntax_equal ~left ~right
+    | TTerm { term = _; type_ = left_type }, TType { term = _ } ->
+        tt_equal ~left:left_type ~right:tt_global_univ;
+        tt_syntax_equal ~left ~right
+    | TType { term = _ }, TTerm { term = _; type_ = right_type } ->
+        tt_equal ~left:tt_global_univ ~right:right_type;
+        tt_syntax_equal ~left ~right
+
+  and tt_syntax_equal ~left ~right =
+    with_tt_match_syntax_expand_head_both ~left ~right @@ function
+    (* TODO: invariant *)
+    | TT_annot _, _ | _, TT_annot _ -> failwith "invariant"
+    | TT_let _, _ | _, TT_let _ -> failwith "invariant"
+    (* TODO: lazily expand variable here *)
+    | TT_var { var = left }, TT_var { var = right } -> (
+        (* TODO: physical equality bad *)
+        match left == right with
+        | true -> ()
+        | false -> error_var_clash ~left ~right)
+    | ( TT_forall { param = left_param; return = left_return },
+        TT_forall { param = right_param; return = right_return } ) ->
+        with_tp_equal_contra ~left:left_param ~right:right_param @@ fun () ->
+        tt_equal ~left:left_return ~right:right_return
+    | ( TT_lambda { param = left_param; return = left_return },
+        TT_lambda { param = right_param; return = right_return } ) ->
+        with_tp_equal_contra ~left:left_param ~right:right_param @@ fun () ->
+        tt_equal ~left:left_return ~right:right_return
+    | ( TT_apply { lambda = left_lambda; arg = left_arg },
+        TT_apply { lambda = right_lambda; arg = right_arg } ) ->
+        tt_equal ~left:left_lambda ~right:right_lambda;
+        tt_equal ~left:left_arg ~right:right_arg
+    | TT_string { literal = left }, TT_string { literal = right } -> (
+        match String.equal left right with
+        | true -> ()
+        | false -> error_string_clash ~left ~right)
+    | ( (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_string _),
+        (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_string _) ) ->
+        error_type_clash ~left ~right
+
+  and with_tp_equal_contra ~left ~right k =
+    (* TODO: contra? *)
+    let (TPat { pat = _; type_ = left_type }) = left in
+    let (TPat { pat = _; type_ = right_type }) = right in
+    tt_equal ~left:left_type ~right:right_type;
+    (* alpha rename *)
+    let left = tp_var_of left in
+    let right = tp_var_of right in
+    let skolem = tv_fresh_of right in
+    let to_left = tterm ~type_:left_type @@ tt_var ~var:skolem in
+    let to_right = tterm ~type_:right_type @@ tt_var ~var:skolem in
+    with_tv_link left ~to_:to_left @@ fun () ->
+    with_tv_link right ~to_:to_right @@ fun () -> k ()
+
+  let tt_split_forall type_ =
+    (* TODO: tt_subst? *)
+    let with_tp_subst pat ~to_ k =
+      let wrapped_arg_type, apply_return_type = with_tp_subst pat ~to_ k in
+      let wrapped_arg_type =
+        ttype @@ tt_let ~bound:pat ~value:to_ ~return:wrapped_arg_type
       in
-      pure @@ (TT_forall { param; return }, tt_type)
-  | LT_lambda { param; return } ->
-      let* name, param, param_type = infer_typed_pat param in
-      let* return, return_type =
-        with_free_vars ~name ~type_:param_type ~alias:None @@ fun () ->
-        let* return, return_type = infer_term return in
-        let* return = tt_close_level return in
-        let* return_type = tt_close_level return_type in
-        pure (return, return_type)
+      let apply_return_type ~arg =
+        ttype @@ tt_let ~bound:pat ~value:to_ ~return:(apply_return_type ~arg)
       in
-      let type_ = TT_forall { param; return = return_type } in
-      pure @@ (TT_lambda { param; return }, type_)
-  | LT_apply { lambda; arg } ->
-      let* lambda, lambda_type = infer_term lambda in
-      (* TODO: this could be better? avoiding split forall? *)
-      let* arg_type, return_type = split_forall lambda_type in
-      let* arg = check_term arg ~expected:arg_type in
-      let type_ = tt_open return_type ~to_:arg in
-      pure @@ (TT_apply { lambda; arg }, type_)
-  | LT_let { bound; return } ->
-      (* TODO: use this loc *)
-      let (LBind { loc = _; pat; value }) = bound in
-      let* name, bound, value_type = infer_typed_pat pat in
-      (* TODO: propagate from value to pat *)
-      let* value = check_term value ~expected:value_type in
-      let* return, return_type =
-        with_free_vars ~name ~type_:value_type ~alias:(Some value) @@ fun () ->
-        let* return, return_type = infer_term return in
-        let* return = tt_close_level return in
-        let* return_type = tt_close_level return_type in
-        pure (return, return_type)
-      in
-      let type_ = tt_open return_type ~to_:value in
-      pure @@ (TT_let { bound; value; return }, type_)
-  | LT_annot { term; annot } ->
-      (* TODO: expected term could propagate here *)
-      let* annot = check_annot annot in
-      (* TODO: unify annot before or after check term *)
-      let* term = check_term term ~expected:annot in
-      pure @@ (TT_annot { term; annot }, annot)
-  | LT_string { literal } -> pure @@ (TT_string { literal }, string_type)
+      (wrapped_arg_type, apply_return_type)
+    in
+    with_tt_expand_head ~with_tp_subst type_ @@ fun type_ ->
+    match tt_syntax_of type_ with
+    | TT_forall { param; return } ->
+        let wrapped_arg_type = tp_type_of param in
+        let apply_return_type ~arg =
+          ttype @@ tt_let ~bound:param ~value:arg ~return
+        in
+        (wrapped_arg_type, apply_return_type)
+    | _type_ -> error_not_a_forall ~type_
+end
 
-and check_term term ~expected =
-  (* TODO: propagation through dependent things
-      aka substitution inversion *)
-  match term with
-  | LT_loc { term; loc = _ } ->
-      (* TODO: use loc *)
-      check_term term ~expected
-  | LT_extension { extension; payload } ->
-      check_term_extension ~extension ~payload ~expected
-  | LT_lambda { param; return } ->
-      (* TODO: maybe unify param? *)
-      let* param_type, return_type = split_forall expected in
-      let* name, param = check_typed_pat param ~expected:param_type in
-      let* return =
-        with_free_vars ~name ~type_:param_type ~alias:None @@ fun () ->
-        let* return_type = tt_open_level return_type in
-        let* return = check_term return ~expected:return_type in
-        tt_close_level return
-      in
-      pure @@ TT_lambda { param; return }
-  | LT_var _ | LT_forall _ | LT_apply _ | LT_let _ | LT_annot _ | LT_string _ ->
-      (* TODO: forall could in theory be improved by expected term *)
-      (* TODO: apply could propagate when arg is var *)
-      (* TODO: could propagate through let? *)
-      let* term, type_ = infer_term term in
-      let* () = unify_term ~received:type_ ~expected in
-      pure term
+module Context : sig
+  open Ttree
 
-and check_annot term = check_term term ~expected:tt_type
+  type context
 
-and check_term_extension ~extension ~payload ~expected =
-  match (Name.repr extension, payload) with
-  | _, LT_loc { term = payload; loc = _ } ->
-      (* TODO: use location *)
-      check_term_extension ~extension ~payload ~expected
-  | "@native", LT_string { literal = native } ->
-      check_term_native ~native ~expected
-  | _ -> error_unknown_extension ~extension ~payload
+  val initial : context
+  val lookup_var : context -> Name.t -> var * term
+  val with_var : context -> Name.t -> type_:term -> (context -> var -> 'k) -> 'k
+end = struct
+  open Ttree
+  open Terror
 
-and check_term_native ~native ~expected =
-  match native with
-  | "debug" ->
-      (* TODO: use this types? *)
-      let* _param_type, _return = split_forall expected in
-      pure @@ TT_native { native = TN_debug }
-  | native -> error_unknown_native ~native
+  type context = (var * term) Name.Map.t
 
-and infer_typed_pat pat =
-  match pat with
-  | LP_var { var = _ } -> error_missing_annotation ()
-  | LP_annot { pat; annot } ->
-      (* TODO: TP_annot *)
-      let* annot = check_annot annot in
-      let* name, pat = check_typed_pat pat ~expected:annot in
-      pure (name, pat, annot)
-  | LP_erasable _ -> error_erasable_not_implemented ()
-  | LP_loc { pat; loc } -> with_loc ~loc @@ fun () -> infer_typed_pat pat
+  let enter_var ctx var ~type_ =
+    let (TVar { name; link = _; rename = _ }) = var in
+    Name.Map.add name (var, type_) ctx
 
-and check_typed_pat pat ~expected =
-  (* TODO: why this escape check? *)
-  let* name, pat = check_core_pat pat ~expected in
-  (* TODO: returning name is not ideal *)
-  pure (name, TPat { pat; type_ = expected })
+  let initial =
+    let ctx = Name.Map.empty in
+    let ctx = enter_var ctx tv_univ ~type_:tt_global_univ in
+    let ctx = enter_var ctx tv_string ~type_:tt_global_univ in
+    ctx
 
-and check_core_pat pat ~expected =
-  (* TODO: expected should be a pattern, to achieve strictness *)
-  match pat with
-  | LP_var { var = name } -> pure (name, TP_var { name })
-  | LP_annot { pat; annot } ->
-      (* TODO: TP_annot *)
-      let* annot = check_annot annot in
-      let* () = unify_term ~received:annot ~expected in
-      check_core_pat pat ~expected:annot
-  | LP_erasable _ -> error_erasable_not_implemented ()
-  | LP_loc { pat; loc } ->
-      with_loc ~loc @@ fun () -> check_core_pat pat ~expected
+  let lookup_var ctx name =
+    match Name.Map.find_opt name ctx with
+    | Some (var, type_) -> (var, type_)
+    | None -> error_unknown_var ~name
 
-(* TODO: this is weird *)
-let infer_term term =
-  let* term, _type = infer_term term in
-  pure term
+  let with_var ctx name ~type_ k =
+    let var = tv_fresh name in
+    let ctx = enter_var ctx var ~type_ in
+    k ctx var
+end
+
+module Infer = struct
+  open Ltree
+  open Ttree
+  open Terror
+  open Context
+  open Machinery
+
+  (* TODO: does having expected_term also improves inference?
+       Maybe with self and fix? But maybe not worth it
+     Seems to help with many cases such as expected on annotation *)
+
+  let rec infer_term ctx term =
+    match term with
+    | LT_loc { term; loc = _ } ->
+        (* TODO: use loc *)
+        infer_term ctx term
+    | LT_annot { term; annot } ->
+        (* TODO: expected term could propagate here *)
+        let annot = check_annot ctx annot in
+        (* TODO: unify annot before or after check term *)
+        let term = check_term ctx term ~expected:annot in
+        tterm ~type_:annot @@ tt_annot ~term ~annot
+    | LT_var { var = name } ->
+        let var, type_ = lookup_var ctx name in
+        let type_ = tt_rename type_ in
+        tterm ~type_ @@ tt_var ~var
+    | LT_extension _ -> error_extensions_not_implemented ()
+    | LT_forall { param; return } ->
+        with_infer_pat ctx param @@ fun ctx param ->
+        let return = check_annot ctx return in
+        ttype @@ tt_forall ~param ~return
+    | LT_lambda { param; return } ->
+        with_infer_pat ctx param @@ fun ctx param ->
+        let return = infer_term ctx return in
+        let type_ =
+          let return = tt_type_of return in
+          ttype @@ tt_forall ~param ~return
+        in
+        tterm ~type_ @@ tt_lambda ~param ~return
+    | LT_apply { lambda; arg } ->
+        let lambda = infer_term ctx lambda in
+        (* TODO: this could be better? avoiding split forall? *)
+        let wrapped_arg_type, apply_return_type =
+          tt_split_forall (tt_type_of lambda)
+        in
+        let arg = check_term ctx arg ~expected:wrapped_arg_type in
+        let type_ = apply_return_type ~arg in
+        tterm ~type_ @@ tt_apply ~lambda ~arg
+    | LT_let { bound; return } ->
+        (* TODO: use this loc *)
+        let (LBind { loc = _; pat; value }) = bound in
+        let value = infer_term ctx value in
+        (* TODO: this should be before value *)
+        (* TODO: with_check_pat + subst  *)
+        with_check_pat ctx pat ~expected:(tt_type_of value) @@ fun ctx bound ->
+        with_tp_subst bound ~to_:value @@ fun () ->
+        let return = infer_term ctx return in
+        let type_ = ttype @@ tt_let ~bound ~value ~return:(tt_type_of return) in
+        tterm ~type_ @@ tt_let ~bound ~value ~return
+    | LT_string { literal } ->
+        tterm ~type_:tt_global_string @@ tt_string ~literal
+
+  and check_term ctx term ~expected =
+    (* TODO: let () = assert_is_tt_with_type expected in *)
+    (* TODO: expected should be a pattern? *)
+    (* TODO: propagation through dependent things
+        aka substitution inversion *)
+    (* TODO: forall could in theory be improved by expected term *)
+    (* TODO: apply could propagate when arg is var *)
+    (* TODO: could propagate through let? *)
+    let term = infer_term ctx term in
+    let () =
+      let received = tt_type_of term in
+      tt_equal ~left:received ~right:expected
+    in
+    term
+
+  and check_annot ctx term = check_term ctx term ~expected:tt_global_univ
+
+  and with_infer_pat ctx pat k =
+    match pat with
+    | LP_loc { pat; loc = _ } ->
+        (* TODO: use this loc *)
+        with_infer_pat ctx pat k
+    | LP_var { var = _ } -> error_missing_annotation ()
+    | LP_annot { pat; annot } ->
+        (* TODO: TP_annot *)
+        let annot = check_annot ctx annot in
+        with_check_pat ctx pat ~expected:annot @@ fun ctx pat ->
+        k ctx @@ tpat ~type_:annot @@ tp_annot ~pat ~annot
+    | LP_erasable _ -> error_erasable_not_implemented ()
+
+  and with_check_pat ctx pat ~expected k =
+    (* TODO: let () = assert_is_tt_with_type expected in *)
+    (* TODO: expected should be a pattern, to achieve strictness *)
+    match pat with
+    | LP_loc { pat; loc = _ } ->
+        (* TODO: use this loc *)
+        with_check_pat ctx pat ~expected k
+    | LP_annot { pat; annot } ->
+        let annot = check_annot ctx annot in
+        let () = tt_equal ~left:annot ~right:expected in
+        with_check_pat ctx pat ~expected:annot @@ fun ctx pat ->
+        k ctx @@ tpat ~type_:expected @@ tp_annot ~pat ~annot
+    | LP_var { var = name } ->
+        with_var ctx name ~type_:expected @@ fun ctx var ->
+        k ctx @@ tpat ~type_:expected @@ tp_var ~var
+    | LP_erasable _ -> error_erasable_not_implemented ()
+
+  let infer_term term =
+    match infer_term Context.initial term with
+    | term -> Ok term
+    | exception TError { error } -> Error error
+end

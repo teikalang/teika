@@ -15,7 +15,7 @@
           (import ./nix/overlay.nix)
         ];
       }).extend (self: super: {
-        ocamlPackages = super.ocaml-ng.ocamlPackages_5_0;
+        ocamlPackages = super.ocaml-ng.ocamlPackages_5_1;
       }); in
       let teika = pkgs.callPackage ./nix {
         inherit nix-filter;
