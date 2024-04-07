@@ -8,7 +8,6 @@ let mk (loc_start, loc_end) =
 %}
 %token <string> VAR (* x *)
 %token COLON (* : *)
-%token GRADE (* $ *)
 %token ARROW (* -> *)
 %token FAT_ARROW (* => *)
 %token EQUAL (* = *)
@@ -42,12 +41,8 @@ let term_rec_pair :=
   | term_pair(term_rec_pair, term_rec_both)
 
 let term_rec_both :=
-  | term_rec_grade
-  | term_both(term_rec_both, term_rec_grade)
-
-let term_rec_grade :=
   | term_rec_annot
-  | term_grade(term_rec_grade, term_rec_annot)
+  | term_both(term_rec_both, term_rec_annot)
 
 let term_rec_annot :=
   | term_rec_semi
@@ -84,9 +79,6 @@ let term_var ==
 let term_extension ==
   | extension = EXTENSION;
     { ct_extension (mk $loc) ~extension:(Name.make extension) }
-let term_grade(self, lower) ==
-  | term = lower; GRADE; grade = self;
-    { ct_grade (mk $loc) ~term ~grade }
 let term_forall(self, lower) ==
   | param = lower; ARROW; return = self;
     { ct_forall (mk $loc) ~param ~return }

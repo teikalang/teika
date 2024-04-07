@@ -5,7 +5,6 @@ type term =
   | CT_loc of { term : term; loc : Location.t [@opaque] }
   | CT_var of { var : Name.t }
   | CT_extension of { extension : Name.t }
-  | CT_grade of { term : term; grade : term }
   | CT_forall of { param : term; return : term }
   | CT_lambda of { param : term; return : term }
   | CT_apply of { lambda : term; arg : term }
@@ -23,7 +22,6 @@ type term =
 let ct_loc loc term = CT_loc { loc; term }
 let ct_var loc ~var = ct_loc loc (CT_var { var })
 let ct_extension loc ~extension = ct_loc loc (CT_extension { extension })
-let ct_grade loc ~term ~grade = ct_loc loc (CT_grade { term; grade })
 let ct_forall loc ~param ~return = ct_loc loc (CT_forall { param; return })
 let ct_lambda loc ~param ~return = ct_loc loc (CT_lambda { param; return })
 let ct_apply loc ~lambda ~arg = ct_loc loc (CT_apply { lambda; arg })

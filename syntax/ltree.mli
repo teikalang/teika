@@ -13,7 +13,7 @@ type term =
   (* l a *)
   | LT_apply of { lambda : term; arg : term }
   (* p = v; r *)
-  | LT_let of { bound : bind; return : term }
+  | LT_let of { bound : pat; value : term; return : term }
   (* (v : T) *)
   | LT_annot of { term : term; annot : term }
   (* ".." *)
@@ -23,10 +23,6 @@ and pat =
   | LP_loc of { pat : pat; loc : Location.t }
   (* x *)
   | LP_var of { var : Name.t }
-  (* (p $ 0) *)
-  | LP_erasable of { pat : pat }
   (* (p : T) *)
   | LP_annot of { pat : pat; annot : term }
-
-and bind = LBind of { loc : Location.t; pat : pat; value : term }
 [@@deriving show]
