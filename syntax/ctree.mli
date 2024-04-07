@@ -4,7 +4,6 @@ type term =
   | CT_loc of { term : term; loc : Location.t }
   | CT_var of { var : Name.t }
   | CT_extension of { extension : Name.t }
-  | CT_grade of { term : term; grade : term }
   | CT_forall of { param : term; return : term }
   | CT_lambda of { param : term; return : term }
   | CT_apply of { lambda : term; arg : term }
@@ -21,7 +20,6 @@ type term =
 
 val ct_var : Location.t -> var:Name.t -> term
 val ct_extension : Location.t -> extension:Name.t -> term
-val ct_grade : Location.t -> term:term -> grade:term -> term
 val ct_forall : Location.t -> param:term -> return:term -> term
 val ct_lambda : Location.t -> param:term -> return:term -> term
 val ct_apply : Location.t -> lambda:term -> arg:term -> term
