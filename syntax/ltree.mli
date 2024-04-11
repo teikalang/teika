@@ -12,6 +12,8 @@ type term =
   | LT_lambda of { param : pat; return : term }
   (* l a *)
   | LT_apply of { lambda : term; arg : term }
+  (* p : A; r *)
+  | LT_hoist of { bound : pat; annot : term; return : term }
   (* p = v; r *)
   | LT_let of { bound : pat; value : term; return : term }
   (* (v : T) *)

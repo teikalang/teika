@@ -39,14 +39,20 @@ let rec parse_term ~loc term =
 and parse_semi ~loc ~left ~right =
   match left with
   | CT_loc { term = left; loc } -> parse_semi ~loc ~left ~right
+  | CT_parens { content = left } -> parse_semi ~loc ~left ~right
   | CT_bind { bound; value } ->
       let bound = parse_pat ~loc bound in
       let value = parse_term ~loc value in
       let return = parse_term ~loc right in
       LT_let { bound; value; return }
+  | CT_annot { value = bound; annot } ->
+      let bound = parse_pat ~loc bound in
+      let annot = parse_term ~loc annot in
+      let return = parse_term ~loc right in
+      LT_hoist { bound; annot; return }
   | CT_var _ | CT_extension _ | CT_forall _ | CT_lambda _ | CT_apply _
-  | CT_pair _ | CT_both _ | CT_semi _ | CT_annot _ | CT_string _ | CT_number _
-  | CT_parens _ | CT_braces _ ->
+  | CT_pair _ | CT_both _ | CT_semi _ | CT_string _ | CT_number _ | CT_braces _
+    ->
       invalid_notation loc
 
 and parse_apply ~loc ~lambda ~arg =

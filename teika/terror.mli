@@ -13,9 +13,9 @@ type error =
   (* typer *)
   | TError_unknown_var of { name : Name.t }
   | TError_not_a_forall of { type_ : term }
+  | TError_hoist_not_implemented
   | TError_extensions_not_implemented
   | TError_pairs_not_implemented
-  | TError_erasable_not_implemented
   | TError_unknown_extension of { extension : Name.t; payload : Ltree.term }
   (* TODO: native should not be a string *)
   | TError_unknown_native of { native : string }
@@ -31,9 +31,9 @@ val error_type_clash : left:term -> right:term -> 'a
 val error_string_clash : left:string -> right:string -> 'a
 val error_unknown_var : name:Name.t -> 'a
 val error_not_a_forall : type_:term -> 'a
+val error_hoist_not_implemented : unit -> 'a
 val error_extensions_not_implemented : unit -> 'a
 val error_pairs_not_implemented : unit -> 'a
-val error_erasable_not_implemented : unit -> 'a
 val error_unknown_extension : extension:Name.t -> payload:Ltree.term -> 'a
 val error_unknown_native : native:string -> 'a
 val error_missing_annotation : unit -> 'a
