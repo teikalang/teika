@@ -27,7 +27,7 @@ module Typer = struct
   let let_id =
     check "let_id"
       {|((
-        (id : (A : Type) -> (x : A) -> A) = A => (x : A) => x;
+        id : (A : Type) -> (x : A) -> A = A => (x : A) => x;
         id
       ) : (A : Type) -> (x : A) -> A)|}
 
@@ -87,7 +87,7 @@ module Typer = struct
   let let_alias =
     check "let_alias"
       {|
-        (Id : (A : Type) -> Type) = (A : Type) => A;
+        Id : (A : Type) -> Type = (A : Type) => A;
         ((A : Type) => (x : A) => (x : Id A))
       |}
 
@@ -104,7 +104,7 @@ module Typer = struct
     check "rank_2_propagate"
       {|
         Unit = (A : Type) -> (x : A) -> A;
-        (noop : (u : Unit) -> Unit) = u => u Unit u;
+        noop : (u : Unit) -> Unit = u => u Unit u;
         noop
       |}
 
@@ -129,13 +129,13 @@ module Typer = struct
       {|
         Eq = (A : Type) => (x : A) => (y : A) =>
           (P : (z : A) -> Type) -> (l : P x) -> P y;
-        (refl : (A : Type) -> (x : A) -> Eq A x x)
+        refl : (A : Type) -> (x : A) -> Eq A x x
           = (A : Type) => (x : A) =>
             (P : (z : A) -> Type) => (l : P x) => l;
 
         Nat = (A : Type) -> (z : A) -> (s : (acc : A) -> A) -> A;
-        (zero : Nat) = (A : Type) => (z : A) => (s : (acc : A) -> A) => z;
-        (succ : (pred : Nat) -> Nat) = (pred : Nat) => 
+        zero : Nat = (A : Type) => (z : A) => (s : (acc : A) -> A) => z;
+        succ : (pred : Nat) -> Nat = (pred : Nat) => 
           (A : Type) => (z : A) => (s : (acc : A) -> A) => s (pred A z s);
         one = succ zero;
 
@@ -148,7 +148,7 @@ module Typer = struct
         eight = add four four;
         sixteen = add eight eight;
         n256 = mul sixteen sixteen;
-        (sixteen_is_eight_times_two : Eq Nat sixteen (mul eight two))
+        sixteen_is_eight_times_two : Eq Nat sixteen (mul eight two)
           = refl Nat sixteen;
         (refl Nat n256 : Eq Nat (mul (mul eight eight) four) n256)
       |}

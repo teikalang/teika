@@ -7,6 +7,7 @@ type term =
   | LT_forall of { param : pat; return : term }
   | LT_lambda of { param : pat; return : term }
   | LT_apply of { lambda : term; arg : term }
+  | LT_hoist of { bound : pat; annot : term; return : term }
   | LT_let of { bound : pat; value : term; return : term }
   | LT_annot of { term : term; annot : term }
   | LT_string of { literal : string }

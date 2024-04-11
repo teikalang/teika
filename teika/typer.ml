@@ -120,6 +120,7 @@ module Machinery = struct
         | true ->
             let to_ =
               let (TVar var) = var in
+              (* TODO: rename on register subst instead? *)
               tt_rename var.link
             in
             with_tt_syntax_expand_head (tt_syntax_of to_) k
@@ -330,13 +331,14 @@ module Infer = struct
         let arg = check_term ctx arg ~expected:wrapped_arg_type in
         let type_ = apply_return_type ~arg in
         tterm ~type_ @@ tt_apply ~lambda ~arg
-    | LT_let { bound; return } ->
+    | LT_hoist _ -> error_hoist_not_implemented ()
+    | LT_let { bound; value; return } ->
         (* TODO: use this loc *)
-        let (LBind { loc = _; pat; value }) = bound in
         let value = infer_term ctx value in
         (* TODO: this should be before value *)
         (* TODO: with_check_pat + subst  *)
-        with_check_pat ctx pat ~expected:(tt_type_of value) @@ fun ctx bound ->
+        with_check_pat ctx bound ~expected:(tt_type_of value)
+        @@ fun ctx bound ->
         with_tp_subst bound ~to_:value @@ fun () ->
         let return = infer_term ctx return in
         let type_ = ttype @@ tt_let ~bound ~value ~return:(tt_type_of return) in
@@ -372,7 +374,6 @@ module Infer = struct
         let annot = check_annot ctx annot in
         with_check_pat ctx pat ~expected:annot @@ fun ctx pat ->
         k ctx @@ tpat ~type_:annot @@ tp_annot ~pat ~annot
-    | LP_erasable _ -> error_erasable_not_implemented ()
 
   and with_check_pat ctx pat ~expected k =
     (* TODO: let () = assert_is_tt_with_type expected in *)
@@ -389,7 +390,6 @@ module Infer = struct
     | LP_var { var = name } ->
         with_var ctx name ~type_:expected @@ fun ctx var ->
         k ctx @@ tpat ~type_:expected @@ tp_var ~var
-    | LP_erasable _ -> error_erasable_not_implemented ()
 
   let infer_term term =
     match infer_term Context.initial term with

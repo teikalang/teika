@@ -41,20 +41,28 @@ let term_rec_pair :=
   | term_pair(term_rec_pair, term_rec_both)
 
 let term_rec_both :=
-  | term_rec_annot
-  | term_both(term_rec_both, term_rec_annot)
+  | term_semi_or_annot
+  | term_both(term_rec_both, term_semi_or_annot)
 
-let term_rec_annot :=
-  | term_rec_semi
-  | term_annot(term_rec_annot, term_rec_funct)
+let term_semi_or_annot :=
+  | term_rec_annot
+  | term_semi(term_rec_semi, term_rec_semi_bind)
 
 let term_rec_semi :=
-  | term_rec_bind
-  | term_semi(term_rec_semi, term_rec_bind)
-
-let term_rec_bind :=
   | term_rec_funct
-  | term_bind(term_rec_funct, term_rec_funct)
+  | term_semi(term_rec_semi, term_rec_semi_bind)
+
+let term_rec_semi_bind :=
+  | term_rec_semi_annot
+  | term_bind(term_rec_semi, term_rec_semi_annot)
+
+let term_rec_semi_annot :=
+  | term_rec_funct
+  | term_annot(term_rec_semi_annot, term_rec_funct)
+
+let term_rec_annot :=
+  | term_rec_funct
+  | term_annot(term_rec_annot, term_rec_funct)
 
 let term_rec_funct :=
   | term_rec_apply

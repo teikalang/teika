@@ -15,9 +15,9 @@ type error =
   (* typer *)
   | TError_unknown_var of { name : Name.t }
   | TError_not_a_forall of { type_ : term }
+  | TError_hoist_not_implemented
   | TError_extensions_not_implemented
   | TError_pairs_not_implemented
-  | TError_erasable_not_implemented
   | TError_unknown_extension of { extension : Name.t; payload : Ltree.term }
   | TError_unknown_native of { native : string }
   | TError_missing_annotation
@@ -35,14 +35,12 @@ let error_string_clash ~left ~right =
 
 let error_unknown_var ~name = terror @@ TError_unknown_var { name }
 let error_not_a_forall ~type_ = terror @@ TError_not_a_forall { type_ }
+let error_hoist_not_implemented () = terror @@ TError_hoist_not_implemented
 
 let error_extensions_not_implemented () =
   terror @@ TError_extensions_not_implemented
 
 let error_pairs_not_implemented () = terror @@ TError_pairs_not_implemented
-
-let error_erasable_not_implemented () =
-  terror @@ TError_erasable_not_implemented
 
 let error_unknown_extension ~extension ~payload =
   terror @@ TError_unknown_extension { extension; payload }
