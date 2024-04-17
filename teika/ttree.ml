@@ -17,6 +17,8 @@ and term_syntax =
   | TT_lambda of { param : pat; return : term }
   (* M N *)
   | TT_apply of { lambda : term; arg : term }
+  (* P : A; M *)
+  | TT_hoist of { bound : pat; annot : term; return : term }
   (* P = N; M *)
   | TT_let of { bound : pat; value : term; return : term }
   (* ".." *)
@@ -43,6 +45,7 @@ let tt_var ~var = TT_var { var }
 let tt_forall ~param ~return = TT_forall { param; return }
 let tt_lambda ~param ~return = TT_lambda { param; return }
 let tt_apply ~lambda ~arg = TT_apply { lambda; arg }
+let tt_hoist ~bound ~annot ~return = TT_hoist { bound; annot; return }
 let tt_let ~bound ~value ~return = TT_let { bound; value; return }
 let tt_string ~literal = TT_string { literal }
 
@@ -73,24 +76,44 @@ let is_renamed var =
   let (TVar var_content) = var in
   not (is_tv_nil var_content.rename)
 
+let assert_linked var =
+  match is_linked var with
+  | true -> ()
+  | false -> raise (TVar_already_linked { var })
+
 let assert_not_linked var =
   match is_linked var with
   | true -> raise (TVar_already_linked { var })
   | false -> ()
 
-let assert_not_renamed var =
-  match is_renamed var with
-  | true -> raise (TVar_already_renamed { var })
-  | false -> ()
-
 let tv_link var ~to_ =
-  let () = assert_not_linked var in
   let (TVar var) = var in
   var.link <- to_
 
 let tv_link_reset var =
+  let () = assert_linked var in
   let (TVar var) = var in
   var.link <- tt_nil
+
+let with_force_tv_link var ~to_ k =
+  let () = tv_link var ~to_ in
+  let value = k () in
+  let () = tv_link_reset var in
+  value
+
+let with_tv_link var ~to_ k =
+  let () = assert_not_linked var in
+  with_force_tv_link var ~to_ k
+
+let assert_renamed var =
+  match is_renamed var with
+  | true -> ()
+  | false -> raise (TVar_already_renamed { var })
+
+let assert_not_renamed var =
+  match is_renamed var with
+  | true -> raise (TVar_already_renamed { var })
+  | false -> ()
 
 let tv_rename var ~to_ =
   let () = assert_not_renamed var in
@@ -98,14 +121,9 @@ let tv_rename var ~to_ =
   var.rename <- to_
 
 let tv_rename_reset var =
+  let () = assert_renamed var in
   let (TVar var) = var in
   var.rename <- tv_nil
-
-let with_tv_link var ~to_ k =
-  let () = tv_link var ~to_ in
-  let value = k () in
-  let () = tv_link_reset var in
-  value
 
 let with_tv_rename var ~to_ k =
   let () = tv_rename var ~to_ in

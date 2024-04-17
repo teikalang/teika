@@ -65,6 +65,11 @@ module Machinery = struct
         let lambda = tt_rename lambda in
         let arg = tt_rename arg in
         tt_apply ~lambda ~arg
+    | TT_hoist { bound; annot; return } ->
+        with_tp_rename bound @@ fun bound ->
+        let annot = tt_rename annot in
+        let return = tt_rename return in
+        tt_hoist ~bound ~annot ~return
     | TT_let { bound; value; return } ->
         with_tp_rename bound @@ fun bound ->
         let value = tt_rename value in
@@ -95,19 +100,10 @@ module Machinery = struct
   (* TODO: gas count *)
 
   (* invariant, expand head returns head binders ready to link *)
-  let rec with_tt_expand_head ~with_tp_subst term k =
-    let with_tt_syntax_expand_head term k =
-      with_tt_syntax_expand_head ~with_tp_subst term k
-    in
-    match term with
-    | TTerm { term; type_ } ->
-        with_tt_syntax_expand_head term @@ fun term -> k @@ tterm ~type_ term
-    | TType { term } ->
-        with_tt_syntax_expand_head term @@ fun term -> k @@ ttype term
 
-  and with_tt_syntax_expand_head ~with_tp_subst term k =
-    let with_tt_expand_head term k =
-      with_tt_expand_head ~with_tp_subst term k
+  let rec with_tt_syntax_expand_head ~with_tp_subst term k =
+    let with_tt_expand_head_and_substs term k =
+      with_tt_expand_head_and_substs ~with_tp_subst term k
     in
     let with_tt_syntax_expand_head term k =
       with_tt_syntax_expand_head ~with_tp_subst term k
@@ -115,35 +111,104 @@ module Machinery = struct
     match term with
     | TT_annot { term; annot = _ } ->
         with_tt_syntax_expand_head (tt_syntax_of term) k
+    | TT_var { var = _ } as term -> k term
+    | TT_forall { param = _; return = _ } as term -> k term
+    | TT_lambda { param = _; return = _ } as term -> k term
+    (* beta *)
+    | TT_apply { lambda; arg } -> (
+        with_tt_expand_head_and_substs lambda @@ fun lambda ->
+        match tt_syntax_of lambda with
+        | TT_lambda { param; return } ->
+            with_tp_subst param ~to_:arg @@ fun () ->
+            with_tt_syntax_expand_head (tt_syntax_of return) k
+        | _lambda ->
+            (* TODO: preserve lambda? *)
+            k @@ tt_apply ~lambda ~arg)
+    (* zeta *)
+    | TT_hoist { bound = _; annot = _; return } ->
+        (* TODO: introduce bound? *)
+        with_tt_syntax_expand_head (tt_syntax_of return) k
+    | TT_let { bound; value; return } ->
+        with_tp_subst bound ~to_:value @@ fun () ->
+        with_tt_syntax_expand_head (tt_syntax_of return) k
+    | TT_string { literal = _ } as term -> k term
+
+  and with_tt_expand_head_and_substs ~with_tp_subst term k =
+    let with_tt_syntax_expand_head_and_substs term k =
+      with_tt_syntax_expand_head_and_substs ~with_tp_subst term k
+    in
+    match term with
+    | TTerm { term; type_ } ->
+        with_tt_syntax_expand_head_and_substs term @@ fun term ->
+        k @@ tterm ~type_ term
+    | TType { term } ->
+        with_tt_syntax_expand_head_and_substs term @@ fun term ->
+        k @@ ttype term
+
+  and with_tt_syntax_expand_head_and_substs ~with_tp_subst term k =
+    let with_tt_syntax_expand_head term k =
+      with_tt_syntax_expand_head ~with_tp_subst term k
+    in
+    let with_tt_syntax_expand_head_and_substs term k =
+      with_tt_syntax_expand_head_and_substs ~with_tp_subst term k
+    in
+    with_tt_syntax_expand_head term @@ function
+    | TT_var { var } as term -> (
+        match is_linked var with
+        | true ->
+            (* TODO: rename on register subst instead? *)
+            let to_ =
+              let (TVar var) = var in
+              tt_rename var.link
+            in
+            with_tt_syntax_expand_head_and_substs (tt_syntax_of to_) k
+        | false -> (
+            match is_renamed var with
+            | true ->
+                let (TVar { name = _; link = _; rename = to_ }) = var in
+                with_tt_syntax_expand_head_and_substs (tt_var ~var:to_) k
+            | false -> k term))
+    | ( TT_annot _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_hoist _
+      | TT_let _ | TT_string _ ) as term ->
+        k term
+
+  (* TODO: duplicated code *)
+  let rec with_tt_expand_head_and_substs ~with_tp_subst expanded term k =
+    let with_tt_syntax_expand_head_and_substs expanded term k =
+      with_tt_syntax_expand_head_and_substs ~with_tp_subst expanded term k
+    in
+    match term with
+    | TTerm { term; type_ } ->
+        with_tt_syntax_expand_head_and_substs expanded term
+        @@ fun expanded term -> k expanded @@ tterm ~type_ term
+    | TType { term } ->
+        with_tt_syntax_expand_head_and_substs expanded term
+        @@ fun expanded term -> k expanded @@ ttype term
+
+  and with_tt_syntax_expand_head_and_substs ~with_tp_subst expanded term k =
+    let with_tt_syntax_expand_head term k =
+      with_tt_syntax_expand_head ~with_tp_subst term k
+    in
+    let with_tt_syntax_expand_head_and_substs expanded term k =
+      with_tt_syntax_expand_head_and_substs ~with_tp_subst expanded term k
+    in
+    with_tt_syntax_expand_head term @@ function
     | TT_var { var } as term -> (
         match is_linked var with
         | true ->
             let to_ =
               let (TVar var) = var in
-              (* TODO: rename on register subst instead? *)
               tt_rename var.link
             in
-            with_tt_syntax_expand_head (tt_syntax_of to_) k
-        | false -> (
-            match is_renamed var with
-            | true ->
-                let (TVar { name = _; link = _; rename = to_ }) = var in
-                with_tt_syntax_expand_head (tt_var ~var:to_) k
-            | false -> k term))
-    | TT_forall { param = _; return = _ } as term -> k term
-    | TT_lambda { param = _; return = _ } as term -> k term
-    | TT_apply { lambda; arg } -> (
-        (* TODO: this is hackish *)
-        with_tt_expand_head lambda @@ fun lambda ->
-        match tt_syntax_of lambda with
-        | TT_lambda { param; return } ->
-            with_tp_subst param ~to_:arg @@ fun () ->
-            with_tt_syntax_expand_head (tt_syntax_of return) k
-        | _lambda -> k @@ tt_apply ~lambda ~arg)
-    | TT_let { bound; value; return } ->
-        with_tp_subst bound ~to_:value @@ fun () ->
-        with_tt_syntax_expand_head (tt_syntax_of return) k
-    | TT_string { literal = _ } as term -> k term
+            let expanded = var :: expanded in
+            with_tt_syntax_expand_head_and_substs expanded (tt_syntax_of to_) k
+        | false -> k expanded term)
+    | ( TT_annot _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_hoist _
+      | TT_let _ | TT_string _ ) as term ->
+        k expanded term
+
+  let with_tt_expand_head_and_substs ~with_tp_subst term k =
+    with_tt_expand_head_and_substs ~with_tp_subst [] term k
 
   let rec with_tp_subst pat ~to_ k =
     match pat with
@@ -157,12 +222,6 @@ module Machinery = struct
         (* TODO: check type_ in debug mode *)
         with_tp_subst pat ~to_ k
     | TP_var { var } -> with_tv_link var ~to_ k
-
-  (* invariant, expand head returns head binders ready to link *)
-  let with_tt_match_syntax_expand_head_both ~left ~right k =
-    with_tt_expand_head ~with_tp_subst left @@ fun left_head_normal ->
-    with_tt_expand_head ~with_tp_subst right @@ fun right_head_normal ->
-    k (tt_syntax_of left_head_normal, tt_syntax_of right_head_normal)
 
   (* TODO: optimization, avoid expanding when left_lambda is equal to right_lambda *)
   (* TODO: short on physical equality *)
@@ -181,16 +240,37 @@ module Machinery = struct
         tt_syntax_equal ~left ~right
 
   and tt_syntax_equal ~left ~right =
-    with_tt_match_syntax_expand_head_both ~left ~right @@ function
-    (* TODO: invariant *)
-    | TT_annot _, _ | _, TT_annot _ -> failwith "invariant"
-    | TT_let _, _ | _, TT_let _ -> failwith "invariant"
-    (* TODO: lazily expand variable here *)
-    | TT_var { var = left }, TT_var { var = right } -> (
+    with_tt_expand_head_and_substs ~with_tp_subst left
+    @@ fun left_expanded left_head_normal ->
+    with_tt_expand_head_and_substs ~with_tp_subst right
+    @@ fun right_expanded right_head_normal ->
+    Format.eprintf "left : %a\nright : %a\n%!" Tprinter.pp_term left
+      Tprinter.pp_term right;
+    let rec with_expanded_hypothesis expanded to_ k =
+      match expanded with
+      | [] -> k ()
+      | var :: expanded ->
+          Format.eprintf "var : %a; to_ : %a\n%!" Tprinter.pp_var var
+            Tprinter.pp_term to_;
+          with_force_tv_link var ~to_ @@ fun () ->
+          with_expanded_hypothesis expanded to_ k
+    in
+    (* TODO: feels like this could oscillate between sides *)
+    with_expanded_hypothesis left_expanded right @@ fun () ->
+    with_expanded_hypothesis right_expanded left @@ fun () ->
+    tt_syntax_equal_struct ~left:left_head_normal ~right:right_head_normal
+
+  and tt_syntax_equal_struct ~left ~right =
+    match (tt_syntax_of left, tt_syntax_of right) with
+    | ( TT_annot { term = left_term; annot = left_annot },
+        TT_annot { term = right_term; annot = right_annot } ) ->
+        tt_equal ~left:left_annot ~right:right_annot;
+        tt_equal ~left:left_term ~right:right_term
+    | TT_var { var = var_left }, TT_var { var = var_right } -> (
         (* TODO: physical equality bad *)
-        match left == right with
+        match var_left == var_right with
         | true -> ()
-        | false -> error_var_clash ~left ~right)
+        | false -> error_type_clash ~left ~right)
     | ( TT_forall { param = left_param; return = left_return },
         TT_forall { param = right_param; return = right_return } ) ->
         with_tp_equal_contra ~left:left_param ~right:right_param @@ fun () ->
@@ -207,8 +287,24 @@ module Machinery = struct
         match String.equal left right with
         | true -> ()
         | false -> error_string_clash ~left ~right)
-    | ( (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_string _),
-        (TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_string _) ) ->
+    | ( TT_hoist { bound = left_bound; annot = left_annot; return = left_return },
+        TT_hoist
+          { bound = right_bound; annot = right_annot; return = right_return } )
+      ->
+        tt_equal ~left:left_annot ~right:right_annot;
+        with_tp_equal_contra ~left:left_bound ~right:right_bound @@ fun () ->
+        tt_equal ~left:left_return ~right:right_return
+    | ( TT_let { bound = left_bound; value = left_value; return = left_return },
+        TT_let
+          { bound = right_bound; value = right_value; return = right_return } )
+      ->
+        tt_equal ~left:left_value ~right:right_value;
+        with_tp_equal_contra ~left:left_bound ~right:right_bound @@ fun () ->
+        tt_equal ~left:left_return ~right:right_return
+    | ( ( TT_annot _ | TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _
+        | TT_string _ | TT_hoist _ | TT_let _ ),
+        ( TT_annot _ | TT_var _ | TT_forall _ | TT_lambda _ | TT_apply _
+        | TT_string _ | TT_hoist _ | TT_let _ ) ) ->
         error_type_clash ~left ~right
 
   and with_tp_equal_contra ~left ~right k =
@@ -237,7 +333,8 @@ module Machinery = struct
       in
       (wrapped_arg_type, apply_return_type)
     in
-    with_tt_expand_head ~with_tp_subst type_ @@ fun type_ ->
+    with_tt_expand_head_and_substs ~with_tp_subst type_
+    @@ fun _expanded type_ ->
     match tt_syntax_of type_ with
     | TT_forall { param; return } ->
         let wrapped_arg_type = tp_type_of param in

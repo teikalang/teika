@@ -10,6 +10,7 @@ module Ptree = struct
     | PT_forall of { param : term; return : term }
     | PT_lambda of { param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
+    | PT_hoist of { bound : term; annot : term; return : term }
     | PT_let of { bound : term; value : term; return : term }
     | PT_string of { literal : string }
 
@@ -19,6 +20,7 @@ module Ptree = struct
     match term with
     | PT_meta { term } -> fprintf fmt "#%a" pp_atom term
     | PT_annot { term; annot } ->
+        (* TODO: let on annot should add parens *)
         fprintf fmt "%a : %a" pp_funct term pp_wrapped annot
     | PT_var { var } ->
         let (TVar var) = var in
@@ -29,6 +31,8 @@ module Ptree = struct
         fprintf fmt "%a => %a" pp_atom param pp_funct return
     | PT_apply { lambda; arg } ->
         fprintf fmt "%a %a" pp_apply lambda pp_atom arg
+    | PT_hoist { bound; annot; return } ->
+        fprintf fmt "%a : %a; %a" pp_atom bound pp_funct annot pp_let return
     | PT_let { bound; value; return } ->
         fprintf fmt "%a = %a; %a" pp_atom bound pp_funct value pp_let return
     | PT_string { literal } ->
@@ -46,12 +50,12 @@ module Ptree = struct
         (T_wrapped | T_let | T_funct | T_apply | T_atom) )
     | PT_apply _, (T_wrapped | T_let | T_funct | T_apply)
     | (PT_forall _ | PT_lambda _), (T_wrapped | T_let | T_funct)
-    | PT_let _, (T_wrapped | T_let)
+    | (PT_hoist _ | PT_let _), (T_wrapped | T_let)
     | PT_annot _, T_wrapped ->
         pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term
     | PT_apply _, T_atom
     | (PT_forall _ | PT_lambda _), (T_apply | T_atom)
-    | PT_let _, (T_funct | T_apply | T_atom)
+    | (PT_hoist _ | PT_let _), (T_funct | T_apply | T_atom)
     | PT_annot _, (T_let | T_funct | T_apply | T_atom) ->
         fprintf fmt "(%a)" pp_wrapped term
 
@@ -95,6 +99,11 @@ let rec tt_print term =
       let lambda = tt_print lambda in
       let arg = tt_print arg in
       PT_apply { lambda; arg }
+  | TT_hoist { bound; annot; return } ->
+      let bound = tp_print bound in
+      let annot = tt_print annot in
+      let return = tt_print return in
+      PT_hoist { bound; annot; return }
   | TT_let { bound; value; return } ->
       let bound = tp_print bound in
       let value = tt_print value in

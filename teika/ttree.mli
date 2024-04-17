@@ -24,6 +24,8 @@ and term_syntax = private
   | TT_lambda of { param : pat; return : term }
   (* M N *)
   | TT_apply of { lambda : term; arg : term }
+  (* P : A; M *)
+  | TT_hoist of { bound : pat; annot : term; return : term }
   (* P = N; M *)
   | TT_let of { bound : pat; value : term; return : term }
   (* ".." *)
@@ -40,7 +42,11 @@ and pat_syntax =
   | TP_var of { var : var }
 
 and var = private
-  | TVar of { name : Name.t; mutable link : term; mutable rename : var }
+  | TVar of {
+    name : Name.t;
+    mutable link : term;
+    mutable rename : var;
+  }
 [@@deriving show]
 
 (* invariants *)
@@ -55,6 +61,7 @@ val tt_var : var:var -> term_syntax
 val tt_forall : param:pat -> return:term -> term_syntax
 val tt_lambda : param:pat -> return:term -> term_syntax
 val tt_apply : lambda:term -> arg:term -> term_syntax
+val tt_hoist : bound:pat -> annot:term -> return:term -> term_syntax
 val tt_let : bound:pat -> value:term -> return:term -> term_syntax
 val tt_string : literal:string -> term_syntax
 
@@ -70,6 +77,7 @@ val is_tt_nil : term -> bool
 val is_tv_nil : var -> bool
 val tv_fresh : Name.t -> var
 
+val with_force_tv_link : var -> to_:term -> (unit -> 'k) -> 'k
 val with_tv_link : var -> to_:term -> (unit -> 'k) -> 'k
 val with_tv_rename : var -> to_:var -> (unit -> 'k) -> 'k
 
