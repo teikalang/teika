@@ -1,7 +1,8 @@
 open Utils
 
-type term =
-  | CT_loc of { term : term; loc : Location.t }
+type term = CTerm of { term : term_syntax; loc : Location.t }
+
+and term_syntax =
   | CT_var of { var : Name.t }
   | CT_extension of { extension : Name.t }
   | CT_forall of { param : term; return : term }

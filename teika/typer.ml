@@ -295,10 +295,9 @@ module Infer = struct
      Seems to help with many cases such as expected on annotation *)
 
   let rec infer_term ctx term =
+    (* TODO: use this location *)
+    let (LTerm { term; loc = _ }) = term in
     match term with
-    | LT_loc { term; loc = _ } ->
-        (* TODO: use loc *)
-        infer_term ctx term
     | LT_annot { term; annot } ->
         (* TODO: expected term could propagate here *)
         let annot = check_annot ctx annot in
@@ -364,10 +363,9 @@ module Infer = struct
   and check_annot ctx term = check_term ctx term ~expected:tt_global_univ
 
   and with_infer_pat ctx pat k =
+    (* TODO: use this location *)
+    let (LPat { pat; loc = _ }) = pat in
     match pat with
-    | LP_loc { pat; loc = _ } ->
-        (* TODO: use this loc *)
-        with_infer_pat ctx pat k
     | LP_var { var = _ } -> error_missing_annotation ()
     | LP_annot { pat; annot } ->
         (* TODO: TP_annot *)
@@ -378,10 +376,9 @@ module Infer = struct
   and with_check_pat ctx pat ~expected k =
     (* TODO: let () = assert_is_tt_with_type expected in *)
     (* TODO: expected should be a pattern, to achieve strictness *)
+    (* TODO: use this location *)
+    let (LPat { pat; loc = _ }) = pat in
     match pat with
-    | LP_loc { pat; loc = _ } ->
-        (* TODO: use this loc *)
-        with_check_pat ctx pat ~expected k
     | LP_annot { pat; annot } ->
         let annot = check_annot ctx annot in
         let () = tt_equal ~left:annot ~right:expected in

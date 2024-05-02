@@ -215,9 +215,7 @@ module Typer = struct
       let actual = Clexer.from_string Cparser.term_opt annotated_term in
       match actual with
       | Some stree -> (
-          (* TODO: locations *)
-          let loc = Location.none in
-          let ltree = Lparser.parse_term ~loc stree in
+          let ltree = Lparser.parse_term stree in
           match Typer.Infer.infer_term ltree with
           | Ok ttree -> Format.eprintf "%a\n%!" Tprinter.pp_term ttree
           | Error error ->
@@ -230,9 +228,7 @@ module Typer = struct
       let actual = Clexer.from_string Cparser.term_opt annotated_term in
       match actual with
       | Some stree -> (
-          (* TODO: locations *)
-          let loc = Location.none in
-          let ltree = Lparser.parse_term ~loc stree in
+          let ltree = Lparser.parse_term stree in
           match Typer.Infer.infer_term ltree with
           | Ok _ttree -> failwith "worked but should had failed"
           (* TODO: check for specific error *)

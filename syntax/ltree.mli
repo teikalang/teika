@@ -1,7 +1,9 @@
 open Utils
 
-type term =
-  | LT_loc of { term : term; loc : Location.t }
+(* TODO: location stack? *)
+type term = LTerm of { term : term_syntax; loc : Location.t }
+
+and term_syntax =
   (* x *)
   | LT_var of { var : Name.t }
   (* @x(e) *)
@@ -21,10 +23,14 @@ type term =
   (* ".." *)
   | LT_string of { literal : string }
 
-and pat =
-  | LP_loc of { pat : pat; loc : Location.t }
+and pat = LPat of { pat : pat_syntax; loc : Location.t }
+
+and pat_syntax =
   (* x *)
   | LP_var of { var : Name.t }
   (* (p : T) *)
   | LP_annot of { pat : pat; annot : term }
 [@@deriving show]
+
+val lterm : loc:Location.t -> term_syntax -> term
+val lpat : loc:Location.t -> pat_syntax -> pat
