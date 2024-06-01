@@ -6,6 +6,7 @@ open Utils
 (* TODO: which invariants to enforce here using private? *)
 
 (* TODO: return should be body *)
+(* TODO: cache normalization? *)
 type term = private
   (* #(M : A) *)
   | TTerm of { term : term_syntax; type_ : term }

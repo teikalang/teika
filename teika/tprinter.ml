@@ -140,9 +140,9 @@ module Perror = struct
     | PE_string_clash of { left : string; right : string }
     | PE_unknown_var of { name : Name.t }
     | PE_not_a_forall of { type_ : term }
+    | PE_hoist_not_implemented
     | PE_extensions_not_implemented
     | PE_pairs_not_implemented
-    | PE_erasable_not_implemented
     | PE_unknown_extension of { extension : Name.t }
     | PE_unknown_native of { native : string }
     | PE_missing_annotation
@@ -172,9 +172,9 @@ module Perror = struct
     | PE_unknown_var { name } -> fprintf fmt "unknown variable %a" Name.pp name
     | PE_not_a_forall { type_ } ->
         fprintf fmt "expected forall\nreceived : %a" pp_term type_
+    | PE_hoist_not_implemented -> fprintf fmt "hoist not implemented"
     | PE_extensions_not_implemented -> fprintf fmt "extensions not implemented"
     | PE_pairs_not_implemented -> fprintf fmt "pairs not implemented"
-    | PE_erasable_not_implemented -> fprintf fmt "erasable not implemented"
     | PE_unknown_extension { extension } ->
         fprintf fmt "unknown extension : %a" Name.pp extension
     | PE_unknown_native { native } -> fprintf fmt "unknown native : %S" native
@@ -212,10 +212,9 @@ let rec te_print error =
       let type_ = tt_print type_ in
       PE_not_a_forall { type_ }
   | TError_extensions_not_implemented -> PE_extensions_not_implemented
+  | TError_hoist_not_implemented -> PE_hoist_not_implemented
   | TError_pairs_not_implemented ->
       PE_pairs_not_implemented (* TODO: print payload *)
-  | TError_erasable_not_implemented ->
-      PE_erasable_not_implemented (* TODO: print payload *)
   | TError_unknown_extension { extension; payload = _ } ->
       PE_unknown_extension { extension }
   | TError_unknown_native { native } -> PE_unknown_native { native }

@@ -120,6 +120,7 @@ module Machinery = struct
         | true ->
             let to_ =
               let (TVar var) = var in
+              (* TODO: rename on register subst instead? *)
               tt_rename var.link
             in
             with_tt_syntax_expand_head (tt_syntax_of to_) k
@@ -294,10 +295,9 @@ module Infer = struct
      Seems to help with many cases such as expected on annotation *)
 
   let rec infer_term ctx term =
+    (* TODO: use this location *)
+    let (LTerm { term; loc = _ }) = term in
     match term with
-    | LT_loc { term; loc = _ } ->
-        (* TODO: use loc *)
-        infer_term ctx term
     | LT_annot { term; annot } ->
         (* TODO: expected term could propagate here *)
         let annot = check_annot ctx annot in
@@ -330,13 +330,14 @@ module Infer = struct
         let arg = check_term ctx arg ~expected:wrapped_arg_type in
         let type_ = apply_return_type ~arg in
         tterm ~type_ @@ tt_apply ~lambda ~arg
-    | LT_let { bound; return } ->
+    | LT_hoist _ -> error_hoist_not_implemented ()
+    | LT_let { bound; value; return } ->
         (* TODO: use this loc *)
-        let (LBind { loc = _; pat; value }) = bound in
         let value = infer_term ctx value in
         (* TODO: this should be before value *)
         (* TODO: with_check_pat + subst  *)
-        with_check_pat ctx pat ~expected:(tt_type_of value) @@ fun ctx bound ->
+        with_check_pat ctx bound ~expected:(tt_type_of value)
+        @@ fun ctx bound ->
         with_tp_subst bound ~to_:value @@ fun () ->
         let return = infer_term ctx return in
         let type_ = ttype @@ tt_let ~bound ~value ~return:(tt_type_of return) in
@@ -362,25 +363,22 @@ module Infer = struct
   and check_annot ctx term = check_term ctx term ~expected:tt_global_univ
 
   and with_infer_pat ctx pat k =
+    (* TODO: use this location *)
+    let (LPat { pat; loc = _ }) = pat in
     match pat with
-    | LP_loc { pat; loc = _ } ->
-        (* TODO: use this loc *)
-        with_infer_pat ctx pat k
     | LP_var { var = _ } -> error_missing_annotation ()
     | LP_annot { pat; annot } ->
         (* TODO: TP_annot *)
         let annot = check_annot ctx annot in
         with_check_pat ctx pat ~expected:annot @@ fun ctx pat ->
         k ctx @@ tpat ~type_:annot @@ tp_annot ~pat ~annot
-    | LP_erasable _ -> error_erasable_not_implemented ()
 
   and with_check_pat ctx pat ~expected k =
     (* TODO: let () = assert_is_tt_with_type expected in *)
     (* TODO: expected should be a pattern, to achieve strictness *)
+    (* TODO: use this location *)
+    let (LPat { pat; loc = _ }) = pat in
     match pat with
-    | LP_loc { pat; loc = _ } ->
-        (* TODO: use this loc *)
-        with_check_pat ctx pat ~expected k
     | LP_annot { pat; annot } ->
         let annot = check_annot ctx annot in
         let () = tt_equal ~left:annot ~right:expected in
@@ -389,7 +387,6 @@ module Infer = struct
     | LP_var { var = name } ->
         with_var ctx name ~type_:expected @@ fun ctx var ->
         k ctx @@ tpat ~type_:expected @@ tp_var ~var
-    | LP_erasable _ -> error_erasable_not_implemented ()
 
   let infer_term term =
     match infer_term Context.initial term with
