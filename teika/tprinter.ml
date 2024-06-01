@@ -6,7 +6,10 @@ module Ptree = struct
     (* TODO: use PT_meta for level, subst and shift *)
     | PT_meta of { term : term }
     | PT_annot of { term : term; annot : term }
-    | PT_var of { var : Ttree.var }
+    | PT_var of { name : Name.t }
+    | PT_rigid_var of { var : Level.t }
+    | PT_global_var of { var : Level.t }
+    | PT_local_var of { var : Index.t }
     | PT_forall of { param : term; return : term }
     | PT_lambda of { param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
@@ -20,9 +23,10 @@ module Ptree = struct
     | PT_meta { term } -> fprintf fmt "#%a" pp_atom term
     | PT_annot { term; annot } ->
         fprintf fmt "%a : %a" pp_funct term pp_wrapped annot
-    | PT_var { var } ->
-        let (TVar var) = var in
-        fprintf fmt "%s" (Name.repr var.name)
+    | PT_var { name } -> fprintf fmt "%s" (Name.repr name)
+    | PT_rigid_var { var } -> fprintf fmt "\\!+%a" Level.pp var
+    | PT_global_var { var } -> fprintf fmt "\\+%a" Level.pp var
+    | PT_local_var { var } -> fprintf fmt "\\-%a" Index.pp var
     | PT_forall { param; return } ->
         fprintf fmt "%a -> %a" pp_atom param pp_funct return
     | PT_lambda { param; return } ->
@@ -42,7 +46,8 @@ module Ptree = struct
     let pp_apply fmt term = pp_term T_apply fmt term in
     let pp_atom fmt term = pp_term T_atom fmt term in
     match (term, prec) with
-    | ( (PT_meta _ | PT_var _ | PT_string _),
+    | ( ( PT_meta _ | PT_var _ | PT_rigid_var _ | PT_global_var _
+        | PT_local_var _ | PT_string _ ),
         (T_wrapped | T_let | T_funct | T_apply | T_atom) )
     | PT_apply _, (T_wrapped | T_let | T_funct | T_apply)
     | (PT_forall _ | PT_lambda _), (T_wrapped | T_let | T_funct)
@@ -80,9 +85,11 @@ let rec tt_print term =
       let term = tt_print term in
       let annot = tt_print annot in
       PT_annot { term; annot }
-  | TT_var { var } ->
+  | TT_rigid_var { var } -> PT_rigid_var { var }
+  | TT_global_var { var } ->
       (* TODO: expand link sometimes? *)
-      PT_var { var }
+      PT_global_var { var }
+  | TT_local_var { var } -> PT_local_var { var }
   | TT_forall { param; return } ->
       let param = tp_print param in
       let return = tt_print return in
@@ -116,7 +123,7 @@ and tp_print pat =
       let pat = tp_print pat in
       let annot = tt_print annot in
       PT_annot { term = pat; annot }
-  | TP_var { var } -> PT_var { var }
+  | TP_var { name } -> PT_var { name }
 
 let pp_term fmt term =
   let term = tt_print term in
@@ -126,8 +133,6 @@ let pp_pat fmt pat =
   let pat = tp_print pat in
   Ptree.pp_term fmt pat
 
-let pp_var fmt var = Ptree.pp_term fmt @@ PT_var { var }
-
 module Perror = struct
   open Format
   open Utils
@@ -135,9 +140,7 @@ module Perror = struct
 
   type error =
     | PE_loc of { loc : Location.t; error : error }
-    | PE_var_clash of { left : var; right : var }
     | PE_type_clash of { left : term; right : term }
-    | PE_string_clash of { left : string; right : string }
     | PE_unknown_var of { name : Name.t }
     | PE_not_a_forall of { type_ : term }
     | PE_hoist_not_implemented
@@ -161,14 +164,9 @@ module Perror = struct
   let rec pp_error fmt error =
     match error with
     | PE_loc { loc; error } -> fprintf fmt "%a\n%a" pp_loc loc pp_error error
-    | PE_var_clash { left; right } ->
-        fprintf fmt "var clash\nexpected : %a\nreceived : %a" pp_var left pp_var
-          right
     | PE_type_clash { left; right } ->
         fprintf fmt "type clash\nexpected : %a\nreceived : %a" pp_term left
           pp_term right
-    | PE_string_clash { left; right } ->
-        fprintf fmt "string clash\nexpected : %S\nreceived : %S" left right
     | PE_unknown_var { name } -> fprintf fmt "unknown variable %a" Name.pp name
     | PE_not_a_forall { type_ } ->
         fprintf fmt "expected forall\nreceived : %a" pp_term type_
@@ -201,12 +199,10 @@ let rec te_print error =
       in
       loop loc error
   (* TODO: drop falback *)
-  | TError_var_clash { left; right } -> PE_var_clash { left; right }
   | TError_type_clash { left; right } ->
       let left = tt_print left in
       let right = tt_print right in
       PE_type_clash { left; right }
-  | TError_string_clash { left; right } -> PE_string_clash { left; right }
   | TError_unknown_var { name } -> PE_unknown_var { name }
   | TError_not_a_forall { type_ } ->
       let type_ = tt_print type_ in
