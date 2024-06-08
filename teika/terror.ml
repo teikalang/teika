@@ -9,9 +9,7 @@ type error =
          Probably because things like macros exists *)
   | TError_loc of { error : error; loc : Location.t [@opaque] }
   (* equal *)
-  | TError_var_clash of { left : var; right : var }
   | TError_type_clash of { left : term; right : term }
-  | TError_string_clash of { left : string; right : string }
   (* typer *)
   | TError_unknown_var of { name : Name.t }
   | TError_not_a_forall of { type_ : term }
@@ -27,12 +25,7 @@ and t = error [@@deriving show { with_path = false }]
 exception TError of { error : error }
 
 let terror error = raise (TError { error })
-let error_var_clash ~left ~right = terror @@ TError_var_clash { left; right }
 let error_type_clash ~left ~right = terror @@ TError_type_clash { left; right }
-
-let error_string_clash ~left ~right =
-  terror @@ TError_string_clash { left; right }
-
 let error_unknown_var ~name = terror @@ TError_unknown_var { name }
 let error_not_a_forall ~type_ = terror @@ TError_not_a_forall { type_ }
 let error_hoist_not_implemented () = terror @@ TError_hoist_not_implemented

@@ -16,8 +16,12 @@ type term = private
 and term_syntax = private
   (* (M : A) *)
   | TT_annot of { term : term; annot : term }
-  (* x *)
-  | TT_var of { var : var }
+  (* \!+n *)
+  | TT_rigid_var of { var : Level.t }
+  (* \+n *)
+  | TT_global_var of { var : Level.t }
+  (* \-n *)
+  | TT_local_var of { var : Index.t }
   (* P -> B *)
   | TT_forall of { param : pat; return : term }
   (* P => M *)
@@ -29,29 +33,22 @@ and term_syntax = private
   (* ".." *)
   | TT_string of { literal : string }
 
-and pat = private
-  (* #(P : A) *)
-  | TPat of { pat : pat_syntax; type_ : term }
+and pat = private TPat (* #(P : A) *) of { pat : pat_syntax; type_ : term }
 
 and pat_syntax =
   (* (P : A) *)
   | TP_annot of { pat : pat; annot : term }
   (* x *)
-  | TP_var of { var : var }
-
-and var = private
-  | TVar of { name : Name.t; mutable link : term; mutable rename : var }
+  | TP_var of { name : Name.t }
 [@@deriving show]
-
-(* invariants *)
-exception TVar_already_linked of { var : var }
-exception TVar_already_renamed of { var : var }
 
 (* term *)
 val tterm : type_:term -> term_syntax -> term
 val ttype : term_syntax -> term
 val tt_annot : term:term -> annot:term -> term_syntax
-val tt_var : var:var -> term_syntax
+val tt_rigid_var : var:Level.t -> term_syntax
+val tt_global_var : var:Level.t -> term_syntax
+val tt_local_var : var:Index.t -> term_syntax
 val tt_forall : param:pat -> return:term -> term_syntax
 val tt_lambda : param:pat -> return:term -> term_syntax
 val tt_apply : lambda:term -> arg:term -> term_syntax
@@ -61,22 +58,12 @@ val tt_string : literal:string -> term_syntax
 (* pat *)
 val tpat : type_:term -> pat_syntax -> pat
 val tp_annot : pat:pat -> annot:term -> pat_syntax
-val tp_var : var:var -> pat_syntax
-
-(* var *)
-val is_linked : var -> bool
-val is_renamed : var -> bool
-val is_tt_nil : term -> bool
-val is_tv_nil : var -> bool
-val tv_fresh : Name.t -> var
-
-val with_tv_link : var -> to_:term -> (unit -> 'k) -> 'k
-val with_tv_rename : var -> to_:var -> (unit -> 'k) -> 'k
+val tp_var : name:Name.t -> pat_syntax
 
 (* Type *)
-val tv_univ : var
+val level_univ : Level.t
 val tt_global_univ : term
 
 (* String *)
-val tv_string : var
+val level_string : Level.t
 val tt_global_string : term
