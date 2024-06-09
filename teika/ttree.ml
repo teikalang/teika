@@ -2,11 +2,7 @@ open Utils
 
 type term =
   (* #(M : A) *)
-  | TTerm of { term : term_syntax; type_ : term }
-  (* #(A : U) *)
-  | TType of { term : term_syntax }
-
-and term_syntax =
+  | TT_typed of { term : term; type_ : term }
   (* (M : A) *)
   | TT_annot of { term : term; annot : term }
   (* \!+n *)
@@ -26,10 +22,9 @@ and term_syntax =
   (* ".." *)
   | TT_string of { literal : string }
 
-and pat = (* #(P : A) *)
-  | TPat of { pat : pat_syntax; type_ : term }
-
-and pat_syntax =
+and pat =
+  (* #(P : A) *)
+  | TP_typed of { pat : pat; type_ : term }
   (* (P : A) *)
   | TP_annot of { pat : pat; annot : term }
   (* x *)
@@ -38,8 +33,7 @@ and pat_syntax =
 
 (* TODO: expose this? *)
 (* terms *)
-let tterm ~type_ term = TTerm { term; type_ }
-let ttype term = TType { term }
+let tt_typed ~type_ term = TT_typed { term; type_ }
 let tt_annot ~term ~annot = TT_annot { term; annot }
 let tt_rigid_var ~var = TT_rigid_var { var }
 let tt_global_var ~var = TT_global_var { var }
@@ -51,14 +45,16 @@ let tt_let ~bound ~value ~return = TT_let { bound; value; return }
 let tt_string ~literal = TT_string { literal }
 
 (* patterns *)
-let tpat ~type_ pat = TPat { pat; type_ }
+let tp_typed ~type_ pat = TP_typed { pat; type_ }
 let tp_annot ~pat ~annot = TP_annot { pat; annot }
 let tp_var ~name = TP_var { name }
 
 (* Type *)
 let level_univ = Level.zero
-let tt_global_univ = ttype @@ TT_global_var { var = level_univ }
+let tt_rigid_univ = TT_rigid_var { var = level_univ }
 
 (* String *)
 let level_string = Level.next level_univ
-let tt_global_string = ttype @@ TT_global_var { var = level_string }
+
+let tt_rigid_string =
+  tt_typed ~type_:tt_rigid_univ @@ TT_rigid_var { var = level_string }

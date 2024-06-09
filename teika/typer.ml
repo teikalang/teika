@@ -24,7 +24,7 @@ end = struct
   let make () =
     (* TODO: more? dynamic? *)
     let length = 64 * 1024 in
-    let entries = Array.make length tt_global_univ in
+    let entries = Array.make length tt_rigid_univ in
     { entries; size = Level.zero }
 
   let fork substs =
@@ -65,16 +65,22 @@ module Machinery = struct
   open Ttree
   open Terror
 
-  let tt_syntax_of term =
-    match term with TTerm { term; type_ = _ } -> term | TType { term } -> term
+  (* TODO: cache normalization? *)
 
   let tt_type_of term =
     match term with
-    | TTerm { term = _; type_ } -> type_
-    | TType { term = _ } -> tt_global_univ
+    (* sort *)
+    | TT_rigid_var { var } when Level.equal var level_univ -> term
+    (* wrappers *)
+    | TT_typed { term = _; type_ } -> type_
+    | TT_annot { term = _; annot } -> annot
+    | _ -> error_invariant_term_untyped term
 
-  let tp_syntax_of pat = match pat with TPat { pat; type_ = _ } -> pat
-  let tp_type_of pat = match pat with TPat { pat = _; type_ } -> type_
+  let tp_type_of pat =
+    match pat with
+    | TP_typed { pat = _; type_ } -> type_
+    | TP_annot { pat = _; annot } -> annot
+    | _ -> error_invariant_pat_untyped pat
 
   (* TODO: reduce allocations? Maybe cata over term? *)
   (* TODO: tag terms without bound variables, aka no shifting *)
@@ -82,18 +88,12 @@ module Machinery = struct
   (* TODO: tag terms locally closed *)
   (* TODO: gas count *)
   let rec tt_pack ~size ~depth term =
-    let tt_pack term = tt_pack ~size ~depth term in
-    let tt_syntax_pack term = tt_syntax_pack ~size ~depth term in
-    match term with
-    | TTerm { term = _; type_ } ->
-        let type_ = tt_pack type_ in
-        tterm ~type_ @@ tt_syntax_pack term
-    | TType { term = _ } -> ttype @@ tt_syntax_pack term
-
-  and tt_syntax_pack ~size ~depth term =
     let tt_pack ~depth term = tt_pack ~size ~depth term in
     let tp_pack ~depth pat = tp_pack ~size ~depth pat in
-    match tt_syntax_of term with
+    match term with
+    | TT_typed { term; type_ } ->
+        let type_ = tt_pack ~depth type_ in
+        tt_typed ~type_ @@ tt_pack ~depth term
     | TT_annot { term; annot } ->
         let annot = tt_pack ~depth annot in
         let term = tt_pack ~depth term in
@@ -142,13 +142,12 @@ module Machinery = struct
     | TT_string { literal = _ } as term -> term
 
   and tp_pack ~size ~depth pat =
-    let type_ = tt_pack ~size ~depth @@ tp_type_of pat in
-    tpat ~type_ @@ tp_syntax_pack ~size ~depth pat
-
-  and tp_syntax_pack ~size ~depth pat =
     let tt_pack ~depth term = tt_pack ~size ~depth term in
     let tp_pack ~depth pat = tp_pack ~size ~depth pat in
-    match tp_syntax_of pat with
+    match pat with
+    | TP_typed { pat; type_ } ->
+        let type_ = tt_pack ~depth type_ in
+        tp_typed ~type_ @@ tp_pack ~depth pat
     | TP_annot { pat; annot } ->
         let annot = tt_pack ~depth annot in
         let pat = tp_pack ~depth pat in
@@ -158,8 +157,10 @@ module Machinery = struct
   let tt_pack ~size term = tt_pack ~size ~depth:Index.zero term
 
   let rec with_tt_expand_head term ~args ~substs k =
-    match (tt_syntax_of term, args) with
+    match (term, args) with
     (* annot *)
+    | TT_typed { term; type_ = _ }, _ ->
+        with_tt_expand_head term ~args ~substs k
     | TT_annot { term; annot = _ }, _ ->
         with_tt_expand_head term ~args ~substs k
     (* substs *)
@@ -197,8 +198,9 @@ module Machinery = struct
   (* TODO: short circuit when same variable on both sides *)
   let rec tt_equal ~level ~left ~left_substs ~right ~right_substs =
     match (left, right) with
-    | TType { term = _ }, TType { term = _ } ->
-        tt_modulo_equal ~level ~left ~left_substs ~right ~right_substs
+    | TT_rigid_var { var = left_var }, TT_rigid_var { var = right_var }
+      when Level.equal left_var right_var ->
+        ()
     | left, right ->
         tt_equal ~level ~left:(tt_type_of left) ~left_substs
           ~right:(tt_type_of right) ~right_substs;
@@ -217,7 +219,8 @@ module Machinery = struct
       left_args right_args
 
   and tt_struct_equal ~level ~left ~left_substs ~right ~right_substs =
-    match (tt_syntax_of left, tt_syntax_of right) with
+    match (left, right) with
+    | TT_typed _, _ | _, TT_typed _ -> failwith "invariant"
     | TT_annot _, _ | _, TT_annot _ -> failwith "invariant"
     | TT_let _, _ | _, TT_let _ -> failwith "invariant"
     | TT_global_var _, _ | _, TT_global_var _ -> failwith "invariant"
@@ -256,18 +259,17 @@ module Machinery = struct
 
   and with_tp_equal_contra ~level ~left ~left_substs ~right ~right_substs k =
     (* TODO: contra? *)
-    (* TODO: equality of pat *)
-    let (TPat { pat = _; type_ = left_type }) = left in
-    let (TPat { pat = _; type_ = right_type }) = right in
+    let left_type = tp_type_of left in
+    let right_type = tp_type_of right in
     tt_equal ~level ~left:left_type ~left_substs ~right:right_type ~right_substs;
     let level = Level.next level in
     let left_to_ =
       (* TODO: maybe pack left_type? *)
-      tterm ~type_:left_type @@ tt_rigid_var ~var:level
+      tt_typed ~type_:left_type @@ tt_rigid_var ~var:level
     in
     let right_to_ =
       (* TODO: maybe pack right_type? *)
-      tterm ~type_:right_type @@ tt_rigid_var ~var:level
+      tt_typed ~type_:right_type @@ tt_rigid_var ~var:level
     in
     Substs.with_subst left_substs ~to_:left_to_ @@ fun () ->
     Substs.with_subst right_substs ~to_:right_to_ @@ fun () ->
@@ -278,16 +280,20 @@ module Machinery = struct
 
   (* TODO: this is super hackish *)
   let rec tt_split_forall type_ ~args ~substs =
-    match (tt_syntax_of type_, args) with
+    match (type_, args) with
     | TT_forall { param; return }, [] ->
         let wrapped_arg_type = tp_type_of param in
         let apply_return_type ~arg =
-          ttype @@ tt_let ~bound:param ~value:arg ~return
+          tt_typed ~type_:tt_rigid_univ
+          @@ tt_let ~bound:param ~value:arg ~return
         in
         (wrapped_arg_type, apply_return_type)
     (* annot *)
+    | TT_typed { term = type_; type_ = _ }, _ ->
+        tt_split_forall type_ ~args ~substs
     | TT_annot { term = type_; annot = _ }, _ ->
-        tt_split_forall type_ ~args ~substs (* substs *)
+        tt_split_forall type_ ~args ~substs
+    (* substs *)
     | TT_global_var { var }, _ ->
         let type_ = Substs.find_global ~var substs in
         tt_split_forall type_ ~args ~substs
@@ -314,7 +320,8 @@ module Machinery = struct
     | TT_rigid_var _, _ | TT_forall _, _ | TT_lambda _, [] | TT_string _, _ ->
         let type_ =
           List.fold_left
-            (fun lambda arg -> ttype @@ tt_apply ~lambda ~arg)
+            (fun lambda arg ->
+              tt_typed ~type_:tt_rigid_univ @@ tt_apply ~lambda ~arg)
             type_ args
         in
         error_not_a_forall ~type_
@@ -325,10 +332,12 @@ module Machinery = struct
       tt_split_forall type_ ~args ~substs
     in
     let wrapped_arg_type =
-      ttype @@ tt_let ~bound ~value ~return:wrapped_arg_type
+      tt_typed ~type_:tt_rigid_univ
+      @@ tt_let ~bound ~value ~return:wrapped_arg_type
     in
     let apply_return_type ~arg =
-      ttype @@ tt_let ~bound ~value ~return:(apply_return_type ~arg)
+      tt_typed ~type_:tt_rigid_univ
+      @@ tt_let ~bound ~value ~return:(apply_return_type ~arg)
     in
     (wrapped_arg_type, apply_return_type)
 
@@ -366,9 +375,9 @@ end = struct
       let open Name.Map in
       let names = empty in
       (* TODO: duplicated string name *)
-      let names = add (Name.make "Type") (level_univ, tt_global_univ) names in
+      let names = add (Name.make "Type") (level_univ, tt_rigid_univ) names in
       let names =
-        add (Name.make "String") (level_string, tt_global_univ) names
+        add (Name.make "String") (level_string, tt_rigid_univ) names
       in
       names
     in
@@ -377,11 +386,15 @@ end = struct
       let open Substs in
       let substs = Substs.make () in
       let () =
-        let to_ = ttype @@ tt_rigid_var ~var:level_univ in
+        let to_ =
+          tt_typed ~type_:tt_rigid_univ @@ tt_rigid_var ~var:level_univ
+        in
         unsafe_enter substs ~to_
       in
       let () =
-        let to_ = ttype @@ tt_rigid_var ~var:level_univ in
+        let to_ =
+          tt_typed ~type_:tt_rigid_univ @@ tt_rigid_var ~var:level_univ
+        in
         unsafe_enter substs ~to_
       in
       substs
@@ -402,7 +415,7 @@ end = struct
       Machinery.tt_pack ~size type_
     in
     let names = Name.Map.add name (level, type_) names in
-    let to_ = tterm ~type_ @@ tt_rigid_var ~var:level in
+    let to_ = tt_typed ~type_ @@ tt_rigid_var ~var:level in
     Substs.with_subst substs ~to_ @@ fun () -> k @@ { level; names; substs }
 
   let with_subst_var ctx name ~to_ k =
@@ -452,23 +465,23 @@ module Infer = struct
         let annot = check_annot ctx annot in
         (* TODO: unify annot before or after check term *)
         let term = check_term ctx term ~expected:annot in
-        tterm ~type_:annot @@ tt_annot ~term ~annot
+        tt_annot ~term ~annot
     | LT_var { var = name } ->
         let var, type_ = lookup_var ctx name in
-        tterm ~type_ @@ tt_global_var ~var
+        tt_typed ~type_ @@ tt_global_var ~var
     | LT_extension _ -> error_extensions_not_implemented ()
     | LT_forall { param; return } ->
         with_infer_pat ctx param @@ fun ctx param ->
         let return = check_annot ctx return in
-        ttype @@ tt_forall ~param ~return
+        tt_typed ~type_:tt_rigid_univ @@ tt_forall ~param ~return
     | LT_lambda { param; return } ->
         with_infer_pat ctx param @@ fun ctx param ->
         let return = infer_term ctx return in
         let type_ =
           let return = tt_type_of return in
-          ttype @@ tt_forall ~param ~return
+          tt_typed ~type_:tt_rigid_univ @@ tt_forall ~param ~return
         in
-        tterm ~type_ @@ tt_lambda ~param ~return
+        tt_typed ~type_ @@ tt_lambda ~param ~return
     | LT_apply { lambda; arg } ->
         let lambda = infer_term ctx lambda in
         (* TODO: this could be better? avoiding split forall? *)
@@ -477,7 +490,7 @@ module Infer = struct
         in
         let arg = check_term ctx arg ~expected:wrapped_arg_type in
         let type_ = apply_return_type ~arg in
-        tterm ~type_ @@ tt_apply ~lambda ~arg
+        tt_typed ~type_ @@ tt_apply ~lambda ~arg
     | LT_hoist _ -> error_hoist_not_implemented ()
     | LT_let { bound; value; return } ->
         (* TODO: use this loc *)
@@ -487,10 +500,13 @@ module Infer = struct
         with_check_pat ctx bound ~expected:(tt_type_of value) ~to_:(Some value)
         @@ fun ctx bound ->
         let return = infer_term ctx return in
-        let type_ = ttype @@ tt_let ~bound ~value ~return:(tt_type_of return) in
-        tterm ~type_ @@ tt_let ~bound ~value ~return
+        let type_ =
+          tt_typed ~type_:tt_rigid_univ
+          @@ tt_let ~bound ~value ~return:(tt_type_of return)
+        in
+        tt_typed ~type_ @@ tt_let ~bound ~value ~return
     | LT_string { literal } ->
-        tterm ~type_:tt_global_string @@ tt_string ~literal
+        tt_typed ~type_:tt_rigid_univ @@ tt_string ~literal
 
   and check_term ctx term ~expected =
     (* TODO: let () = assert_is_tt_with_type expected in *)
@@ -507,7 +523,7 @@ module Infer = struct
     in
     term
 
-  and check_annot ctx term = check_term ctx term ~expected:tt_global_univ
+  and check_annot ctx term = check_term ctx term ~expected:tt_rigid_univ
 
   and with_infer_pat ctx pat k =
     (* TODO: to_ here *)
@@ -516,10 +532,9 @@ module Infer = struct
     match pat with
     | LP_var { var = _ } -> error_missing_annotation ()
     | LP_annot { pat; annot } ->
-        (* TODO: TP_annot *)
         let annot = check_annot ctx annot in
         with_check_pat ctx pat ~expected:annot ~to_:None @@ fun ctx pat ->
-        k ctx @@ tpat ~type_:annot @@ tp_annot ~pat ~annot
+        k ctx @@ tp_annot ~pat ~annot
 
   and with_check_pat ctx pat ~expected ~to_ k =
     (* TODO: let () = assert_is_tt_with_type expected in *)
@@ -531,17 +546,17 @@ module Infer = struct
         let annot = check_annot ctx annot in
         let () = tt_equal ctx ~left:annot ~right:expected in
         with_check_pat ctx pat ~expected:annot ~to_ @@ fun ctx pat ->
-        k ctx @@ tpat ~type_:expected @@ tp_annot ~pat ~annot
+        k ctx @@ tp_typed ~type_:expected @@ tp_annot ~pat ~annot
     | LP_var { var = name } -> (
         (* TODO: this is bad *)
         match to_ with
         | Some to_ ->
             (* TODO: expected == to_? *)
             with_subst_var ctx name ~to_ @@ fun ctx ->
-            k ctx @@ tpat ~type_:expected @@ tp_var ~name
+            k ctx @@ tp_typed ~type_:expected @@ tp_var ~name
         | None ->
             with_bound_var ctx name ~type_:expected @@ fun ctx ->
-            k ctx @@ tpat ~type_:expected @@ tp_var ~name)
+            k ctx @@ tp_typed ~type_:expected @@ tp_var ~name)
 
   let infer_term term =
     match infer_term Context.initial term with

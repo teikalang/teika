@@ -18,6 +18,9 @@ type error =
   (* TODO: native should not be a string *)
   | TError_unknown_native of { native : string }
   | TError_missing_annotation
+  (* bug *)
+  | TError_invariant_term_untyped of { term : term }
+  | TError_invariant_pat_untyped of { pat : pat }
 
 type t = error [@@deriving show]
 
@@ -33,3 +36,5 @@ val error_pairs_not_implemented : unit -> 'a
 val error_unknown_extension : extension:Name.t -> payload:Ltree.term -> 'a
 val error_unknown_native : native:string -> 'a
 val error_missing_annotation : unit -> 'a
+val error_invariant_term_untyped : term -> 'a
+val error_invariant_pat_untyped : pat -> 'a
