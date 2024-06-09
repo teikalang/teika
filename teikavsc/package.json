@@ -13,7 +13,7 @@
     "url": "https://github.com/teikalang/teika/issues"
   },
   "homepage": "my home page",
-  "main": "./dist/main.js",
+  "main": "./dist/extension.js",
   "engines": {
     "vscode": "^1.64.0"
   },
@@ -113,20 +113,31 @@
     "customEditors": []
   },
   "scripts": {
-    "package": "vsce package --out vscode-teika.vsix --yarn",
+    "compile": "yarn check-types && node esbuild.js",
+    "compile:production": "yarn check-types && node esbuild.js --production",
+    "check-types": "tsc --noEmit",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "watch": "npm-run-all -p watch:*",
+    "package": "yarn compile:production && vsce package --out vscode-teika.vsix --yarn",
     "deploy:vsce": "vsce publish --packagePath vscode-teika.vsix --yarn",
     "fmt:check": "prettier . --check",
     "fmt": "prettier . --write"
   },
   "dependencies": {
-    "vscode-languageclient": "*"
+    "tree-sitter-teika": "^0.1.0",
+    "vscode-languageclient": "*",
+    "web-tree-sitter": "^0.22.6"
   },
   "devDependencies": {
-    "@types/vscode": "*",
     "@types/node": "*",
+    "@types/vscode": "*",
+    "esbuild": "^0.21.4",
+    "npm-run-all": "^4.1.5",
     "prettier": "*",
-    "vsce": "*",
-    "typescript": "*"
+    "tree-sitter-cli": "^0.22.6",
+    "typescript": "*",
+    "vsce": "*"
   },
   "prettier": {
     "proseWrap": "always",
