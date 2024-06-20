@@ -7,58 +7,43 @@ module Substs : sig
   type substs
   type t = substs
 
-  val make : unit -> substs
   val size : substs -> Level.t
-  val fork : substs -> substs
-  val unsafe_enter : substs -> to_:term -> unit
-  val with_subst : substs -> to_:term -> (unit -> 'k) -> 'k
-  val find_global : substs -> var:Level.t -> term
-  val find_local : substs -> var:Index.t -> term
+  val empty : substs
+  val push : to_:term -> at_:substs -> substs -> substs
+  val find_global : var:Level.t -> substs -> term * substs
+  val find_local : var:Index.t -> substs -> term * substs
 end = struct
   open Ttree
 
-  type substs = { entries : term array; mutable size : Level.t }
+  (* TODO: especialized patricia trie *)
+  type substs =
+    | Substs of { next : Level.t; content : (term * substs) Level.Map.t }
+
   type t = substs
 
-  (* TODO: check exceptions related to array here *)
-  let make () =
-    (* TODO: more? dynamic? *)
-    let length = 64 * 1024 in
-    let entries = Array.make length tt_rigid_univ in
-    { entries; size = Level.zero }
+  let size substs =
+    let (Substs { next; content = _ }) = substs in
+    next
 
-  let fork substs =
-    let { entries; size } = substs in
-    (* TODO: lazy fork *)
-    let entries = Array.copy entries in
-    { entries; size }
+  let empty = Substs { next = Level.zero; content = Level.Map.empty }
 
-  let size substs = substs.size
+  (* TODO: better name than at_ *)
+  let push ~to_ ~at_ substs =
+    let (Substs { next; content }) = substs in
+    let content = Level.Map.add next (to_, at_) content in
+    let next = Level.next next in
+    Substs { next; content }
 
-  let unsafe_enter substs ~to_ =
-    let size = substs.size in
-    substs.size <- Level.next size;
-    Array.set substs.entries (Level.repr size) to_
+  let find_global ~var substs =
+    let (Substs { next = _; content }) = substs in
+    (* TODO: proper errors here *)
+    Level.Map.find var content
 
-  let with_subst substs ~to_ k =
-    let size = substs.size in
-    substs.size <- Level.next size;
-    Array.set substs.entries (Level.repr size) to_;
-    let value = k () in
-    (* TODO: maybe decrement instead? Reduce stack usage *)
-    substs.size <- size;
-    value
-
-  (* TODO: not failwith *)
-  let find_global substs ~var = Array.get substs.entries var
-
-  let find_local substs ~var =
-    let var = Level.repr substs.size - (Index.repr var + 1) in
-    find_global substs ~var
-
-  let find_global substs ~var =
-    let var = Level.repr var in
-    find_global substs ~var
+  let find_local ~var substs =
+    let (Substs { next; content }) = substs in
+    (* TODO: proper errors here *)
+    let level = Option.get @@ Level.level_of_index ~next ~var in
+    Level.Map.find level content
 end
 
 module Machinery = struct
@@ -165,29 +150,21 @@ module Machinery = struct
         with_tt_expand_head term ~args ~substs k
     (* substs *)
     | TT_global_var { var }, _ ->
-        let term = Substs.find_global ~var substs in
+        let term, substs = Substs.find_global ~var substs in
         with_tt_expand_head term ~args ~substs k
     | TT_local_var { var }, _ ->
-        let term = Substs.find_local ~var substs in
+        let term, substs = Substs.find_local ~var substs in
         with_tt_expand_head term ~args ~substs k
     (* beta *)
-    | TT_lambda { param = _; return = term }, arg :: args ->
-        Substs.with_subst substs ~to_:arg @@ fun () ->
+    | TT_lambda { param = _; return = term }, (arg, arg_substs) :: args ->
+        let substs = Substs.push ~to_:arg ~at_:arg_substs substs in
         with_tt_expand_head term ~args ~substs k
     | TT_apply { lambda = term; arg }, _ ->
-        let args =
-          let size = Substs.size substs in
-          (* TODO: pack can be lazy *)
-          tt_pack ~size arg :: args
-        in
+        let args = (arg, substs) :: args in
         with_tt_expand_head term ~args ~substs k
     (* let *)
     | TT_let { bound = _; value; return = term }, _ ->
-        let value =
-          let size = Substs.size substs in
-          tt_pack ~size value
-        in
-        Substs.with_subst substs ~to_:value @@ fun () ->
+        let substs = Substs.push ~to_:value ~at_:substs substs in
         with_tt_expand_head term ~args ~substs k
     (* head *)
     | TT_rigid_var _, _ | TT_forall _, _ | TT_lambda _, [] | TT_string _, _ ->
@@ -214,7 +191,7 @@ module Machinery = struct
     tt_struct_equal ~level ~left ~left_substs ~right ~right_substs;
     (* TODO: arith clash *)
     List.iter2
-      (fun left right ->
+      (fun (left, left_substs) (right, right_substs) ->
         tt_equal ~level ~left ~left_substs ~right ~right_substs)
       left_args right_args
 
@@ -271,8 +248,10 @@ module Machinery = struct
       (* TODO: maybe pack right_type? *)
       tt_typed ~type_:right_type @@ tt_rigid_var ~var:level
     in
-    Substs.with_subst left_substs ~to_:left_to_ @@ fun () ->
-    Substs.with_subst right_substs ~to_:right_to_ @@ fun () ->
+    let left_substs = Substs.push ~to_:left_to_ ~at_:left_substs left_substs in
+    let right_substs =
+      Substs.push ~to_:right_to_ ~at_:right_substs right_substs
+    in
     k ~level ~left_substs ~right_substs
 
   (* TODO: linear functions can be faster without packing *)
@@ -295,10 +274,10 @@ module Machinery = struct
         tt_split_forall type_ ~args ~substs
     (* substs *)
     | TT_global_var { var }, _ ->
-        let type_ = Substs.find_global ~var substs in
+        let type_, _at = Substs.find_global ~var substs in
         tt_split_forall type_ ~args ~substs
     | TT_local_var { var }, _ ->
-        let type_ = Substs.find_local ~var substs in
+        let type_, _at = Substs.find_local ~var substs in
         tt_split_forall type_ ~args ~substs
     (* beta *)
     | TT_lambda { param; return = type_ }, arg :: args ->
@@ -327,7 +306,7 @@ module Machinery = struct
         error_not_a_forall ~type_
 
   and tt_split_forall_subst ~bound ~value type_ ~args ~substs =
-    Substs.with_subst substs ~to_:value @@ fun () ->
+    let substs = Substs.push ~to_:value ~at_:substs substs in
     let wrapped_arg_type, apply_return_type =
       tt_split_forall type_ ~args ~substs
     in
@@ -366,7 +345,8 @@ end = struct
   type context = {
     level : Level.t;
     names : (Level.t * term) Name.Map.t;
-    substs : Substs.t;
+    left_substs : Substs.t;
+    right_substs : Substs.t;
   }
 
   let initial =
@@ -383,23 +363,24 @@ end = struct
     in
     let level = level_string in
     let substs =
-      let open Substs in
-      let substs = Substs.make () in
-      let () =
-        let to_ =
+      let substs = Substs.empty in
+      let substs =
+        let univ =
           tt_typed ~type_:tt_rigid_univ @@ tt_rigid_var ~var:level_univ
         in
-        unsafe_enter substs ~to_
+        Substs.push ~to_:univ ~at_:substs substs
       in
-      let () =
-        let to_ =
+      let substs =
+        let string =
           tt_typed ~type_:tt_rigid_univ @@ tt_rigid_var ~var:level_univ
         in
-        unsafe_enter substs ~to_
+        Substs.push ~to_:string ~at_:substs substs
       in
       substs
     in
-    { names; level; substs }
+    let left_substs = substs in
+    let right_substs = substs in
+    { names; level; left_substs; right_substs }
 
   let lookup_var ctx name =
     match Name.Map.find_opt name ctx.names with
@@ -407,22 +388,25 @@ end = struct
     | None -> error_unknown_var ~name
 
   let with_bound_var ctx name ~type_ k =
-    let { level; names; substs } = ctx in
+    let { level; names; left_substs; right_substs } = ctx in
     let level = Level.next level in
     let type_ =
       (* TODO: is this a good place? *)
-      let size = Substs.size substs in
+      (* TODO: substs should have the same size right? *)
+      let size = Substs.size left_substs in
       Machinery.tt_pack ~size type_
     in
     let names = Name.Map.add name (level, type_) names in
     let to_ = tt_typed ~type_ @@ tt_rigid_var ~var:level in
-    Substs.with_subst substs ~to_ @@ fun () -> k @@ { level; names; substs }
+    let left_substs = Substs.push ~to_ ~at_:left_substs left_substs in
+    let right_substs = Substs.push ~to_ ~at_:right_substs right_substs in
+    k @@ { level; names; left_substs; right_substs }
 
   let with_subst_var ctx name ~to_ k =
-    let { level; names; substs } = ctx in
+    let { level; names; left_substs; right_substs } = ctx in
     let to_ =
       (* TODO: is this a good place? *)
-      let size = Substs.size substs in
+      let size = Substs.size left_substs in
       Machinery.tt_pack ~size to_
     in
     let level = Level.next level in
@@ -431,17 +415,17 @@ end = struct
       let type_ = Machinery.tt_type_of to_ in
       Name.Map.add name (var, type_) names
     in
-    Substs.with_subst substs ~to_ @@ fun () -> k @@ { level; names; substs }
+    let left_substs = Substs.push ~to_ ~at_:left_substs left_substs in
+    let right_substs = Substs.push ~to_ ~at_:right_substs right_substs in
+    k @@ { level; names; left_substs; right_substs }
 
   let tt_split_forall ctx type_ =
-    let { level = _; names = _; substs } = ctx in
-    Machinery.tt_split_forall type_ ~substs
+    let { level = _; names = _; left_substs; right_substs = _ } = ctx in
+    (* TODO: left and right? *)
+    Machinery.tt_split_forall type_ ~substs:left_substs
 
   let tt_equal ctx ~left ~right =
-    let { level; names = _; substs } = ctx in
-    (* TODO: fork both? *)
-    let left_substs = Substs.fork substs in
-    let right_substs = Substs.fork substs in
+    let { level; names = _; left_substs; right_substs } = ctx in
     Machinery.tt_equal ~level ~left ~left_substs ~right ~right_substs
 end
 
