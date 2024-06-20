@@ -19,6 +19,9 @@ type error =
   | TError_unknown_extension of { extension : Name.t; payload : Ltree.term }
   | TError_unknown_native of { native : string }
   | TError_missing_annotation
+  (* bug *)
+  | TError_invariant_term_untyped of { term : term }
+  | TError_invariant_pat_untyped of { pat : pat }
 
 and t = error [@@deriving show { with_path = false }]
 
@@ -40,3 +43,9 @@ let error_unknown_extension ~extension ~payload =
 
 let error_unknown_native ~native = terror @@ TError_unknown_native { native }
 let error_missing_annotation () = terror @@ TError_missing_annotation
+
+let error_invariant_term_untyped term =
+  terror @@ TError_invariant_term_untyped { term }
+
+let error_invariant_pat_untyped pat =
+  terror @@ TError_invariant_pat_untyped { pat }

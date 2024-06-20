@@ -71,16 +71,12 @@ let _pt_with_type ~type_ term =
 
 (* TODO: extract substitutions *)
 let rec tt_print term =
-  let term =
-    match term with
-    | TTerm { term; type_ = _ } ->
-        (* let term = tt_print term in
-           let type_ = tt_print type_ in
-           PT_annot { term; annot = type_ } *)
-        term
-    | TType { term } -> term
-  in
   match term with
+  | TT_typed { term; type_ = _ } ->
+      (* let term = tt_print term in
+         let type_ = tt_print type_ in
+         PT_annot { term; annot = type_ } *)
+      tt_print term
   | TT_annot { term; annot } ->
       let term = tt_print term in
       let annot = tt_print annot in
@@ -110,15 +106,12 @@ let rec tt_print term =
   | TT_string { literal } -> PT_string { literal }
 
 and tp_print pat =
-  let pat =
-    match pat with
-    | TPat { pat; type_ = _ } ->
-        (* let pat = tp_print pat in
-           let type_ = tt_print type_ in
-           pt_with_type ~type_ pat *)
-        pat
-  in
   match pat with
+  | TP_typed { pat; type_ = _ } ->
+      (* let pat = tp_print pat in
+         let type_ = tt_print type_ in
+         pt_with_type ~type_ pat *)
+      tp_print pat
   | TP_annot { pat; annot } ->
       let pat = tp_print pat in
       let annot = tt_print annot in
@@ -149,6 +142,8 @@ module Perror = struct
     | PE_unknown_extension of { extension : Name.t }
     | PE_unknown_native of { native : string }
     | PE_missing_annotation
+    | PE_invariant_term_untyped of { term : term }
+    | PE_invariant_pat_untyped of { pat : term }
 
   let pp_pos fmt pos =
     let Lexing.{ pos_fname; pos_lnum; pos_bol; pos_cnum = _ } = pos in
@@ -178,6 +173,10 @@ module Perror = struct
     | PE_unknown_native { native } -> fprintf fmt "unknown native : %S" native
     (* TODO: rename missing annotation *)
     | PE_missing_annotation -> fprintf fmt "not enough annotations"
+    | PE_invariant_term_untyped { term } ->
+        fprintf fmt "invariant term untyped : %a" pp_term term
+    | PE_invariant_pat_untyped { pat } ->
+        fprintf fmt "invariant pat untyped : %a" pp_term pat
 end
 
 let rec te_print error =
@@ -215,6 +214,13 @@ let rec te_print error =
       PE_unknown_extension { extension }
   | TError_unknown_native { native } -> PE_unknown_native { native }
   | TError_missing_annotation -> PE_missing_annotation
+  (* TODO: term and pat  *)
+  | TError_invariant_term_untyped { term } ->
+      let term = tt_print term in
+      PE_invariant_term_untyped { term }
+  | TError_invariant_pat_untyped { pat } ->
+      let pat = tp_print pat in
+      PE_invariant_pat_untyped { pat }
 
 let pp_error fmt error =
   let error = te_print error in

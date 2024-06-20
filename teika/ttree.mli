@@ -1,19 +1,11 @@
 open Utils
 
-(* TODO: reduce allocations?
-   TT_with_type and TT_with_sort is not needed in many positions *)
-(* TODO: subst to_ typed and check every time it is substituted *)
 (* TODO: which invariants to enforce here using private? *)
-
 (* TODO: return should be body *)
-(* TODO: cache normalization? *)
+
 type term = private
   (* #(M : A) *)
-  | TTerm of { term : term_syntax; type_ : term }
-  (* #(A : U) *)
-  | TType of { term : term_syntax }
-
-and term_syntax = private
+  | TT_typed of { term : term; type_ : term }
   (* (M : A) *)
   | TT_annot of { term : term; annot : term }
   (* \!+n *)
@@ -33,9 +25,9 @@ and term_syntax = private
   (* ".." *)
   | TT_string of { literal : string }
 
-and pat = private TPat (* #(P : A) *) of { pat : pat_syntax; type_ : term }
-
-and pat_syntax =
+and pat = private
+  (* #(P : A) *)
+  | TP_typed of { pat : pat; type_ : term }
   (* (P : A) *)
   | TP_annot of { pat : pat; annot : term }
   (* x *)
@@ -43,27 +35,26 @@ and pat_syntax =
 [@@deriving show]
 
 (* term *)
-val tterm : type_:term -> term_syntax -> term
-val ttype : term_syntax -> term
-val tt_annot : term:term -> annot:term -> term_syntax
-val tt_rigid_var : var:Level.t -> term_syntax
-val tt_global_var : var:Level.t -> term_syntax
-val tt_local_var : var:Index.t -> term_syntax
-val tt_forall : param:pat -> return:term -> term_syntax
-val tt_lambda : param:pat -> return:term -> term_syntax
-val tt_apply : lambda:term -> arg:term -> term_syntax
-val tt_let : bound:pat -> value:term -> return:term -> term_syntax
-val tt_string : literal:string -> term_syntax
+val tt_typed : type_:term -> term -> term
+val tt_annot : term:term -> annot:term -> term
+val tt_rigid_var : var:Level.t -> term
+val tt_global_var : var:Level.t -> term
+val tt_local_var : var:Index.t -> term
+val tt_forall : param:pat -> return:term -> term
+val tt_lambda : param:pat -> return:term -> term
+val tt_apply : lambda:term -> arg:term -> term
+val tt_let : bound:pat -> value:term -> return:term -> term
+val tt_string : literal:string -> term
 
 (* pat *)
-val tpat : type_:term -> pat_syntax -> pat
-val tp_annot : pat:pat -> annot:term -> pat_syntax
-val tp_var : name:Name.t -> pat_syntax
+val tp_typed : type_:term -> pat -> pat
+val tp_annot : pat:pat -> annot:term -> pat
+val tp_var : name:Name.t -> pat
 
 (* Type *)
 val level_univ : Level.t
-val tt_global_univ : term
+val tt_rigid_univ : term
 
 (* String *)
 val level_string : Level.t
-val tt_global_string : term
+val tt_rigid_string : term
