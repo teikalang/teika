@@ -7,9 +7,8 @@ module Ptree = struct
     | PT_meta of { term : term }
     | PT_annot of { term : term; annot : term }
     | PT_var of { name : Name.t }
-    | PT_rigid_var of { var : Level.t }
-    | PT_global_var of { var : Level.t }
-    | PT_local_var of { var : Index.t }
+    | PT_free_var of { var : Level.t }
+    | PT_bound_var of { var : Index.t }
     | PT_forall of { param : term; return : term }
     | PT_lambda of { param : term; return : term }
     | PT_apply of { lambda : term; arg : term }
@@ -24,9 +23,8 @@ module Ptree = struct
     | PT_annot { term; annot } ->
         fprintf fmt "%a : %a" pp_funct term pp_wrapped annot
     | PT_var { name } -> fprintf fmt "%s" (Name.repr name)
-    | PT_rigid_var { var } -> fprintf fmt "\\!+%a" Level.pp var
-    | PT_global_var { var } -> fprintf fmt "\\+%a" Level.pp var
-    | PT_local_var { var } -> fprintf fmt "\\-%a" Index.pp var
+    | PT_free_var { var } -> fprintf fmt "\\+%a" Level.pp var
+    | PT_bound_var { var } -> fprintf fmt "\\-%a" Index.pp var
     | PT_forall { param; return } ->
         fprintf fmt "%a -> %a" pp_atom param pp_funct return
     | PT_lambda { param; return } ->
@@ -46,8 +44,7 @@ module Ptree = struct
     let pp_apply fmt term = pp_term T_apply fmt term in
     let pp_atom fmt term = pp_term T_atom fmt term in
     match (term, prec) with
-    | ( ( PT_meta _ | PT_var _ | PT_rigid_var _ | PT_global_var _
-        | PT_local_var _ | PT_string _ ),
+    | ( (PT_meta _ | PT_var _ | PT_free_var _ | PT_bound_var _ | PT_string _),
         (T_wrapped | T_let | T_funct | T_apply | T_atom) )
     | PT_apply _, (T_wrapped | T_let | T_funct | T_apply)
     | (PT_forall _ | PT_lambda _), (T_wrapped | T_let | T_funct)
@@ -81,11 +78,9 @@ let rec tt_print term =
       let term = tt_print term in
       let annot = tt_print annot in
       PT_annot { term; annot }
-  | TT_rigid_var { var } -> PT_rigid_var { var }
-  | TT_global_var { var } ->
-      (* TODO: expand link sometimes? *)
-      PT_global_var { var }
-  | TT_local_var { var } -> PT_local_var { var }
+  | TT_free_var { var } -> PT_free_var { var }
+  (* TODO: expand subst sometimes? *)
+  | TT_bound_var { var } -> PT_bound_var { var }
   | TT_forall { param; return } ->
       let param = tp_print param in
       let return = tt_print return in

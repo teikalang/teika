@@ -14,6 +14,7 @@ module Typer = struct
   (* TODO: write tests for escape check *)
   let univ_type = check "Type" {|(Type : Type)|}
   let string_type = check "String" {|(String : Type)|}
+  let false_type = check "False" {|(A : Type) -> A|}
 
   let id =
     check "id" {|((A : Type) => (x : A) => x : (A : Type) -> (x : A) -> A)|}
@@ -178,6 +179,7 @@ module Typer = struct
     [
       univ_type;
       string_type;
+      false_type;
       id;
       (*
       id_propagate;

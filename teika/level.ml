@@ -15,12 +15,7 @@ let level_of_index ~next ~var =
   let var = Index.repr var in
   of_int (next - 1 - var)
 
-let global_to_local ~size ~var ~depth =
-  let top = size - 1 in
-  Index.of_int @@ (top + Index.repr depth - var)
-
-let local_to_global ~size ~var ~depth =
-  let top = size - 1 in
-  of_int @@ (top + Index.repr depth - Index.repr var)
+let repr level = level
+let offset ~from ~to_ = Index.of_int (to_ - from)
 
 module Map = Map.Make (Int)
