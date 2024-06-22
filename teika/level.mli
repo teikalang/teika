@@ -4,9 +4,7 @@ type t = level [@@deriving show, eq]
 val zero : level
 val next : level -> level
 val ( < ) : level -> level -> bool
-
-(* TODO: bad to expose this *)
-val repr : level -> int
+val level_of_index : next:level -> var:Index.t -> level option
 
 (* TODO: better place for this *)
 val global_to_local : size:level -> var:level -> depth:Index.t -> Index.t option

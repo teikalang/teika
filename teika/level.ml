@@ -10,7 +10,10 @@ let next n =
 
 let ( < ) : level -> level -> bool = ( < )
 let of_int x = match x >= zero with true -> Some x | false -> None
-let repr x = x
+
+let level_of_index ~next ~var =
+  let var = Index.repr var in
+  of_int (next - 1 - var)
 
 let global_to_local ~size ~var ~depth =
   let top = size - 1 in
