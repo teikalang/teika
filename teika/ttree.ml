@@ -5,12 +5,10 @@ type term =
   | TT_typed of { term : term; type_ : term }
   (* (M : A) *)
   | TT_annot of { term : term; annot : term }
-  (* \!+n *)
-  | TT_rigid_var of { var : Level.t }
   (* \+n *)
-  | TT_global_var of { var : Level.t }
+  | TT_free_var of { var : Level.t }
   (* \-n *)
-  | TT_local_var of { var : Index.t }
+  | TT_bound_var of { var : Index.t }
   (* P -> B *)
   | TT_forall of { param : pat; return : term }
   (* P => M *)
@@ -35,9 +33,8 @@ and pat =
 (* terms *)
 let tt_typed ~type_ term = TT_typed { term; type_ }
 let tt_annot ~term ~annot = TT_annot { term; annot }
-let tt_rigid_var ~var = TT_rigid_var { var }
-let tt_global_var ~var = TT_global_var { var }
-let tt_local_var ~var = TT_local_var { var }
+let tt_free_var ~var = TT_free_var { var }
+let tt_bound_var ~var = TT_bound_var { var }
 let tt_forall ~param ~return = TT_forall { param; return }
 let tt_lambda ~param ~return = TT_lambda { param; return }
 let tt_apply ~lambda ~arg = TT_apply { lambda; arg }
@@ -51,10 +48,10 @@ let tp_var ~name = TP_var { name }
 
 (* Type *)
 let level_univ = Level.zero
-let tt_rigid_univ = TT_rigid_var { var = level_univ }
+let tt_type_univ = TT_free_var { var = level_univ }
 
 (* String *)
 let level_string = Level.next level_univ
 
-let tt_rigid_string =
-  tt_typed ~type_:tt_rigid_univ @@ TT_rigid_var { var = level_string }
+let tt_type_string =
+  tt_typed ~type_:tt_type_univ @@ TT_free_var { var = level_string }

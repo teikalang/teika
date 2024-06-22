@@ -8,12 +8,10 @@ type term = private
   | TT_typed of { term : term; type_ : term }
   (* (M : A) *)
   | TT_annot of { term : term; annot : term }
-  (* \!+n *)
-  | TT_rigid_var of { var : Level.t }
   (* \+n *)
-  | TT_global_var of { var : Level.t }
+  | TT_free_var of { var : Level.t }
   (* \-n *)
-  | TT_local_var of { var : Index.t }
+  | TT_bound_var of { var : Index.t }
   (* P -> B *)
   | TT_forall of { param : pat; return : term }
   (* P => M *)
@@ -37,9 +35,8 @@ and pat = private
 (* term *)
 val tt_typed : type_:term -> term -> term
 val tt_annot : term:term -> annot:term -> term
-val tt_rigid_var : var:Level.t -> term
-val tt_global_var : var:Level.t -> term
-val tt_local_var : var:Index.t -> term
+val tt_free_var : var:Level.t -> term
+val tt_bound_var : var:Index.t -> term
 val tt_forall : param:pat -> return:term -> term
 val tt_lambda : param:pat -> return:term -> term
 val tt_apply : lambda:term -> arg:term -> term
@@ -53,8 +50,8 @@ val tp_var : name:Name.t -> pat
 
 (* Type *)
 val level_univ : Level.t
-val tt_rigid_univ : term
+val tt_type_univ : term
 
 (* String *)
 val level_string : Level.t
-val tt_rigid_string : term
+val tt_type_string : term
