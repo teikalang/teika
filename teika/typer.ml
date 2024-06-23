@@ -9,35 +9,76 @@ module Substs : sig
 
   val size : substs -> Level.t
   val empty : substs
-  val push : to_:term -> at_:Level.t -> substs -> substs
-  val find_local : var:Index.t -> substs -> term * Level.t
+  val push : to_:term -> at_:substs -> substs -> substs
+  val find : var:Index.t -> substs -> term * Level.t
+  val apply : var:Index.t -> substs -> term * substs
 end = struct
   open Ttree
 
   (* TODO: especialized patricia trie *)
+  type shifts = (int * Level.t) list
+
   type substs =
-    | Substs of { next : Level.t; content : (term * Level.t) Level.Map.t }
+    | Substs of {
+        next : Level.t;
+        shifts : shifts;
+        content : (term * shifts * Level.t) Level.Map.t;
+      }
 
   type t = substs
 
   let size substs =
-    let (Substs { next; content = _ }) = substs in
+    let (Substs { next; shifts = _; content = _ }) = substs in
     next
 
-  let empty = Substs { next = Level.zero; content = Level.Map.empty }
+  let empty =
+    Substs { next = Level.zero; shifts = []; content = Level.Map.empty }
 
   (* TODO: better name than at_ *)
   let push ~to_ ~at_ substs =
-    let (Substs { next; content }) = substs in
-    let content = Level.Map.add next (to_, at_) content in
+    let (Substs { next; shifts; content }) = substs in
+    let content =
+      let (Substs { next = at_; shifts; content = _ }) = at_ in
+      Level.Map.add next (to_, shifts, at_) content
+    in
     let next = Level.next next in
-    Substs { next; content }
+    Substs { next; shifts; content }
 
-  let find_local ~var substs =
-    let (Substs { next; content }) = substs in
-    (* TODO: proper errors here *)
+  let find ~var substs =
+    let (Substs { next; shifts; content }) = substs in
+    (* TODO: this is temporary *)
+    assert (shifts = []);
     let level = Option.get @@ Level.level_of_index ~next ~var in
-    Level.Map.find level content
+    let term, shifts, at_ = Level.Map.find level content in
+    assert (shifts = []);
+    (term, at_)
+
+  let rec apply var ~size ~shifts =
+    match shifts with
+    | [] -> var
+    | (by_, at_) :: shifts -> (
+        let distance =
+          (* TODO: should this size decreases? *)
+          Level.repr size - Level.repr at_
+        in
+        match Index.repr var >= distance with
+        | true ->
+            let var = Index.shift var ~by_ in
+            apply var ~size ~shifts
+        | false -> var)
+
+  let apply ~var substs =
+    let (Substs { next; shifts; content }) = substs in
+    (* TODO: proper errors here *)
+    let var = apply var ~size:next ~shifts in
+    let level = Option.get @@ Level.level_of_index ~next ~var in
+    let term, shifts, at_ = Level.Map.find level content in
+    let shifts =
+      let by_ = Level.repr next - Level.repr at_ in
+      (by_, next) :: shifts
+    in
+    let substs = Substs { next; shifts; content } in
+    (term, substs)
 end
 
 module Machinery = struct
@@ -123,67 +164,63 @@ module Machinery = struct
 
   let tt_shift ~by_ term = tt_shift ~by_ ~depth:Index.zero term
 
-  let rec tt_expand_head term ~substs =
-    match term with
-    | TT_typed { term; type_ = _ } ->
+  let rec tt_expand_head term ~args ~substs =
+    match (term, args) with
+    | TT_typed { term; type_ = _ }, _ ->
         (* typed *)
-        tt_expand_head term ~substs
-    | TT_annot { term; annot = _ } ->
+        tt_expand_head term ~args ~substs
+    | TT_annot { term; annot = _ }, _ ->
         (* annot *)
-        tt_expand_head term ~substs
-    | TT_bound_var { var } ->
+        tt_expand_head term ~args ~substs
+    | TT_bound_var { var }, _ ->
         (* subst *)
-        let term =
-          let term, at_ = Substs.find_local ~var substs in
-          let by_ = (Level.repr @@ Substs.size substs) - Level.repr at_ in
-          (* TODO: not very fast *)
-          tt_shift ~by_ term
-        in
-        tt_expand_head term ~substs
-    | TT_apply { lambda; arg } -> (
-        match tt_expand_head lambda ~substs with
-        | TT_lambda { param = _; return }, lambda_substs ->
-            (* beta *)
-            let substs =
-              let at_ = Substs.size substs in
-              Substs.push ~to_:arg ~at_ lambda_substs
-            in
-            tt_expand_head return ~substs
-        | lambda, lambda_substs ->
-            (* head *)
-            let arg =
-              let by_ =
-                (Level.repr @@ Substs.size lambda_substs)
-                - (Level.repr @@ Substs.size substs)
-              in
-              tt_shift ~by_ arg
-            in
-            (tt_apply ~lambda ~arg, lambda_substs))
-    | TT_let { bound = _; value; return = term } ->
+        let term, substs = Substs.apply ~var substs in
+        tt_expand_head term ~args ~substs
+    | TT_apply { lambda; arg }, args ->
+        (* beta1 *)
+        let args = (arg, substs) :: args in
+        tt_expand_head lambda ~args ~substs
+    | TT_lambda { param = _; return }, (arg, arg_substs) :: args ->
+        (* beta2 *)
+        let substs = Substs.push ~to_:arg ~at_:arg_substs substs in
+        tt_expand_head return ~args ~substs
+    | TT_let { bound = _; value; return }, _ ->
         (* zeta *)
-        let substs =
-          let at_ = Substs.size substs in
-          Substs.push ~to_:value ~at_ substs
-        in
-        tt_expand_head term ~substs
-    | TT_free_var _ | TT_forall _ | TT_lambda _ | TT_string _ ->
+        let substs = Substs.push ~to_:value ~at_:substs substs in
+        tt_expand_head return ~args ~substs
+    | TT_free_var _, _ | TT_forall _, _ | TT_lambda _, [] | TT_string _, _ ->
         (* head *)
-        (term, substs)
+        (term, args, substs)
 
   (* TODO: avoid cyclical expansion *)
   (* TODO: avoid allocating term nodes *)
   (* TODO: short circuit when same variable on both sides *)
   let rec tt_equal ~level ~left ~left_substs ~right ~right_substs =
-    let left, left_substs = tt_expand_head left ~substs:left_substs in
-    let right, right_substs = tt_expand_head right ~substs:right_substs in
-    tt_struct_equal ~level ~left ~left_substs ~right ~right_substs
+    let left, left_args, left_substs =
+      tt_expand_head left ~args:[] ~substs:left_substs
+    in
+    let right, right_args, right_substs =
+      tt_expand_head right ~args:[] ~substs:right_substs
+    in
+    tt_apply_equal ~level ~left ~left_args ~left_substs ~right ~right_args
+      ~right_substs
+
+  and tt_apply_equal ~level ~left ~left_args ~left_substs ~right ~right_args
+      ~right_substs =
+    tt_struct_equal ~level ~left ~left_substs ~right ~right_substs;
+    (* TODO: arith clash *)
+    List.iter2
+      (fun (left, left_substs) (right, right_substs) ->
+        tt_equal ~level ~left ~left_substs ~right ~right_substs)
+      left_args right_args
 
   and tt_struct_equal ~level ~left ~left_substs ~right ~right_substs =
     match (left, right) with
     | TT_typed _, _ | _, TT_typed _ -> failwith "invariant"
     | TT_annot _, _ | _, TT_annot _ -> failwith "invariant"
-    | TT_let _, _ | _, TT_let _ -> failwith "invariant"
     | TT_bound_var _, _ | _, TT_bound_var _ -> failwith "invariant"
+    | TT_apply _, _ | _, TT_apply _ -> failwith "invariant"
+    | TT_let _, _ | _, TT_let _ -> failwith "invariant"
     | TT_free_var { var = left }, TT_free_var { var = right }
       when Level.equal left right ->
         ()
@@ -201,18 +238,11 @@ module Machinery = struct
         @@ fun ~level ~left_substs ~right_substs ->
         tt_equal ~level ~left:left_return ~left_substs ~right:right_return
           ~right_substs
-    | ( TT_apply { lambda = left_lambda; arg = left_arg },
-        TT_apply { lambda = right_lambda; arg = right_arg } ) ->
-        tt_equal ~level ~left:left_lambda ~left_substs ~right:right_lambda
-          ~right_substs;
-        tt_equal ~level ~left:left_arg ~left_substs ~right:right_arg
-          ~right_substs
     | TT_string { literal = left }, TT_string { literal = right }
       when String.equal left right ->
         ()
-    | ( (TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_string _),
-        (TT_free_var _ | TT_forall _ | TT_lambda _ | TT_apply _ | TT_string _) )
-      ->
+    | ( (TT_free_var _ | TT_forall _ | TT_lambda _ | TT_string _),
+        (TT_free_var _ | TT_forall _ | TT_lambda _ | TT_string _) ) ->
         (* TODO: type clash needs substs *)
         error_type_clash ~left ~right
 
@@ -230,13 +260,9 @@ module Machinery = struct
       (* TODO: maybe pack right_type? *)
       tt_typed ~type_:right_type @@ tt_free_var ~var:level
     in
-    let left_substs =
-      let at_ = Substs.size left_substs in
-      Substs.push ~to_:left_to_ ~at_ left_substs
-    in
+    let left_substs = Substs.push ~to_:left_to_ ~at_:left_substs left_substs in
     let right_substs =
-      let at_ = Substs.size right_substs in
-      Substs.push ~to_:right_to_ ~at_ right_substs
+      Substs.push ~to_:right_to_ ~at_:right_substs right_substs
     in
     k ~level ~left_substs ~right_substs
 
@@ -264,29 +290,30 @@ module Machinery = struct
     (* substs *)
     | TT_bound_var { var }, _ ->
         let type_ =
-          let type_, at_ = Substs.find_local ~var substs in
+          let type_, at_ = Substs.find ~var substs in
           let by_ = (Level.repr @@ Substs.size substs) - Level.repr at_ in
           (* TODO: not very fast *)
           tt_shift ~by_ type_
         in
         tt_split_forall type_ ~args ~substs
     (* beta *)
-    | TT_lambda { param; return = type_ }, (arg, at_) :: args ->
-        tt_split_forall_subst ~bound:param ~value:arg ~at_ type_ ~args ~substs
+    | TT_lambda { param; return = type_ }, (arg, arg_substs) :: args ->
+        tt_split_forall_subst ~bound:param ~value:arg ~value_substs:arg_substs
+          type_ ~args ~substs
     | TT_apply { lambda; arg }, args ->
-        let args = (arg, Substs.size substs) :: args in
+        let args = (arg, substs) :: args in
         tt_split_forall lambda ~args ~substs
     (* let *)
     | TT_let { bound; value; return = type_ }, _ ->
-        let at_ = Substs.size substs in
-        tt_split_forall_subst ~bound ~value ~at_ type_ ~args ~substs
+        tt_split_forall_subst ~bound ~value ~value_substs:substs type_ ~args
+          ~substs
     (* head *)
     | TT_free_var _, _ | TT_forall _, _ | TT_lambda _, [] | TT_string _, _ ->
         (* TODO: dump substs *)
         error_not_a_forall ~type_
 
-  and tt_split_forall_subst ~bound ~value ~at_ type_ ~args ~substs =
-    let substs = Substs.push ~to_:value ~at_ substs in
+  and tt_split_forall_subst ~bound ~value ~value_substs type_ ~args ~substs =
+    let substs = Substs.push ~to_:value ~at_:value_substs substs in
     let wrapped_arg_type, apply_return_type =
       tt_split_forall type_ ~args ~substs
     in
@@ -437,54 +464,34 @@ end = struct
     let level = level_string in
     let substs =
       let substs = Substs.empty in
-      let substs =
-        let at_ = Substs.size substs in
-        Substs.push ~to_:tt_nil ~at_ substs
-      in
-      let substs =
-        let at_ = Substs.size substs in
-        Substs.push ~to_:tt_type_univ ~at_ substs
-      in
-      let substs =
-        let at_ = Substs.size substs in
-        Substs.push ~to_:tt_type_string ~at_ substs
-      in
+      let substs = Substs.push ~to_:tt_nil ~at_:substs substs in
+      let substs = Substs.push ~to_:tt_type_univ ~at_:substs substs in
+      let substs = Substs.push ~to_:tt_type_string ~at_:substs substs in
       substs
     in
     { level; left_substs = substs; right_substs = substs }
 
   let find_var_type ctx var =
     let { level = _; left_substs; right_substs = _ } = ctx in
-    let term, at_ = Substs.find_local ~var left_substs in
+    (* TODO: this apply here is weird *)
+    let term, _term = Substs.apply ~var left_substs in
     let _term, type_ = Machinery.tt_split_term term in
-    let by_ = (Level.repr @@ Substs.size left_substs) - Level.repr at_ in
+    let by_ = 1 + Index.repr var in
     Machinery.tt_shift ~by_ type_
 
   let with_bound_var ctx ~type_ k =
     let { level; left_substs; right_substs } = ctx in
     let level = Level.next level in
     let to_ = tt_typed ~type_ @@ tt_free_var ~var:level in
-    let left_substs =
-      let at_ = Substs.size left_substs in
-      Substs.push ~to_ ~at_ left_substs
-    in
-    let right_substs =
-      let at_ = Substs.size right_substs in
-      Substs.push ~to_ ~at_ right_substs
-    in
+    let left_substs = Substs.push ~to_ ~at_:left_substs left_substs in
+    let right_substs = Substs.push ~to_ ~at_:right_substs right_substs in
     k @@ { level; left_substs; right_substs }
 
   let with_subst_var ctx ~to_ k =
     let { level; left_substs; right_substs } = ctx in
     let level = Level.next level in
-    let left_substs =
-      let at_ = Substs.size left_substs in
-      Substs.push ~to_ ~at_ left_substs
-    in
-    let right_substs =
-      let at_ = Substs.size right_substs in
-      Substs.push ~to_ ~at_ right_substs
-    in
+    let left_substs = Substs.push ~to_ ~at_:left_substs left_substs in
+    let right_substs = Substs.push ~to_ ~at_:right_substs right_substs in
     k @@ { level; left_substs; right_substs }
 
   let tt_split_forall ctx type_ =
@@ -541,6 +548,8 @@ module Infer = struct
         let forall = infer_term ctx lambda in
         (* TODO: this could be better? avoiding split forall? *)
         let wrapped_arg_type, apply_return_type = tt_split_forall ctx forall in
+        Format.eprintf "forall : %a, arg : %a\n%!" Tprinter.pp_term forall
+          Tprinter.pp_term wrapped_arg_type;
         let () = check_term ctx arg ~expected:wrapped_arg_type in
         tt_typed ~type_:tt_type_univ @@ apply_return_type ~arg
     | TT_let { bound; value; return } ->
