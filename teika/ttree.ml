@@ -2,7 +2,7 @@ open Utils
 
 type term =
   (* #(M : A) *)
-  | TT_typed of { term : term; type_ : term }
+  | TT_typed of { term : term; mutable type_ : term }
   (* (M : A) *)
   | TT_annot of { term : term; annot : term }
   (* \+n *)
@@ -22,7 +22,7 @@ type term =
 
 and pat =
   (* #(P : A) *)
-  | TP_typed of { pat : pat; type_ : term }
+  | TP_typed of { pat : pat; mutable type_ : term }
   (* (P : A) *)
   | TP_annot of { pat : pat; annot : term }
   (* x *)
@@ -46,8 +46,12 @@ let tp_typed ~type_ pat = TP_typed { pat; type_ }
 let tp_annot ~pat ~annot = TP_annot { pat; annot }
 let tp_var ~name = TP_var { name }
 
+(* Nil *)
+let level_nil = Level.zero
+let tt_nil = TT_free_var { var = level_nil }
+
 (* Type *)
-let level_univ = Level.zero
+let level_univ = Level.next level_nil
 let tt_type_univ = TT_free_var { var = level_univ }
 
 (* String *)

@@ -155,7 +155,7 @@ module Perror = struct
     match error with
     | PE_loc { loc; error } -> fprintf fmt "%a\n%a" pp_loc loc pp_error error
     | PE_type_clash { left; right } ->
-        fprintf fmt "type clash\nexpected : %a\nreceived : %a" pp_term left
+        fprintf fmt "type clash\nreceived : %a\nexpected : %a" pp_term left
           pp_term right
     | PE_unknown_var { name } -> fprintf fmt "unknown variable %a" Name.pp name
     | PE_not_a_forall { type_ } ->

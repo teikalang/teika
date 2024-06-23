@@ -3,9 +3,9 @@ open Utils
 (* TODO: which invariants to enforce here using private? *)
 (* TODO: return should be body *)
 
-type term = private
+type term =
   (* #(M : A) *)
-  | TT_typed of { term : term; type_ : term }
+  | TT_typed of { term : term; mutable type_ : term }
   (* (M : A) *)
   | TT_annot of { term : term; annot : term }
   (* \+n *)
@@ -23,9 +23,9 @@ type term = private
   (* ".." *)
   | TT_string of { literal : string }
 
-and pat = private
+and pat =
   (* #(P : A) *)
-  | TP_typed of { pat : pat; type_ : term }
+  | TP_typed of { pat : pat; mutable type_ : term }
   (* (P : A) *)
   | TP_annot of { pat : pat; annot : term }
   (* x *)
@@ -42,6 +42,7 @@ val tt_lambda : param:pat -> return:term -> term
 val tt_apply : lambda:term -> arg:term -> term
 val tt_let : bound:pat -> value:term -> return:term -> term
 val tt_string : literal:string -> term
+val tt_nil : term
 
 (* pat *)
 val tp_typed : type_:term -> pat -> pat
