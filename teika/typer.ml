@@ -8,7 +8,7 @@ module Substs : sig
   type t = substs
 
   val size : substs -> Level.t
-  val empty : substs
+  val make : unit -> substs
   val push : to_:term -> at_:substs -> substs -> substs
   val find : var:Index.t -> substs -> term * Level.t
   val apply : var:Index.t -> substs -> term * substs
@@ -22,7 +22,7 @@ end = struct
     | Substs of {
         next : Level.t;
         shifts : shifts;
-        content : (term * shifts * Level.t) Level.Map.t;
+        content : (term * shifts * Level.t) array;
       }
 
   type t = substs
@@ -31,15 +31,31 @@ end = struct
     let (Substs { next; shifts = _; content = _ }) = substs in
     next
 
-  let empty =
-    Substs { next = Level.zero; shifts = []; content = Level.Map.empty }
+  let initial_tuple = (tt_nil, [], Level.zero)
+
+  let make () =
+    let initial_size = 256 in
+    let content = Array.make initial_size initial_tuple in
+    Substs { next = Level.zero; shifts = []; content }
 
   (* TODO: better name than at_ *)
   let push ~to_ ~at_ substs =
     let (Substs { next; shifts; content }) = substs in
+    (* TODO: resize content on demand *)
     let content =
+      let length = Array.length content in
+      match Level.repr next >= length with
+      | true ->
+          (* TODO: limit memory usage *)
+          (* TODO: maybe fail with out of memory? *)
+          let new_content = Array.make (length * 2) initial_tuple in
+          Array.blit content 0 new_content 0 length;
+          new_content
+      | false -> content
+    in
+    let () =
       let (Substs { next = at_; shifts; content = _ }) = at_ in
-      Level.Map.add next (to_, shifts, at_) content
+      Array.set content (Level.repr next) (to_, shifts, at_)
     in
     let next = Level.next next in
     Substs { next; shifts; content }
@@ -49,7 +65,7 @@ end = struct
     (* TODO: this is temporary *)
     assert (shifts = []);
     let level = Option.get @@ Level.level_of_index ~next ~var in
-    let term, shifts, at_ = Level.Map.find level content in
+    let term, shifts, at_ = Array.get content (Level.repr level) in
     assert (shifts = []);
     (term, at_)
 
@@ -72,7 +88,7 @@ end = struct
     (* TODO: proper errors here *)
     let var = apply var ~size:next ~shifts in
     let level = Option.get @@ Level.level_of_index ~next ~var in
-    let term, shifts, at_ = Level.Map.find level content in
+    let term, shifts, at_ = Array.get content (Level.repr level) in
     let shifts =
       let by_ = Level.repr next - Level.repr at_ in
       (by_, next) :: shifts
@@ -441,7 +457,7 @@ module Infer_context : sig
 
   type context
 
-  val initial : context
+  val make_initial : unit -> context
 
   (* vars *)
   val find_var_type : context -> Index.t -> term
@@ -460,16 +476,18 @@ end = struct
     right_substs : Substs.t;
   }
 
-  let initial =
+  let make_initial () =
     let level = level_string in
-    let substs =
-      let substs = Substs.empty in
+    let make_substs () =
+      let substs = Substs.make () in
       let substs = Substs.push ~to_:tt_nil ~at_:substs substs in
       let substs = Substs.push ~to_:tt_type_univ ~at_:substs substs in
       let substs = Substs.push ~to_:tt_type_string ~at_:substs substs in
       substs
     in
-    { level; left_substs = substs; right_substs = substs }
+    let left_substs = make_substs () in
+    let right_substs = make_substs () in
+    { level; left_substs; right_substs }
 
   let find_var_type ctx var =
     let { level = _; left_substs; right_substs = _ } = ctx in
@@ -508,8 +526,6 @@ end = struct
 
   let tt_equal ctx ~left ~right =
     let { level; left_substs; right_substs } = ctx in
-    Format.eprintf "left : %a, right : %a\n%!" Tprinter.pp_term left
-      Tprinter.pp_term right;
     Machinery.tt_equal ~level ~left ~left_substs ~right ~right_substs
 end
 
@@ -548,8 +564,6 @@ module Infer = struct
         let forall = infer_term ctx lambda in
         (* TODO: this could be better? avoiding split forall? *)
         let wrapped_arg_type, apply_return_type = tt_split_forall ctx forall in
-        Format.eprintf "forall : %a, arg : %a\n%!" Tprinter.pp_term forall
-          Tprinter.pp_term wrapped_arg_type;
         let () = check_term ctx arg ~expected:wrapped_arg_type in
         tt_typed ~type_:tt_type_univ @@ apply_return_type ~arg
     | TT_let { bound; value; return } ->
@@ -611,8 +625,9 @@ module Infer = struct
 
   let infer_term term =
     match
+      let ctx = Infer_context.make_initial () in
       let term = Elaborate.elaborate_term Elaborate_context.initial term in
-      infer_term Infer_context.initial term
+      infer_term ctx term
     with
     | term -> Ok term
     | exception TError { error } -> Error error
