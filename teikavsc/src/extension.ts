@@ -1,4 +1,4 @@
-import { workspace, ExtensionContext, commands } from "vscode";
+import { workspace, ExtensionContext, commands, languages } from "vscode";
 
 import {
   LanguageClient,
@@ -6,6 +6,8 @@ import {
   ServerOptions,
   TransportKind,
 } from "vscode-languageclient/node";
+
+import { SemanticTokensProvider, LEGEND } from "./highlighting";
 
 let client: LanguageClient;
 
@@ -64,6 +66,7 @@ export function activate(context: ExtensionContext) {
     })
   );
 
+  languages.registerDocumentSemanticTokensProvider({ language: "teika", scheme: "file" }, new SemanticTokensProvider(), LEGEND)
   restartClient();
 }
 
@@ -73,3 +76,4 @@ export function deactivate(): Thenable<void> | undefined {
   }
   return client.stop();
 }
+
