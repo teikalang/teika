@@ -48,6 +48,7 @@ val tt_nil : term
 val tp_typed : type_:term -> pat -> pat
 val tp_annot : pat:pat -> annot:term -> pat
 val tp_var : name:Name.t -> pat
+val tp_nil : pat
 
 (* Type *)
 val level_univ : Level.t
