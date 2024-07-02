@@ -49,6 +49,7 @@ let tp_var ~name = TP_var { name }
 (* Nil *)
 let level_nil = Level.zero
 let tt_nil = TT_free_var { var = level_nil }
+let tp_nil = TP_var { name = Name.make "**nil**" }
 
 (* Type *)
 let level_univ = Level.next level_nil

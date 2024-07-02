@@ -125,6 +125,23 @@ module Typer = struct
         x => (A : Type) => y => (id => (_ = (id x); _ = id y; (y : A))) (x => x)
       |}
 
+  let trivial_equality =
+    check "trivial_equality"
+      {|
+        Eq = (A : Type) => (x : A) => (y : A) =>
+          (P : (z : A) -> Type) -> (l : P x) -> P y;
+        refl = (A : Type) => (x : A) =>
+          (P : (z : A) -> Type) => (l : P x) => l;
+        (refl Type Type : Eq Type Type Type)
+      |}
+
+  let split_at_a_distance =
+    check "split_at_a_distance"
+      {|
+        (l : Type) =>
+          (f : (X = Type; (A : X) => (x : A) -> A) Type) => f l
+      |}
+
   let nat_256_equality =
     check "nat_256_equality"
       {|
@@ -206,6 +223,8 @@ module Typer = struct
       (* simplest_escape_check; *)
       bound_var_escape_check;
       hole_lowering_check;
+      trivial_equality;
+      split_at_a_distance;
       nat_256_equality;
       simple_alpha_rename;
     ]
