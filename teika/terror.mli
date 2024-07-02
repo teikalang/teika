@@ -1,5 +1,4 @@
 open Utils
-open Syntax
 open Ttree
 
 type error =
@@ -14,10 +13,11 @@ type error =
   | TError_hoist_not_implemented
   | TError_extensions_not_implemented
   | TError_pairs_not_implemented
-  | TError_unknown_extension of { extension : Name.t; payload : Ltree.term }
   (* TODO: native should not be a string *)
   | TError_unknown_native of { native : string }
   | TError_missing_annotation
+  (* elaborate *)
+  | TError_invalid_notation
   (* bug *)
   | TError_invariant_term_untyped of { term : term }
   | TError_invariant_pat_untyped of { pat : pat }
@@ -33,8 +33,8 @@ val error_not_a_forall : type_:term -> 'a
 val error_hoist_not_implemented : unit -> 'a
 val error_extensions_not_implemented : unit -> 'a
 val error_pairs_not_implemented : unit -> 'a
-val error_unknown_extension : extension:Name.t -> payload:Ltree.term -> 'a
 val error_unknown_native : native:string -> 'a
 val error_missing_annotation : unit -> 'a
 val error_invariant_term_untyped : term -> 'a
 val error_invariant_pat_untyped : pat -> 'a
+val error_invalid_notation : unit -> 'a

@@ -134,9 +134,9 @@ module Perror = struct
     | PE_hoist_not_implemented
     | PE_extensions_not_implemented
     | PE_pairs_not_implemented
-    | PE_unknown_extension of { extension : Name.t }
     | PE_unknown_native of { native : string }
     | PE_missing_annotation
+    | PE_invalid_notation
     | PE_invariant_term_untyped of { term : term }
     | PE_invariant_pat_untyped of { pat : term }
 
@@ -163,11 +163,10 @@ module Perror = struct
     | PE_hoist_not_implemented -> fprintf fmt "hoist not implemented"
     | PE_extensions_not_implemented -> fprintf fmt "extensions not implemented"
     | PE_pairs_not_implemented -> fprintf fmt "pairs not implemented"
-    | PE_unknown_extension { extension } ->
-        fprintf fmt "unknown extension : %a" Name.pp extension
     | PE_unknown_native { native } -> fprintf fmt "unknown native : %S" native
     (* TODO: rename missing annotation *)
     | PE_missing_annotation -> fprintf fmt "not enough annotations"
+    | PE_invalid_notation -> fprintf fmt "invalid notation"
     | PE_invariant_term_untyped { term } ->
         fprintf fmt "invariant term untyped : %a" pp_term term
     | PE_invariant_pat_untyped { pat } ->
@@ -205,10 +204,9 @@ let rec te_print error =
   | TError_hoist_not_implemented -> PE_hoist_not_implemented
   | TError_pairs_not_implemented ->
       PE_pairs_not_implemented (* TODO: print payload *)
-  | TError_unknown_extension { extension; payload = _ } ->
-      PE_unknown_extension { extension }
   | TError_unknown_native { native } -> PE_unknown_native { native }
   | TError_missing_annotation -> PE_missing_annotation
+  | TError_invalid_notation -> PE_invalid_notation
   (* TODO: term and pat  *)
   | TError_invariant_term_untyped { term } ->
       let term = tt_print term in

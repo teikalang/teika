@@ -1,5 +1,4 @@
 open Utils
-open Syntax
 open Ttree
 
 (* TODO: too much work to add errors,
@@ -16,9 +15,10 @@ type error =
   | TError_hoist_not_implemented
   | TError_extensions_not_implemented
   | TError_pairs_not_implemented
-  | TError_unknown_extension of { extension : Name.t; payload : Ltree.term }
   | TError_unknown_native of { native : string }
   | TError_missing_annotation
+  (* elaborate *)
+  | TError_invalid_notation
   (* bug *)
   | TError_invariant_term_untyped of { term : term }
   | TError_invariant_pat_untyped of { pat : pat }
@@ -37,12 +37,9 @@ let error_extensions_not_implemented () =
   terror @@ TError_extensions_not_implemented
 
 let error_pairs_not_implemented () = terror @@ TError_pairs_not_implemented
-
-let error_unknown_extension ~extension ~payload =
-  terror @@ TError_unknown_extension { extension; payload }
-
 let error_unknown_native ~native = terror @@ TError_unknown_native { native }
 let error_missing_annotation () = terror @@ TError_missing_annotation
+let error_invalid_notation () = terror @@ TError_invalid_notation
 
 let error_invariant_term_untyped term =
   terror @@ TError_invariant_term_untyped { term }
