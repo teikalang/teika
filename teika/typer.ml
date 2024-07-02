@@ -414,68 +414,81 @@ end = struct
 end
 
 module Elaborate = struct
-  open Ltree
+  open Ctree
   open Ttree
-  open Terror
   open Elaborate_context
+  open Terror
 
   (* TODO: does having expected_term also improves inference?
        Maybe with self and fix? But maybe not worth it
      Seems to help with many cases such as expected on annotation *)
+  let tt_typed term =
+    (* TODO: some of those could already be typed *)
+    tt_typed ~type_:tt_nil term
 
   let rec elaborate_term ctx term =
     (* TODO: use this location *)
-    let (LTerm { term; loc = _ }) = term in
-    let tt_typed term =
-      (* TODO: some of those could already be typed *)
-      tt_typed ~type_:tt_nil term
-    in
-
+    let (CTerm { term; loc = _ }) = term in
     match term with
-    | LT_annot { term; annot } ->
+    | CT_parens { content = term } -> elaborate_term ctx term
+    | CT_annot { value = term; annot } ->
         let annot = elaborate_term ctx annot in
         let term = elaborate_term ctx term in
         tt_typed @@ tt_annot ~term ~annot
-    | LT_var { var = name } ->
+    | CT_var { var = name } ->
         let var = lookup_var ctx name in
         tt_typed @@ tt_bound_var ~var
-    | LT_extension _ -> error_extensions_not_implemented ()
-    | LT_forall { param; return } ->
+    | CT_extension _ -> error_extensions_not_implemented ()
+    | CT_forall { param; return } ->
         with_elaborate_pat ctx param @@ fun ctx param ->
         let return = elaborate_term ctx return in
         tt_typed @@ tt_forall ~param ~return
-    | LT_lambda { param; return } ->
+    | CT_lambda { param; return } ->
         with_elaborate_pat ctx param @@ fun ctx param ->
         let return = elaborate_term ctx return in
         tt_typed @@ tt_lambda ~param ~return
-    | LT_apply { lambda; arg } ->
+    | CT_apply { lambda; arg } ->
         let lambda = elaborate_term ctx lambda in
         let arg = elaborate_term ctx arg in
         tt_typed @@ tt_apply ~lambda ~arg
-    | LT_hoist _ -> error_hoist_not_implemented ()
-    | LT_let { bound; value; return } ->
+    | CT_semi { left; right } -> elaborate_semi ctx ~left ~right
+    | CT_string { literal } -> tt_typed @@ tt_string ~literal
+    | CT_pair _ | CT_both _ | CT_bind _ | CT_number _ | CT_braces _ ->
+        error_invalid_notation ()
+
+  and elaborate_semi ctx ~left ~right =
+    let (CTerm { term = left; loc = _ }) = left in
+    match left with
+    | CT_parens { content = left } -> elaborate_semi ctx ~left ~right
+    | CT_bind { bound; value } ->
         let value = elaborate_term ctx value in
         (* TODO: this should be before value *)
         with_elaborate_pat ctx bound @@ fun ctx bound ->
-        let return = elaborate_term ctx return in
+        let return = elaborate_term ctx right in
         tt_typed @@ tt_let ~bound ~value ~return
-    | LT_string { literal } -> tt_typed @@ tt_string ~literal
+    | CT_annot { value = _; annot = _ } -> error_hoist_not_implemented ()
+    | CT_var _ | CT_extension _ | CT_forall _ | CT_lambda _ | CT_apply _
+    | CT_pair _ | CT_both _ | CT_semi _ | CT_string _ | CT_number _
+    | CT_braces _ ->
+        error_invalid_notation ()
 
   and with_elaborate_pat ctx pat k =
     (* TODO: to_ here *)
     (* TODO: use this location *)
-    let (LPat { pat; loc = _ }) = pat in
+    let (CTerm { term = pat; loc = _ }) = pat in
     let tp_typed pat =
       (* TODO: some of those could already be typed *)
       tp_typed ~type_:tt_nil pat
     in
     match pat with
-    | LP_var { var = name } ->
+    | CT_parens { content = pat } -> with_elaborate_pat ctx pat k
+    | CT_var { var = name } ->
         with_bound_var ctx name @@ fun ctx -> k ctx @@ tp_typed @@ tp_var ~name
-    | LP_annot { pat; annot } ->
+    | CT_annot { value = pat; annot } ->
         let annot = elaborate_term ctx annot in
         with_elaborate_pat ctx pat @@ fun ctx pat ->
         k ctx @@ tp_typed @@ tp_annot ~pat ~annot
+    | _ -> error_invalid_notation ()
 end
 
 module Infer_context : sig

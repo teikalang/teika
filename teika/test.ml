@@ -235,9 +235,8 @@ module Typer = struct
       Alcotest.test_case name `Quick @@ fun () ->
       let actual = Clexer.from_string Cparser.term_opt annotated_term in
       match actual with
-      | Some stree -> (
-          let ltree = Lparser.parse_term stree in
-          match Typer.Infer.infer_term ltree with
+      | Some ctree -> (
+          match Typer.Infer.infer_term ctree with
           | Ok ttree -> Format.eprintf "%a\n%!" Tprinter.pp_term ttree
           | Error error ->
               failwith
@@ -248,9 +247,8 @@ module Typer = struct
       Alcotest.test_case name `Quick @@ fun () ->
       let actual = Clexer.from_string Cparser.term_opt annotated_term in
       match actual with
-      | Some stree -> (
-          let ltree = Lparser.parse_term stree in
-          match Typer.Infer.infer_term ltree with
+      | Some ctree -> (
+          match Typer.Infer.infer_term ctree with
           | Ok _ttree -> failwith "worked but should had failed"
           (* TODO: check for specific error *)
           | Error _error -> ())
