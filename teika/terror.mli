@@ -18,9 +18,6 @@ type error =
   | TError_missing_annotation
   (* elaborate *)
   | TError_invalid_notation
-  (* bug *)
-  | TError_invariant_term_untyped of { term : term }
-  | TError_invariant_pat_untyped of { pat : pat }
 
 type t = error [@@deriving show]
 
@@ -35,6 +32,4 @@ val error_extensions_not_implemented : unit -> 'a
 val error_pairs_not_implemented : unit -> 'a
 val error_unknown_native : native:string -> 'a
 val error_missing_annotation : unit -> 'a
-val error_invariant_term_untyped : term -> 'a
-val error_invariant_pat_untyped : pat -> 'a
 val error_invalid_notation : unit -> 'a

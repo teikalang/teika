@@ -19,9 +19,6 @@ type error =
   | TError_missing_annotation
   (* elaborate *)
   | TError_invalid_notation
-  (* bug *)
-  | TError_invariant_term_untyped of { term : term }
-  | TError_invariant_pat_untyped of { pat : pat }
 
 and t = error [@@deriving show { with_path = false }]
 
@@ -40,9 +37,3 @@ let error_pairs_not_implemented () = terror @@ TError_pairs_not_implemented
 let error_unknown_native ~native = terror @@ TError_unknown_native { native }
 let error_missing_annotation () = terror @@ TError_missing_annotation
 let error_invalid_notation () = terror @@ TError_invalid_notation
-
-let error_invariant_term_untyped term =
-  terror @@ TError_invariant_term_untyped { term }
-
-let error_invariant_pat_untyped pat =
-  terror @@ TError_invariant_pat_untyped { pat }
