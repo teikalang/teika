@@ -5,7 +5,11 @@ open Utils
 
 type term =
   (* #(M : A) *)
-  | TT_typed of { term : term; mutable type_ : term }
+  | TTerm of { term : term_syntax; mutable type_ : term }
+  (* #(A : S) *)
+  | TType of { term : term_syntax }
+
+and term_syntax =
   (* (M : A) *)
   | TT_annot of { term : term; annot : term }
   (* \+n *)
@@ -23,9 +27,10 @@ type term =
   (* ".." *)
   | TT_string of { literal : string }
 
-and pat =
-  (* #(P : A) *)
-  | TP_typed of { pat : pat; mutable type_ : term }
+and pat = (* #(P : A) *)
+  | TPat of { pat : pat_syntax; mutable type_ : term }
+
+and pat_syntax =
   (* (P : A) *)
   | TP_annot of { pat : pat; annot : term }
   (* x *)
@@ -33,22 +38,25 @@ and pat =
 [@@deriving show]
 
 (* term *)
-val tt_typed : type_:term -> term -> term
-val tt_annot : term:term -> annot:term -> term
-val tt_free_var : var:Level.t -> term
-val tt_bound_var : var:Index.t -> term
-val tt_forall : param:pat -> return:term -> term
-val tt_lambda : param:pat -> return:term -> term
-val tt_apply : lambda:term -> arg:term -> term
-val tt_let : bound:pat -> value:term -> return:term -> term
-val tt_string : literal:string -> term
-val tt_nil : term
+val tterm : type_:term -> term_syntax -> term
+
+(* TODO: drop those nil *)
+val tterm_nil : term
+val ttype : term_syntax -> term
+val tt_annot : term:term -> annot:term -> term_syntax
+val tt_free_var : var:Level.t -> term_syntax
+val tt_bound_var : var:Index.t -> term_syntax
+val tt_forall : param:pat -> return:term -> term_syntax
+val tt_lambda : param:pat -> return:term -> term_syntax
+val tt_apply : lambda:term -> arg:term -> term_syntax
+val tt_let : bound:pat -> value:term -> return:term -> term_syntax
+val tt_string : literal:string -> term_syntax
 
 (* pat *)
-val tp_typed : type_:term -> pat -> pat
-val tp_annot : pat:pat -> annot:term -> pat
-val tp_var : name:Name.t -> pat
-val tp_nil : pat
+val tpat : type_:term -> pat_syntax -> pat
+val tpat_nil : pat
+val tp_annot : pat:pat -> annot:term -> pat_syntax
+val tp_var : name:Name.t -> pat_syntax
 
 (* Type *)
 val level_univ : Level.t
