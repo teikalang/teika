@@ -22,105 +22,117 @@ module Machinery = struct
     type t = shifts
 
     val empty : shifts
-    val shift : by_:int -> at_:Level.t -> shifts -> shifts
-    val apply : length:Level.t -> shifts -> var:Index.t -> Index.t
-    val term_commit : length:Level.t -> shifts -> term -> term
-    val pat_commit : length:Level.t -> shifts -> pat -> pat
+    val shift : by_:int -> shifts -> shifts
+    val lift : by_:int -> shifts -> shifts
+    val apply : shifts -> var:Index.t -> Index.t
+    val term_commit : shifts -> term -> term
+    val pat_commit : shifts -> pat -> pat
   end = struct
-    type shifts = Nil | Shift of { by_ : int; at_ : int; next : shifts }
+    (* TODO: make those stack allocations *)
+    (* TODO: absolute vs relative *)
+    type shifts =
+      | Nil
+      | Shift of { by_ : int; next : shifts }
+      | Lift of { by_ : int; next : shifts }
+
     type t = shifts
 
     let empty = Nil
 
-    let shift ~by_ ~at_ shifts =
-      let at_ = Level.repr at_ in
-      Shift { by_; at_; next = shifts }
+    let shift ~by_ next =
+      match next with
+      | Shift { by_ = base; next } ->
+          let by_ = by_ + base in
+          Shift { by_; next }
+      | (Nil | Lift _) as next -> Shift { by_; next }
 
-    let rec apply ~length shifts ~var =
-      match shifts with
-      | Nil -> var
-      | Shift { by_; at_; next = shifts } -> (
-          let depth = length - at_ in
-          match Index.repr var >= depth with
-          | true ->
+    let lift ~by_ next =
+      match next with
+      | Nil -> Nil
+      | Lift { by_ = base; next } ->
+          let by_ = by_ + base in
+          Lift { by_; next }
+      | Shift _ as next -> Lift { by_; next }
+
+    let rec apply shifts ~depth ~var =
+      match Index.repr var < depth with
+      | true -> var
+      | false -> (
+          match shifts with
+          | Nil -> var
+          | Shift { by_; next = shifts } ->
               let var = Index.shift var ~by_ in
-              apply ~length shifts ~var
-          | false -> var)
+              apply shifts ~depth ~var
+          | Lift { by_; next = shifts } ->
+              let depth = depth + by_ in
+              apply shifts ~depth ~var)
 
     (* TODO: reduce allocations? Maybe cata over term? *)
     (* TODO: tag terms without bound variables, aka no shifting *)
     (* TODO: tag terms without binders *)
     (* TODO: tag terms locally closed *)
-
-    let rec term_shift shifts ~length term =
+    (* TODO: if no var to shift was found, then avoid allocating *)
+    let rec term_shift shifts ~depth term =
       match term with
       | TTerm { term; type_ } ->
-          let type_ = term_shift shifts ~length type_ in
-          tterm ~type_ @@ term_syntax_shift shifts ~length term
-      | TType { term } -> ttype @@ term_syntax_shift shifts ~length term
+          let type_ = term_shift shifts ~depth type_ in
+          tterm ~type_ @@ term_syntax_shift shifts ~depth term
+      | TType { term } -> ttype @@ term_syntax_shift shifts ~depth term
 
-    and term_syntax_shift shifts ~length term : term_syntax =
+    and term_syntax_shift shifts ~depth term : term_syntax =
       match term with
       | TT_annot { term; annot } ->
-          let annot = term_shift shifts ~length annot in
-          let term = term_shift shifts ~length term in
+          let annot = term_shift shifts ~depth annot in
+          let term = term_shift shifts ~depth term in
           tt_annot ~term ~annot
       | TT_free_var { var = _ } as term -> term
       | TT_bound_var { var } ->
-          let var = apply ~length shifts ~var in
+          let var = apply ~depth shifts ~var in
           tt_bound_var ~var
       | TT_forall { param; return } ->
-          let param = pat_shift shifts ~length param in
+          let param = pat_shift shifts ~depth param in
           let return =
-            let length = 1 + length in
-            term_shift shifts ~length return
+            let depth = 1 + depth in
+            term_shift shifts ~depth return
           in
           tt_forall ~param ~return
       | TT_lambda { param; return } ->
-          let param = pat_shift shifts ~length param in
+          let param = pat_shift shifts ~depth param in
           let return =
-            let length = 1 + length in
-            term_shift shifts ~length return
+            let depth = 1 + depth in
+            term_shift shifts ~depth return
           in
           tt_lambda ~param ~return
       | TT_apply { lambda; arg } ->
-          let lambda = term_shift shifts ~length lambda in
-          let arg = term_shift shifts ~length arg in
+          let lambda = term_shift shifts ~depth lambda in
+          let arg = term_shift shifts ~depth arg in
           tt_apply ~lambda ~arg
       | TT_let { bound; value; return } ->
-          let bound = pat_shift shifts ~length bound in
-          let value = term_shift shifts ~length value in
+          let bound = pat_shift shifts ~depth bound in
+          let value = term_shift shifts ~depth value in
           let return =
-            let length = 1 + length in
-            term_shift shifts ~length return
+            let depth = 1 + depth in
+            term_shift shifts ~depth return
           in
           tt_let ~bound ~value ~return
       | TT_string { literal = _ } as term -> term
 
-    and pat_shift shifts ~length pat =
+    and pat_shift shifts ~depth pat =
       let (TPat { pat; type_ }) = pat in
-      let type_ = term_shift shifts ~length type_ in
-      tpat ~type_ @@ pat_syntax_shift shifts ~length pat
+      let type_ = term_shift shifts ~depth type_ in
+      tpat ~type_ @@ pat_syntax_shift shifts ~depth pat
 
-    and pat_syntax_shift shifts ~length pat =
+    and pat_syntax_shift shifts ~depth pat =
       match pat with
       | TP_annot { pat; annot } ->
-          let annot = term_shift shifts ~length annot in
-          let pat = pat_shift shifts ~length pat in
+          let annot = term_shift shifts ~depth annot in
+          let pat = pat_shift shifts ~depth pat in
           tp_annot ~annot ~pat
       | TP_var _ as pat -> pat
 
-    let apply ~length shifts ~var =
-      let length = Level.repr length in
-      apply ~length shifts ~var
-
-    let term_commit ~length shifts term =
-      let length = Level.repr length in
-      term_shift shifts ~length term
-
-    let pat_commit ~length shifts pat =
-      let length = Level.repr length in
-      pat_shift shifts ~length pat
+    let apply shifts ~var = apply shifts ~depth:0 ~var
+    let term_commit shifts term = term_shift shifts ~depth:0 term
+    let pat_commit shifts pat = pat_shift shifts ~depth:0 pat
   end
 
   module Substs : sig
@@ -146,12 +158,13 @@ module Machinery = struct
       | Substs of {
           next : Level.t;
           shifts : Shifts.t;
-          content : (pat * term * Shifts.t * Level.t) array;
+          (* TODO: benchmark  *)
+          content : (pat * term * Shifts.t) array;
         }
 
     type t = substs
 
-    let initial_tuple = (tpat_nil, tterm_nil, Shifts.empty, Level.zero)
+    let initial_tuple = (tpat_nil, tterm_nil, Shifts.empty)
 
     let make () =
       let initial_size = 256 in
@@ -175,20 +188,26 @@ module Machinery = struct
       in
       let () =
         let (Substs { next = at_; shifts; content = _ }) = at_ in
-        Array.set content (Level.repr next) (pat, to_, shifts, at_)
+        let by_ = Level.repr next - Level.repr at_ in
+        let shifts = Shifts.lift ~by_ shifts in
+        let shifts = Shifts.shift ~by_ shifts in
+        Array.set content (Level.repr next) (pat, to_, shifts)
       in
       let next = Level.next next in
+      let shifts = Shifts.lift ~by_:1 shifts in
       Substs { next; shifts; content }
 
     let apply ~var substs =
       let (Substs { next; shifts; content }) = substs in
       (* TODO: proper errors here *)
-      let var = Shifts.apply ~length:next ~var shifts in
-      let level = Option.get @@ Level.level_of_index ~next ~var in
-      let _pat, term, shifts, at_ = Array.get content (Level.repr level) in
+      let var = Shifts.apply ~var shifts in
+      let _pat, term, shifts =
+        let from = Level.repr next - 1 - Index.repr var in
+        Array.get content from
+      in
       let shifts =
-        let by_ = Level.repr next - Level.repr at_ in
-        Shifts.shift ~by_ ~at_:next shifts
+        let by_ = 1 + Index.repr var in
+        Shifts.shift ~by_ shifts
       in
       let substs = Substs { next; shifts; content } in
       (term, substs)
@@ -196,7 +215,7 @@ module Machinery = struct
     let term_commit_shifts substs term =
       (* TODO: very weird function  *)
       let (Substs { next; shifts; content }) = substs in
-      let term = Shifts.term_commit ~length:next shifts term in
+      let term = Shifts.term_commit shifts term in
       (term, Substs { next; shifts = Shifts.empty; content })
 
     let capture substs f =
@@ -208,13 +227,9 @@ module Machinery = struct
       let rec find_substs ~from acc =
         match Level.repr from < Level.repr to_ with
         | true ->
-            let pat, term, shifts, at_ = Array.get content @@ Level.repr from in
-            let shifts =
-              let by_ = Level.repr from - Level.repr at_ in
-              Shifts.shift ~by_ ~at_ shifts
-            in
-            let term = Shifts.term_commit ~length:from shifts term in
-            let pat = Shifts.pat_commit ~length:from shifts pat in
+            let pat, term, shifts = Array.get content @@ Level.repr from in
+            let term = Shifts.term_commit shifts term in
+            let pat = Shifts.pat_commit shifts pat in
             let from = Level.next from in
             find_substs ~from ((pat, term) :: acc)
         | false -> acc
@@ -230,8 +245,8 @@ module Machinery = struct
       let shift term =
         let open Shifts in
         let by_ = Level.repr to_ - Level.repr from in
-        let shifts = shift ~by_ ~at_:to_ empty in
-        Shifts.term_commit ~length:to_ shifts term
+        let shifts = shift ~by_ empty in
+        Shifts.term_commit shifts term
       in
       (x, `Wrap wrap, `Shift shift)
   end

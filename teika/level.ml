@@ -9,12 +9,6 @@ let next n =
   n
 
 let ( < ) : level -> level -> bool = ( < )
-let of_int x = match x >= zero with true -> Some x | false -> None
-
-let level_of_index ~next ~var =
-  let var = Index.repr var in
-  of_int (next - 1 - var)
-
 let repr level = level
 let offset ~from ~to_ = Index.of_int (to_ - from)
 
