@@ -123,6 +123,7 @@ module Perror = struct
 
   type error =
     | PE_loc of { loc : Location.t; error : error }
+    | PE_out_of_gas
     | PE_type_clash of { left : term; right : term }
     | PE_unknown_var of { name : Name.t }
     | PE_not_a_forall of { type_ : term }
@@ -147,6 +148,7 @@ module Perror = struct
   let rec pp_error fmt error =
     match error with
     | PE_loc { loc; error } -> fprintf fmt "%a\n%a" pp_loc loc pp_error error
+    | PE_out_of_gas -> fprintf fmt "out of gas\n%!"
     | PE_type_clash { left; right } ->
         fprintf fmt "type clash\nreceived : %a\nexpected : %a" pp_term left
           pp_term right
@@ -180,7 +182,7 @@ let rec te_print error =
             PE_loc { loc; error }
       in
       loop loc error
-  (* TODO: drop falback *)
+  | TError_out_of_gas -> PE_out_of_gas
   | TError_type_clash { left; right } ->
       let left = tt_print left in
       let right = tt_print right in

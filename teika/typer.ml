@@ -30,41 +30,34 @@ module Machinery = struct
   end = struct
     (* TODO: make those stack allocations *)
     (* TODO: absolute vs relative *)
-    type shifts =
-      | Nil
-      | Shift of { by_ : int; next : shifts }
-      | Lift of { by_ : int; next : shifts }
-
+    type shifts = Nil | Shift of { by_ : int; depth : int; next : shifts }
     type t = shifts
 
     let empty = Nil
 
     let shift ~by_ next =
       match next with
-      | Shift { by_ = base; next } ->
+      | Shift { by_ = base; depth = 0; next } ->
           let by_ = by_ + base in
-          Shift { by_; next }
-      | (Nil | Lift _) as next -> Shift { by_; next }
+          Shift { by_; depth = 0; next }
+      | (Nil | Shift _) as next -> Shift { by_; depth = 0; next }
 
-    let lift ~by_ next =
+    let lift ~by_:depth next =
       match next with
       | Nil -> Nil
-      | Lift { by_ = base; next } ->
-          let by_ = by_ + base in
-          Lift { by_; next }
-      | Shift _ as next -> Lift { by_; next }
+      | Shift { by_; depth = base; next } ->
+          let depth = depth + base in
+          Shift { by_; depth; next }
 
     let rec apply shifts ~depth ~var =
-      match Index.repr var < depth with
-      | true -> var
-      | false -> (
-          match shifts with
-          | Nil -> var
-          | Shift { by_; next = shifts } ->
+      match shifts with
+      | Nil -> var
+      | Shift { by_; depth = base; next = shifts } -> (
+          let depth = depth + base in
+          match Index.repr var < depth with
+          | true -> var
+          | false ->
               let var = Index.shift var ~by_ in
-              apply shifts ~depth ~var
-          | Lift { by_; next = shifts } ->
-              let depth = depth + by_ in
               apply shifts ~depth ~var)
 
     (* TODO: reduce allocations? Maybe cata over term? *)
@@ -252,54 +245,58 @@ module Machinery = struct
   end
 
   (* TODO: gas count *)
-  let rec term_expand_head term ~args ~substs =
+  let rec term_expand_head ~gas term ~args ~substs =
+    let gas = gas - 1 in
+    let () = match gas >= 0 with true -> () | false -> error_out_of_gas () in
     match (term_syntax_of term, args) with
     | TT_annot { term; annot = _ }, _ ->
         (* annot *)
-        term_expand_head term ~args ~substs
+        term_expand_head ~gas term ~args ~substs
     | TT_bound_var { var }, _ ->
         (* subst *)
         let term, substs = Substs.apply ~var substs in
-        term_expand_head term ~args ~substs
+        term_expand_head ~gas term ~args ~substs
     | TT_apply { lambda; arg }, args ->
         (* beta1 *)
         let args = (arg, substs) :: args in
-        term_expand_head lambda ~args ~substs
+        term_expand_head ~gas lambda ~args ~substs
     | TT_lambda { param; return }, (arg, arg_substs) :: args ->
         (* beta2 *)
         let substs = Substs.push param ~to_:arg ~at_:arg_substs substs in
-        term_expand_head return ~args ~substs
+        term_expand_head ~gas return ~args ~substs
     | TT_let { bound; value; return }, _ ->
         (* zeta *)
         let substs = Substs.push bound ~to_:value ~at_:substs substs in
-        term_expand_head return ~args ~substs
+        term_expand_head ~gas return ~args ~substs
     | TT_free_var _, _ | TT_forall _, _ | TT_lambda _, [] | TT_string _, _ ->
         (* head *)
-        (term, args, substs)
+        (gas, term, args, substs)
 
   (* TODO: avoid cyclical expansion *)
   (* TODO: avoid allocating term nodes *)
   (* TODO: short circuit when same variable on both sides *)
-  let rec tt_equal ~level ~left ~left_substs ~right ~right_substs =
-    let left, left_args, left_substs =
-      term_expand_head left ~args:[] ~substs:left_substs
+  let rec tt_equal ~gas ~level ~left ~left_substs ~right ~right_substs =
+    let gas, left, left_args, left_substs =
+      term_expand_head ~gas left ~args:[] ~substs:left_substs
     in
-    let right, right_args, right_substs =
-      term_expand_head right ~args:[] ~substs:right_substs
+    let gas, right, right_args, right_substs =
+      term_expand_head ~gas right ~args:[] ~substs:right_substs
     in
-    tt_apply_equal ~level ~left ~left_args ~left_substs ~right ~right_args
+    tt_apply_equal ~gas ~level ~left ~left_args ~left_substs ~right ~right_args
       ~right_substs
 
-  and tt_apply_equal ~level ~left ~left_args ~left_substs ~right ~right_args
-      ~right_substs =
-    tt_struct_equal ~level ~left ~left_substs ~right ~right_substs;
+  and tt_apply_equal ~gas ~level ~left ~left_args ~left_substs ~right
+      ~right_args ~right_substs =
+    let gas =
+      tt_struct_equal ~gas ~level ~left ~left_substs ~right ~right_substs
+    in
     (* TODO: arith clash *)
-    List.iter2
-      (fun (left, left_substs) (right, right_substs) ->
-        tt_equal ~level ~left ~left_substs ~right ~right_substs)
-      left_args right_args
+    List.fold_left2
+      (fun gas (left, left_substs) (right, right_substs) ->
+        tt_equal ~gas ~level ~left ~left_substs ~right ~right_substs)
+      gas left_args right_args
 
-  and tt_struct_equal ~level ~left ~left_substs ~right ~right_substs =
+  and tt_struct_equal ~gas ~level ~left ~left_substs ~right ~right_substs =
     match (term_syntax_of left, term_syntax_of right) with
     | TT_annot _, _ | _, TT_annot _ -> failwith "invariant"
     | TT_bound_var _, _ | _, TT_bound_var _ -> failwith "invariant"
@@ -307,34 +304,38 @@ module Machinery = struct
     | TT_let _, _ | _, TT_let _ -> failwith "invariant"
     | TT_free_var { var = left }, TT_free_var { var = right }
       when Level.equal left right ->
-        ()
+        gas
     | ( TT_forall { param = left_param; return = left_return },
         TT_forall { param = right_param; return = right_return } ) ->
-        with_tp_equal_contra ~level ~left:left_param ~left_substs
+        with_tp_equal_contra ~gas ~level ~left:left_param ~left_substs
           ~right:right_param ~right_substs
-        @@ fun ~level ~left_substs ~right_substs ->
-        tt_equal ~level ~left:left_return ~left_substs ~right:right_return
+        @@ fun ~gas ~level ~left_substs ~right_substs ->
+        tt_equal ~gas ~level ~left:left_return ~left_substs ~right:right_return
           ~right_substs
     | ( TT_lambda { param = left_param; return = left_return },
         TT_lambda { param = right_param; return = right_return } ) ->
-        with_tp_equal_contra ~level ~left:left_param ~left_substs
+        with_tp_equal_contra ~gas ~level ~left:left_param ~left_substs
           ~right:right_param ~right_substs
-        @@ fun ~level ~left_substs ~right_substs ->
-        tt_equal ~level ~left:left_return ~left_substs ~right:right_return
+        @@ fun ~gas ~level ~left_substs ~right_substs ->
+        tt_equal ~gas ~level ~left:left_return ~left_substs ~right:right_return
           ~right_substs
     | TT_string { literal = left }, TT_string { literal = right }
       when String.equal left right ->
-        ()
+        gas
     | ( (TT_free_var _ | TT_forall _ | TT_lambda _ | TT_string _),
         (TT_free_var _ | TT_forall _ | TT_lambda _ | TT_string _) ) ->
         (* TODO: type clash needs substs *)
         error_type_clash ~left ~right
 
-  and with_tp_equal_contra ~level ~left ~left_substs ~right ~right_substs k =
+  and with_tp_equal_contra ~gas ~level ~left ~left_substs ~right ~right_substs k
+      =
     (* TODO: contra? *)
     let left_type = pat_type_of left in
     let right_type = pat_type_of right in
-    tt_equal ~level ~left:left_type ~left_substs ~right:right_type ~right_substs;
+    let gas =
+      tt_equal ~gas ~level ~left:left_type ~left_substs ~right:right_type
+        ~right_substs
+    in
     let level = Level.next level in
     let left_to_ =
       (* TODO: maybe pack left_type? *)
@@ -350,7 +351,19 @@ module Machinery = struct
     let right_substs =
       Substs.push right ~to_:right_to_ ~at_:right_substs right_substs
     in
-    k ~level ~left_substs ~right_substs
+    k ~gas ~level ~left_substs ~right_substs
+
+  let term_expand_head term ~args ~substs =
+    (* TODO: too much initial gas?? *)
+    let gas = 16 * 1024 in
+    let _final, term, args, substs = term_expand_head ~gas term ~args ~substs in
+    (term, args, substs)
+
+  let tt_equal ~level ~left ~left_substs ~right ~right_substs =
+    (* TODO: too much initial gas?? *)
+    let gas = 16 * 1024 in
+    let _final = tt_equal ~gas ~level ~left ~left_substs ~right ~right_substs in
+    ()
 
   (* TODO: linear functions can be faster without packing *)
   (* TODO: variable expansions without args can be faster without packing *)

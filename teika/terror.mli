@@ -5,6 +5,7 @@ type error =
   (* metadata *)
   | TError_loc of { error : error; loc : Location.t [@opaque] }
   (* equal *)
+  | TError_out_of_gas
   | TError_type_clash of { left : term; right : term }
   (* TODO: infer *)
   (* typer *)
@@ -24,6 +25,7 @@ type t = error [@@deriving show]
 exception TError of { error : error }
 
 (* TODO: error_loc *)
+val error_out_of_gas : unit -> 'a
 val error_type_clash : left:term -> right:term -> 'a
 val error_unknown_var : name:Name.t -> 'a
 val error_not_a_forall : type_:term -> 'a
