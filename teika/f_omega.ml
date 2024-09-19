@@ -1,5 +1,276 @@
+module Existentials = struct
+  (* packed *)
+
+  type show = Ex_show : { content : 'a; show : 'a -> string } -> show
+
+  let value = Ex_show { content = 1; show = Int.to_string }
+
+  let eval_show ex =
+    let (Ex_show { content; show }) = ex in
+    show content
+
+  (* let extract ex =
+     let (Ex_show { content; show = _ }) = ex in
+     content *)
+
+  (* well but first-class modules *)
+
+  module type Show = sig
+    type t
+
+    val content : t
+    val show : t -> string
+  end
+
+  let eval_show package =
+    let (module S : Show) = package in
+    S.show S.content
+
+  let value =
+    (module struct
+      type t = int
+
+      let content = 1
+      let show = Int.to_string
+    end : Show)
+end
+
+module Equality = struct
+  type (_, _) eq = Refl : ('x, 'x) eq
+
+  (* weak, how to derive sym? *)
+  let cast : type a b. (a, b) eq -> a -> b =
+   fun eq x ->
+    let Refl = eq in
+    x
+
+  (* this is how I got here *)
+  module Subst (M : sig
+    type 'a t
+  end) =
+  struct
+    let subst : type a b. (a, b) eq -> a M.t -> b M.t =
+     fun eq x ->
+      let Refl = eq in
+      x
+  end
+
+  (* refutation *)
+  let bad : type a. (string, int) eq -> a = fun eq -> match eq with _ -> .
+
+  (* fancier *)
+  let dependent_types :
+      type a. ((a, int) eq, (a, bool) eq) Either.t -> a -> string =
+   fun tag content ->
+    match tag with
+    | Left Refl -> Int.to_string content
+    | Right Refl -> Bool.to_string content
+
+  let show_int = dependent_types (Left Refl)
+  let show_string = dependent_types (Right Refl)
+end
+
+module Show = struct
+  (* this is just many equalities *)
+  type _ ty =
+    | T_int : int ty
+    | T_bool : bool ty
+    (* but recursive *)
+    | T_list : 'a ty -> 'a list ty
+
+  let rec show : type a. a ty -> a -> string =
+   fun tag content ->
+    match tag with
+    | T_int -> Int.to_string content
+    | T_bool -> Bool.to_string content
+    | T_list el_tag ->
+        let serialized_content = List.map (fun el -> show el_tag el) content in
+        Format.sprintf "[%s]" (String.concat ", " serialized_content)
+
+  let () = print_endline @@ show T_int 1
+  let () = print_endline @@ show (T_list T_bool) [ true; false ]
+end
+
+module Dependent = struct
+  (* the dream *)
+
+  type ty = T_int | T_bool | T_list of ty
+
+  (* sadly this doesn't work *)
+  type 'tag to_type =
+    [%d
+      match tag with
+      | T_int -> int
+      | T_bool -> bool
+      | T_list el -> list (to_type el)]
+
+  let rec show tag
+      (content :
+        [%d
+          match tag with
+          | T_int -> int
+          | T_bool -> bool
+          | T_list el -> list (to_type el)]) =
+    match tag with
+    | T_int -> Int.to_string content
+    | T_bool -> Bool.to_string content
+    | T_list el_tag ->
+        let serialized_content = List.map (fun el -> show el_tag el) content in
+        Format.sprintf "[%s]" (String.concat ", " serialized_content)
+
+  let () = print_endline @@ show T_int 1
+  let () = print_endline @@ show (T_list T_bool) [ true; false ]
+end
+
+module But_some_duplication = struct
+  (* duplicating the type definition also on the type level *)
+  type t_int = |
+  type t_bool = |
+  type _ t_list = |
+
+  type _ ty =
+    | T_int : t_int ty
+    | T_bool : t_bool ty
+    | T_list : 'el ty -> 'el t_list ty
+
+  module To_type : sig
+    type 'ty t
+
+    val unpack_int : t_int t -> int
+  end = struct
+    type 'ty t
+
+    let unpack_int = assert false
+  end
+
+  module M (W : sig
+    type ('a, 'b) l
+    type ('a, 'b) r
+  end) =
+  struct
+    type ('a, 'b) t = X : (('a, 'b) W.l, ('a, 'b) W.r) t
+  end
+
+  module T = M (struct
+    type ('a, 'b) l = 'a
+    type ('a, 'b) r = 'a
+  end)
+
+  let cast : type a b. (a, b) T.t -> a -> b =
+   fun rel x ->
+    let X = rel in
+    x
+
+  (* expand syntax *)
+  type (_, _) to_type_w =
+    | W_t_int : (t_int, int) to_type_w
+    | W_t_bool : (t_bool, bool) to_type_w
+    | W_t_list : ('tag_el, 'r) to_type_w -> ('tag_el t_list, 'r list) to_type_w
+
+  (* add the original as a package *)
+  type _ to_type = Ex : ('tag, 'r) to_type_w -> 'tag to_type
+
+  (* term level version *)
+  let rec to_type : type tag. tag ty -> tag to_type =
+   fun tag ->
+    match tag with
+    | T_int -> Ex W_t_int
+    | T_bool -> Ex W_t_bool
+    | T_list el ->
+        let (Ex el_w) = to_type el in
+        Ex (W_t_list el_w)
+
+  let rec show : type tag content. tag ty -> tag To_type.t -> string =
+   fun content_type tag content ->
+    match tag with
+    | T_int ->
+        let W_t_int = content_type in
+        Int.to_string content
+    | T_bool ->
+        let W_t_bool = content_type in
+        Bool.to_string content
+    | T_list el_tag ->
+        let (W_t_list el_type) = content_type in
+        let serialized_content =
+          List.map (fun el -> show el_type el_tag el) content
+        in
+        Format.sprintf "[%s]" (String.concat ", " serialized_content)
+
+  let () =
+    let tag = T_int in
+    let (Ex (type content) (w : (_, content) to_type_w)) = to_type tag in
+    let content : content =
+      let W_t_int = w in
+      1
+    in
+    print_endline @@ show w tag content
+
+  let () =
+    let tag = T_list T_bool in
+    let (Ex (type content) (w : (_, content) to_type_w)) = to_type tag in
+    let content : content =
+      let (W_t_list W_t_bool) = w in
+      [ true; false ]
+    in
+    print_endline @@ show w tag content
+end
+
+module Compute_anything = struct
+  type z = |
+  type _ s = |
+  type _ nat = Z : z nat | S : 'a nat -> 'a s nat
+  type (_, _) eq = Refl : ('x, 'x) eq
+
+  type ('n, 'm, 'r) add_w =
+    | W_n_z : (z, 'm, 'm) add_w
+    | W_n_s : ('n, 'm, 'r) add_w -> ('n s, 'm, 'r s) add_w
+
+  type ('n, 'm) add = Ex : 'r nat * ('n, 'm, 'r) add_w -> ('n, 'm) add
+
+  let rec add : type n m. n nat -> m nat -> (n, m) add =
+   fun n m ->
+    match n with
+    | Z -> Ex (m, W_n_z)
+    | S n ->
+        let (Ex (r, w)) = add n m in
+        Ex (S r, W_n_s w)
+
+  let five =
+    let (Ex (r, w)) = add (S (S Z)) (S (S (S Z))) in
+    let (W_n_s (W_n_s W_n_z)) = w in
+    (r : z s s s s s nat)
+
+  (* n + z = n *)
+  let rec add_z_is_id : type n r. n nat -> (n, z, r) add_w -> (n, r) eq =
+   fun n w ->
+    match n with
+    | Z ->
+        let W_n_z = w in
+        Refl
+    | S n ->
+        let (W_n_s w) = w in
+        let Refl = add_z_is_id n w in
+        Refl
+end
+
 type never = |
 type ('a, 'b) equal = Refl : ('x, 'x) equal
+
+type ('l, 'r, 'k) bool = {
+  b : 'a. (('l, 'k) equal -> 'a) -> (('r, 'k) equal -> 'a) -> 'a;
+}
+
+let true_ = { b = (fun l _r -> l Refl) }
+let false_ = { b = (fun _l r -> r Refl) }
+(*
+   type 'k ex_not = {
+     b : 'a. (-> 'a) -> 'a
+   }
+     | Ex_not_true : ('k, 'r, 'k) bool -> 'k ex_not
+     | Ex_not_false : ('l, 'k, 'k) bool -> 'k ex_not *)
+
+(* let not (type l r k) (b : (l, r, k) bool) : (r, l, k) bool =
+   b.b (fun Refl -> Ex_not_true false_) (fun Refl -> true_) *)
 
 type ('l, 'r) dec_equal =
   | D_refl : ('l, 'l) dec_equal

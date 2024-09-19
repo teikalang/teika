@@ -2,6 +2,12 @@
 
 Guarantees?
 
+- Tail-call optimization
+- Trivial / guaranteed inlining
+- Trivial / guaranteed unboxing
+- No closures for closed terms
+
+
 Reduction strategy is Open CBV, always left most.
 
 ```rust
@@ -14,6 +20,12 @@ Lift lambdas || Closure conversion
 Closure-less call's
 
 Linear inlining
+
+Lazy name solving?
+
+Elaboration as Compilation
+
+
 ```
 
 ## Front
@@ -59,9 +71,27 @@ V (N K) |-> [N K]([↑]V \l) // anf-r
 V [K]N |-> [K]([↑]V N) // out-apply-r
 [[K]N]C |-> [K][N][↑ : 1]C // out-substs
 
+[[K]N]C |-> [K][N][↑ : 1]C
 
-[N]
 
+Context (C<•>) :=
+  | •
+  | (x : C) -> B
+  | (x : V) -> C
+  | (x : C) => M
+  | (x : V) => C
+  | C N
+  | V C
+  | x = C; V
+  | x = V; C
+  | (M : C)
+  | (C : V)
+  ;
+
+x = N; C<x> |-> 
+
+
+G |- 
 
 (λ. λ. _X) N
 
@@ -112,6 +142,13 @@ Heap (H<•>) ::=
   | •
   | [V : &V | ]H
 
+Tag ::=
+  | "code"
+  | "forall"
+  | "closure";
+
+(x : A) -> B
+(x : A) -> (x => B) x
 (Π, &A, &B)
 (Σ, &A, &B)
 (&, &A, &B)
@@ -164,6 +201,7 @@ Type =
   | (tag == ∀, (A : Type, B : (x : A) -> Type))
   | (tag == &, (A : Type, B : (x : A) -> Type))
 
+
 Γ |-
 ----------------
 Γ[] |- \-n
@@ -192,4 +230,28 @@ two passes required
 
 equal -> expand_head -> equal
 single pass
+
+(x, y) = M;
+
+x : A;
+y : B;
+
+
+t = f x;
+
+M : {
+  log : (msg : String $ 1) -(Log)> ();
+  log : (msg $ 1) -> ();
+} = _;
+
+G |- M | N : (x : A) -> B |-> x => (M x | N x)
+G |- (x == L, y : B) | (x == R, y : C) |-> (x : A, y : x | L => B | R => C | _ => Never);
+
+
+// TODO: study monomorphization of Environment 
+incr : <E, K>(n : Nat, e : E, k : (x : Nat, y : E) -> K) -> K;
+
+
+f(n, x => x + y)
+
 ```

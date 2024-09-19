@@ -4120,7 +4120,7 @@ U : Type 1 = (L : Level) -> (X : Type L) -> (℘℘X -> X) -> ℘℘X;
 ℘ S === (L : Level) -> S -> Type L;
 U : Type 1 = (L : Level) -> (X : Type L) -> (℘℘X -> X) -> ℘℘X;
 
-τ : ((L : Level) -> ℘U -> Type L) -> U;
+τ : (℘℘U -> U;
 σ : U -> ((L : Level) -> ℘U -> Type L);
 
 Ω : U = τ (L => (p: ℘U) => (x: U) -> σ x L p -> p L x);
@@ -42277,4 +42277,240 @@ g = f _A;
 f = x => _A;
 
 (x => _A) M N
+
+A = (x : A) -> ();
+B = (x : B) -> ();
+
+M : A
+M : (x : A) -> ()
+M : (x : B) -> ()
+M : B
+
+
+{
+  zero : Nat = zero;
+  succ : (pred : Nat) -> Nat = succ;
+};
+
+@.zero : Nat;
+@.succ : _;
+
+@.zero = _;
+@.succ = _;
+
+Nat : _;
+Nat = (
+);
+eduardo : User;
+eduardo.id = "a";
+eduardo.name = "a";
+
+
+({ zero; succ } : {
+  zero : Nat;
+  succ : (pred : Nat) -> Nat;
+})
+
+Term :=
+  | Prop
+  | Data
+
+[a] =>
+
+x : [A];
+x = !x;
+
+[(M : A) : T] = _A; T == A; [M : A]
+
+[x => M : T] = _A; T == (x : A) -> B && (x : A). [M : B]
+
+case : <A>(pred : Bool, then : A, else : A) -> A;
+Bool = <A>(then : A, else : A) -> A;
+
+ind : <P>(b : Bool, then : P(true), else : P(false)) -> P(b);
+
+Bool : Type;
+true : Bool;
+false : Bool;
+
+Bool = (b : Bool) & <P>(then : P(true), else : P(false)) -> P(b);
+
+
+id = x => x;
+sequence = a => b => b;
+
+not = b =>  
+  b <|
+  | true => 1
+  | false => 0
+
+Nat : Type & {
+  zero : Nat;
+} = {
+  zero : Nat = 0;
+};
+
+x : Nat = Nat.zero;
+
+
+Show = (S : Type) & {
+  show : (x : S) -> String;
+};
+
+show = <S : Show>(x : S) => S.show(x);
+
+Bool : Type & {
+  true : Bool;
+  false : Bool;
+
+  case : <A>(pred : Bool, then : A, else : A) -> A;
+} ~= _;
+
+(b : Bool) => b 
+
+
+f : (x : A) -> B;
+f : (x : A) -> Kont B;
+ret : <T>(x : T) -> Kont T;
+incr = x => ret (1 + x);
+
+A -> M B
+
+(x : A) -> B : Type l
+
+(A : Type(ω))
+Type(l) :> Type(ω)
+Type 0 & Type 1
+
+(A : Type(l + k)) -> A :> (A : Type(l)) -> A
+
+
+℘ S === (x : S) -> Type 0;
+
+U : Type 1 = (X : Type 1) -> (f : ℘℘(Type 0) -> X) -> ℘℘X;
+τ (t : ℘℘U) : U = (X : Type 1) => (f : ℘℘X -> X) =>
+  (p : ℘X) => t ((x : U) => p (f (x X f)));
+
+σ (s : U) : ℘℘U = s U τ;
+Ω : U = τ ((p : ℘U) => (x : U) -> σ x p -> p x);
+
+id : (A : Prop) -> (x : A) -> A;
+id : (A : Type 0) -> (x : A) -> A;
+
+
+(A : Type 0) -> (x : A) -> A &
+
+Bool : Type 1;
+true : Bool;
+false : Bool;
+
+Bool = (b : Bool) &
+  (P : (b : Bool) -> Type 0) -> (x : P true) -> (y : P false) -> P b;
+true = P => x => y => x;
+false = P => x => y => y;
+
+P b : Type 1
+
+Bool = (A : Type 0) -> (x : A) -> (y : A) -> A;
+
+A : Type l
+P : (x : A) -> Type (1 + l)
+x : A
+
+Id = (A : Type 0) -> (x : A) -> A;
+(id : Id) -> (B : Type 1)
+(id : Id) => id B M
+
+M
+P x
+P (⇑x)
+
+
+
+Γ |- T : Type l
+----------------------
+Γ |- ⇑T : Type (1 + l)
+
+Γ |- M : T
+----------------
+Γ |- M⇑ : T & ⇑T
+
+(x : )
+
+Z0 =
+  | Z
+  | S of Z0
+  | Z == S Z;
+
+3 + 1 + 1 + 1
+
+3 * 2 = 2
+
+1 * 2 = 2
+
+Γ |- T[l := _l] <: A
+--------------------------
+Γ |- (l : Level) ->
+
+Unit : Type ω = (l : Level) -> (A : Type l) -> (x : A) -> A
+  = _;
+
+incr = x => (
+  log("Hello");
+  1 + x
+);
+
+incr 1 == (
+  log("Hello");
+  2
+)
+
+(x = 1; x + 1)
+2 + x
+
+Bool = <K>(x : K, y : K) -> K;
+
+
+(x : #debug A) => x
+
+
+Type : Type
+Data : Type
+Prop : Type
+Line : Type
+
+A -> B 
+
+type 'k key [@@linear]
+
+Nat & Type : {
+  zero : T;
+} = {
+  @ = Int;
+  zero = 1
+};
+x : Nat = Nat.zero;
+
+// nat.tei
+zero = _;
+succ = _;
+{ zero; succ; }
+
+
+_ : incr 1 == 2 = refl;
+
+
+
+(∀, A, C)
+(Σ, 1, 2)
+()
+
+id
+
+(x = 1; 2 + x)
+
+1; 2; VAR -1; ADD
+1; 3
+
+
 ```

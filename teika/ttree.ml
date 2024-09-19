@@ -1,8 +1,155 @@
 open Utils
+module Concrete = struct end
+module Abstract = struct end
+module Solved = struct end
+module Complete = struct end
+module Constraint = struct end
 
 module M = struct
   type index = int
   type level = index
+
+  type term =
+    | T_loc of { loc : Location.t; term : term }
+    | T_annot of { term : term; annot : term }
+    | T_var of index
+    | T_forall of { param : pat; body : term }
+    | T_lambda of { param : pat; body : term }
+    | T_apply of { lambda : term; arg : term }
+    | T_let of { bound : pat; value : term; body : term }
+
+  and pat =
+    | P_annot of { pat : pat; annot : term }
+    | P_var of { name : Name.t }
+
+  type (_, _) maybe_eq =
+    | Refl : ('x, 'x) maybe_eq
+    | Unknown : ('x, 'y) maybe_eq
+
+  module rec Nat : sig
+    type z = |
+    type _ s = |
+    type _ nat
+    type 'a t = 'a nat
+
+    (* compute *)
+    val zero : z nat
+    val incr : 'a nat -> 'a s nat
+    val decr : 'a s nat -> 'a nat
+
+    (* verify *)
+    type _ head_eq = Is_zero : z head_eq | Is_succ : _ s head_eq
+
+    val head_eq : 'a nat -> 'a head_eq
+  end =
+    Nat
+
+  module rec H_array : sig
+    type nil = |
+    type (_, _) cons = |
+    type _ h_array
+    type _ length
+
+    val length : _ h_array -> 'a Nat.t
+
+    type (_, _) index
+    type _ ex_index
+
+    val index : 'a h_array -> int -> 'a ex_index
+    val get : 'a h_array -> ('a, 't) index -> 't
+  end =
+    H_array
+
+  module Bytecode = struct
+    type code = C_halt | C_cons of { instr : instr; next : code }
+
+    and instr =
+      | I_var of { var : index }
+      | I_forall of { body : code }
+      | I_lambda of { body : code }
+      | I_return
+      | I_apply
+      | I_let
+      | I_end_let
+
+    and hole
+  end
+
+  module Constraint = struct
+    (* TODO: lazy code generation *)
+    type code = instr list
+    and instr = I_exists | I_forall | I_eval of code | I_check
+  end
+
+  let rec emit_term ctx term =
+    match term with
+    | T_loc { loc; term } -> assert false
+    | T_annot _ -> assert false
+    | T_var var ->
+        (* TODO: inline first usage of closure? *)
+        emit_instr ctx @@ I_local index
+    | T_forall { param; body } -> assert false
+    | T_lambda { param; body } -> emit_closure ctx ~body
+    | T_apply { lambda; arg } -> emit_apply ctx ~lambda ~args:[ arg ]
+    | T_let { value; body } ->
+        emit_term ctx value;
+        emit_instr ctx @@ I_let;
+        emit_term ctx body;
+        emit_instr ctx @@ I_drop
+
+  module rec Context : sig
+    type context
+    type t = context
+
+    val emit_closure : context -> body:term -> level
+    val emit_instr : context -> Bytecode.instr -> unit
+  end =
+    Context
+
+  open Context
+
+  let rec emit_term ctx term =
+    match term with
+    | T_loc { loc; term } -> assert false
+    | T_annot _ -> assert false
+    | T_var var ->
+        (* TODO: inline first usage of closure? *)
+        emit_instr ctx @@ I_local index
+    | T_forall { param; body } -> assert false
+    | T_lambda { param; body } -> emit_closure ctx ~body
+    | T_apply { lambda; arg } -> emit_apply ctx ~lambda ~args:[ arg ]
+    | T_let { value; body } ->
+        emit_term ctx value;
+        emit_instr ctx @@ I_let;
+        emit_term ctx body;
+        emit_instr ctx @@ I_drop
+
+  and emit_apply ctx ~lambda ~args =
+    match lambda with
+    | T_loc { loc; term = lambda } ->
+        emit_receipt ctx @@ R_loc;
+        emit_apply ctx ~lambda ~arg
+    | T_let { value; body = lambda } ->
+        emit_term ctx value;
+        emit_instr ctx @@ I_let;
+        emit_apply ctx ~lambda ~args;
+        emit_instr ctx @@ I_drop
+    | T_apply { lambda; arg } ->
+        (* TODO: is this enough? Could it be more convenient? *)
+        emit_receipt ctx @@ R_apply;
+        let args = arg :: args in
+        emit_apply ctx ~lambda ~args
+    | T_var var ->
+        emit_instr ctx @@ I_local var;
+        List.iter
+          (fun arg ->
+            emit_term ctx arg;
+            emit_instr ctx @@ I_apply)
+          args;
+        emit_instr ctx @@ I_local var
+    | T_lambda { body } ->
+        (* beta *)
+        assert false
 
   type term =
     (* TODO: T_value? *)
@@ -12,12 +159,14 @@ module M = struct
     | T_lambda of { body : term }
     | T_apply of { lambda : term; arg : term }
     | T_let of { value : term; body : term }
+    | T_hoist of { body : term }
+    | T_fix of { var : index; value : term; body : term }
 
   and env = value list
 
   and value =
     | V_hole of hole
-    (* TODO: relevance marks *)
+    | V_fix_var of { mutable to_ : value; args : value list }
     | V_free_var of { var : level; args : value list }
     | V_forall of { param : value; body : value }
     | V_closure of { env : env; body : term }
