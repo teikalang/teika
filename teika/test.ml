@@ -32,10 +32,7 @@ module Typer = struct
         id
       ) : (A : Type) -> (x : A) -> A)|}
 
-  let id_type =
-    check "id_type"
-      {|(((A : Type) => (x : A) => x) Type
-        : (x : Type) -> Type)|}
+  let id_type = check "id_type" {|(((A : Type) => (x : A) => x) Type)|}
 
   let id_type_never =
     check "id_type_never"
@@ -192,7 +189,7 @@ module Typer = struct
       simplest_escape_check;
     ]
 
-  let tests =
+  let _tests =
     [
       univ_type;
       string_type;
@@ -229,30 +226,58 @@ module Typer = struct
       simple_alpha_rename;
     ]
 
+  let tests =
+    [
+      check "let_alias"
+        {|
+          Id : (A : Type) -> Type = A => A;
+          (A => x => x : (A : Type) -> (x : A) -> ((l : A) & Id A))
+        |};
+    ]
+
   (* alcotest *)
   let test test =
     let check ~name ~annotated_term =
       Alcotest.test_case name `Quick @@ fun () ->
-      let actual = Clexer.from_string Cparser.term_opt annotated_term in
-      match actual with
-      | Some ctree -> (
-          match Typer.Infer.infer_term ctree with
-          | Ok ttree -> Format.eprintf "%a\n%!" Tprinter.pp_term ttree
-          | Error error ->
-              failwith
-              @@ Format.asprintf "error: %a\n%!" Tprinter.pp_error error)
-      | None -> failwith "failed to parse"
+      let ctree =
+        match Clexer.from_string Cparser.term_opt annotated_term with
+        | Some ctree -> ctree
+        | None -> failwith "failed to parse"
+      in
+      let ttree =
+        match Solve.solve_term ctree with
+        | Ok ttree -> ttree
+        | Error exn ->
+            failwith
+            @@ Format.asprintf "failed to infer types: %s"
+                 (Printexc.to_string exn)
+      in
+      Format.eprintf "ttree : %a\n%!" Ttree.pp_term ttree;
+      match Typer.infer_term ttree with
+      | Ok _type_ -> Format.eprintf "typed\n%!"
+      | Error exn ->
+          failwith
+          @@ Format.asprintf "failed to infer types: %s"
+               (Printexc.to_string exn)
     in
     let fail ~name ~annotated_term =
       Alcotest.test_case name `Quick @@ fun () ->
-      let actual = Clexer.from_string Cparser.term_opt annotated_term in
-      match actual with
-      | Some ctree -> (
-          match Typer.Infer.infer_term ctree with
-          | Ok _ttree -> failwith "worked but should had failed"
-          (* TODO: check for specific error *)
-          | Error _error -> ())
-      | None -> failwith "failed to parse"
+      let ctree =
+        match Clexer.from_string Cparser.term_opt annotated_term with
+        | Some ctree -> ctree
+        | None -> failwith "failed to parse"
+      in
+      let ttree =
+        match Solve.solve_term ctree with
+        | Ok ttree -> ttree
+        | Error exn ->
+            failwith
+            @@ Format.asprintf "failed to infer types: %s"
+                 (Printexc.to_string exn)
+      in
+      match Typer.infer_term ttree with
+      | Ok _type_ -> failwith "worked but should had failed"
+      | Error _exn -> ()
     in
     match test with
     | Check { name; annotated_term } -> check ~name ~annotated_term

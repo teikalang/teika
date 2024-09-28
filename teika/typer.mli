@@ -1,5 +1,3 @@
-open Syntax
+open Ttree
 
-module Infer : sig
-  val infer_term : Ctree.term -> (Ttree.term, Terror.error) result
-end
+val infer_term : term -> (value, exn) result

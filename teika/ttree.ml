@@ -1,66 +1,105 @@
 open Utils
 
 type term =
-  (* #(M : A) *)
-  | TTerm of { term : term_syntax; mutable type_ : term }
-  (* #(A : S) *)
-  | TType of { term : term_syntax }
-
-and term_syntax =
   (* (M : A) *)
-  | TT_annot of { term : term; annot : term }
-  (* \+n *)
-  | TT_free_var of { var : Level.t }
-  (* \-n *)
-  | TT_bound_var of { var : Index.t }
-  (* P -> B *)
-  | TT_forall of { param : pat; return : term }
-  (* P => M *)
-  | TT_lambda of { param : pat; return : term }
-  (* M N *)
-  | TT_apply of { lambda : term; arg : term }
+  | T_annot of { term : term; annot : term }
+  (* \n *)
+  | T_var of { var : Index.t }
   (* P = N; M *)
-  | TT_let of { bound : pat; value : term; return : term }
-  (* ".." *)
-  | TT_string of { literal : string }
+  | T_let of { bound : pat; arg : term; body : term }
+  (* P => M *)
+  | T_lambda of { bound : pat; body : term }
+  (* M N *)
+  | T_apply of { funct : term; arg : term }
+  (* (P : A) -> B *)
+  | T_forall of { bound : pat; param : term; body : term }
+  (* (P : A) & B *)
+  | T_inter of { bound : pat; left : term; right : term }
 
-and pat = (* #(P : A) *)
-  | TPat of { pat : pat_syntax; mutable type_ : term }
-
-and pat_syntax =
+and pat =
   (* (P : A) *)
-  | TP_annot of { pat : pat; annot : term }
+  | P_annot of { pat : pat; annot : term }
   (* x *)
-  | TP_var of { name : Name.t }
+  | P_var of { var : Name.t }
 [@@deriving show { with_path = false }]
 
-(* TODO: expose this? *)
-(* terms *)
-let tterm ~type_ term = TTerm { term; type_ }
-let ttype term = TType { term }
-let tt_annot ~term ~annot = TT_annot { term; annot }
-let tt_free_var ~var = TT_free_var { var }
-let tt_bound_var ~var = TT_bound_var { var }
-let tt_forall ~param ~return = TT_forall { param; return }
-let tt_lambda ~param ~return = TT_lambda { param; return }
-let tt_apply ~lambda ~arg = TT_apply { lambda; arg }
-let tt_let ~bound ~value ~return = TT_let { bound; value; return }
-let tt_string ~literal = TT_string { literal }
+(* TODO: write docs for this *)
+(* TODO: non dependent version of this *)
+type value =
+  | V_var of { at : Level.t }
+  | V_apply of { funct : value; arg : value }
+  | V_lambda of { env : env; body : term }
+  | V_univ
+  | V_forall of { param : value; env : env; body : term }
+  | V_inter of { left : value; env : env; right : term }
+  | V_thunk of { thunk : value Lazy.t }
 
-(* patterns *)
-let tpat ~type_ pat = TPat { pat; type_ }
-let tp_annot ~pat ~annot = TP_annot { pat; annot }
-let tp_var ~name = TP_var { name }
+and env = Env of { values : value list }
+[@@ocaml.unboxed] [@@deriving show { with_path = false }]
 
-(* Nil *)
-let level_nil = Level.zero
-let tterm_nil = ttype @@ TT_free_var { var = level_nil }
-let tpat_nil = tpat ~type_:tterm_nil @@ TP_var { name = Name.make "**nil**" }
+(* TODO: ideally env should be somewhere else *)
+let empty = Env { values = [] }
+let v_univ = V_univ
+let skolem ~at = V_var { at }
 
-(* Type *)
-let level_univ = Level.next level_nil
-let tt_type_univ = ttype @@ TT_free_var { var = level_univ }
+let access env var =
+  let rec access values var =
+    match (values, var) with
+    | value :: _values, 0 -> value
+    | _value :: values, var -> access values (var - 1)
+    | [], _var -> failwith "invalid access"
+  in
+  let (Env { values }) = env in
+  let var = ((var : Index.t) :> int) in
+  access values var
 
-(* String *)
-let level_string = Level.next level_univ
-let tt_type_string = ttype @@ TT_free_var { var = level_string }
+let append env value =
+  let (Env { values }) = env in
+  let values = value :: values in
+  Env { values }
+
+let shift env ~by =
+  let rec shift values by =
+    match (values, by) with
+    | _value :: values, 0 -> values
+    | _value :: values, by -> shift values (by - 1)
+    | [], _var -> failwith "invalid shift"
+  in
+  let (Env { values }) = env in
+  let by = ((by : Index.t) :> int) in
+  let values = shift values by in
+  Env { values }
+
+let rec eval env term =
+  match term with
+  | T_annot { term; annot = _ } -> eval env term
+  | T_var { var } -> head @@ access env var
+  | T_let { bound = _; arg; body } ->
+      let arg = thunk env arg in
+      let env = append env arg in
+      eval env body
+  | T_apply { funct; arg } -> (
+      let funct = eval env funct in
+      let arg = thunk env arg in
+      match funct with
+      | V_lambda { env; body } ->
+          let env = append env arg in
+          eval env body
+      | V_var _ | V_apply _ | V_univ | V_forall _ | V_inter _ | V_thunk _ ->
+          V_apply { funct; arg })
+  | T_lambda { bound = _; body } -> V_lambda { env; body }
+  | T_forall { bound = _; param; body } ->
+      let param = thunk env param in
+      V_forall { param; env; body }
+  | T_inter { bound = _; left; right } ->
+      let left = thunk env left in
+      V_inter { left; env; right }
+
+and head value =
+  match value with
+  | V_thunk { thunk } -> Lazy.force thunk
+  | V_var _ | V_apply _ | V_lambda _ | V_univ | V_forall _ | V_inter _ -> value
+
+and thunk env term =
+  let thunk = lazy (eval env term) in
+  V_thunk { thunk }

@@ -7,9 +7,9 @@ type term =
 and term_syntax =
   | CT_var of { var : Name.t }
   | CT_extension of { extension : Name.t }
-  | CT_forall of { param : term; return : term }
-  | CT_lambda of { param : term; return : term }
-  | CT_apply of { lambda : term; arg : term }
+  | CT_forall of { param : term; body : term }
+  | CT_lambda of { param : term; body : term }
+  | CT_apply of { funct : term; arg : term }
   | CT_pair of { left : term; right : term }
   | CT_both of { left : term; right : term }
   | CT_bind of { bound : term; value : term }
@@ -24,9 +24,9 @@ and term_syntax =
 let cterm loc term = CTerm { loc; term }
 let ct_var loc ~var = cterm loc (CT_var { var })
 let ct_extension loc ~extension = cterm loc (CT_extension { extension })
-let ct_forall loc ~param ~return = cterm loc (CT_forall { param; return })
-let ct_lambda loc ~param ~return = cterm loc (CT_lambda { param; return })
-let ct_apply loc ~lambda ~arg = cterm loc (CT_apply { lambda; arg })
+let ct_forall loc ~param ~body = cterm loc (CT_forall { param; body })
+let ct_lambda loc ~param ~body = cterm loc (CT_lambda { param; body })
+let ct_apply loc ~funct ~arg = cterm loc (CT_apply { funct; arg })
 let ct_pair loc ~left ~right = cterm loc (CT_pair { left; right })
 let ct_both loc ~left ~right = cterm loc (CT_both { left; right })
 let ct_bind loc ~bound ~value = cterm loc (CT_bind { bound; value })

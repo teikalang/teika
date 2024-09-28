@@ -5,9 +5,9 @@ type term = CTerm of { term : term_syntax; loc : Location.t }
 and term_syntax =
   | CT_var of { var : Name.t }
   | CT_extension of { extension : Name.t }
-  | CT_forall of { param : term; return : term }
-  | CT_lambda of { param : term; return : term }
-  | CT_apply of { lambda : term; arg : term }
+  | CT_forall of { param : term; body : term }
+  | CT_lambda of { param : term; body : term }
+  | CT_apply of { funct : term; arg : term }
   | CT_pair of { left : term; right : term }
   | CT_both of { left : term; right : term }
   | CT_bind of { bound : term; value : term }
@@ -21,9 +21,9 @@ and term_syntax =
 
 val ct_var : Location.t -> var:Name.t -> term
 val ct_extension : Location.t -> extension:Name.t -> term
-val ct_forall : Location.t -> param:term -> return:term -> term
-val ct_lambda : Location.t -> param:term -> return:term -> term
-val ct_apply : Location.t -> lambda:term -> arg:term -> term
+val ct_forall : Location.t -> param:term -> body:term -> term
+val ct_lambda : Location.t -> param:term -> body:term -> term
+val ct_apply : Location.t -> funct:term -> arg:term -> term
 val ct_pair : Location.t -> left:term -> right:term -> term
 val ct_both : Location.t -> left:term -> right:term -> term
 val ct_bind : Location.t -> bound:term -> value:term -> term
