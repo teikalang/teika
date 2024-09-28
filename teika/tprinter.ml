@@ -1,3 +1,5 @@
+[@@@ocaml.warning "-unused-constructor"]
+
 module Ptree = struct
   open Format
   open Utils
@@ -6,13 +8,14 @@ module Ptree = struct
     (* TODO: use PT_meta for level, subst and shift *)
     | PT_meta of { term : term }
     | PT_annot of { term : term; annot : term }
-    | PT_var of { name : Name.t }
+    | PT_var of { var : Name.t }
     | PT_free_var of { var : Level.t }
     | PT_bound_var of { var : Index.t }
-    | PT_forall of { param : term; return : term }
-    | PT_lambda of { param : term; return : term }
-    | PT_apply of { lambda : term; arg : term }
-    | PT_let of { bound : term; value : term; return : term }
+    | PT_let of { bound : term; arg : term; body : term }
+    | PT_apply of { funct : term; arg : term }
+    | PT_lambda of { param : term; body : term }
+    | PT_forall of { param : term; body : term }
+    | PT_inter of { left : term; right : term }
     | PT_string of { literal : string }
 
   type term_prec = T_wrapped | T_let | T_funct | T_apply | T_atom
@@ -22,20 +25,21 @@ module Ptree = struct
     | PT_meta { term } -> fprintf fmt "#%a" pp_atom term
     | PT_annot { term; annot } ->
         fprintf fmt "%a : %a" pp_funct term pp_wrapped annot
-    | PT_var { name } -> fprintf fmt "%s" (Name.repr name)
+    | PT_var { var } -> fprintf fmt "%s" (Name.repr var)
     | PT_free_var { var } -> fprintf fmt "\\+%a" Level.pp var
     | PT_bound_var { var } -> fprintf fmt "\\-%a" Index.pp var
-    | PT_forall { param; return } ->
-        fprintf fmt "%a -> %a" pp_atom param pp_funct return
-    | PT_lambda { param; return } ->
-        fprintf fmt "%a => %a" pp_atom param pp_funct return
-    | PT_apply { lambda; arg } ->
-        fprintf fmt "%a %a" pp_apply lambda pp_atom arg
-    | PT_let { bound; value; return } ->
-        fprintf fmt "%a = %a; %a" pp_atom bound pp_funct value pp_let return
+    | PT_let { bound; arg; body } ->
+        fprintf fmt "%a = %a; %a" pp_atom bound pp_funct arg pp_let body
+    | PT_lambda { param; body } ->
+        fprintf fmt "%a => %a" pp_atom param pp_funct body
+    | PT_apply { funct; arg } -> fprintf fmt "%a %a" pp_apply funct pp_atom arg
     | PT_string { literal } ->
         (* TODO: proper escaping *)
         fprintf fmt "%S" literal
+    | PT_forall { param; body } ->
+        fprintf fmt "(%a) -> %a" pp_wrapped param pp_funct body
+    | PT_inter { left; right } ->
+        fprintf fmt "(%a) & %a" pp_wrapped left pp_funct right
 
   let rec pp_term prec fmt term =
     let pp_wrapped fmt term = pp_term T_wrapped fmt term in
@@ -47,12 +51,12 @@ module Ptree = struct
     | ( (PT_meta _ | PT_var _ | PT_free_var _ | PT_bound_var _ | PT_string _),
         (T_wrapped | T_let | T_funct | T_apply | T_atom) )
     | PT_apply _, (T_wrapped | T_let | T_funct | T_apply)
-    | (PT_forall _ | PT_lambda _), (T_wrapped | T_let | T_funct)
+    | (PT_lambda _ | PT_forall _ | PT_inter _), (T_wrapped | T_let | T_funct)
     | PT_let _, (T_wrapped | T_let)
     | PT_annot _, T_wrapped ->
         pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term
     | PT_apply _, T_atom
-    | (PT_forall _ | PT_lambda _), (T_apply | T_atom)
+    | (PT_lambda _ | PT_forall _ | PT_inter _), (T_apply | T_atom)
     | PT_let _, (T_funct | T_apply | T_atom)
     | PT_annot _, (T_let | T_funct | T_apply | T_atom) ->
         fprintf fmt "(%a)" pp_wrapped term
@@ -75,35 +79,36 @@ let rec tt_print term =
       let annot = tt_print annot in
       PT_annot { term; annot }
   | T_var { var } -> PT_bound_var { var }
-  (* TODO: expand subst sometimes? *)
-  | T_bound_var { var } -> PT_bound_var { var }
-  | TT_forall { param; return } ->
-      let param = tp_print param in
-      let return = tt_print return in
-      PT_forall { param; return }
-  | TT_lambda { param; return } ->
-      let param = tp_print param in
-      let return = tt_print return in
-      PT_lambda { param; return }
-  | TT_apply { lambda; arg } ->
-      let lambda = tt_print lambda in
+  | T_lambda { bound; body } ->
+      let param = tp_print bound in
+      let body = tt_print body in
+      PT_lambda { param; body }
+  | T_apply { funct; arg } ->
+      let funct = tt_print funct in
       let arg = tt_print arg in
-      PT_apply { lambda; arg }
-  | TT_let { bound; value; return } ->
+      PT_apply { funct; arg }
+  | T_let { bound; arg; body } ->
       let bound = tp_print bound in
-      let value = tt_print value in
-      let return = tt_print return in
-      PT_let { bound; value; return }
-  | TT_string { literal } -> PT_string { literal }
+      let arg = tt_print arg in
+      let body = tt_print body in
+      PT_let { bound; arg; body }
+  | T_forall { bound; param = _; body } ->
+      let param = tp_print bound in
+      let body = tt_print body in
+      PT_forall { param; body }
+  | T_inter { bound; left = _; right } ->
+      let left = tp_print bound in
+      let right = tt_print right in
+      PT_inter { left; right }
+(* | TT_string { literal } -> PT_string { literal } *)
 
 and tp_print pat =
-  let (TPat { pat; type_ = _ }) = pat in
   match pat with
-  | TP_annot { pat; annot } ->
+  | P_annot { pat; annot } ->
       let pat = tp_print pat in
       let annot = tt_print annot in
       PT_annot { term = pat; annot }
-  | TP_var { name } -> PT_var { name }
+  | P_var { var } -> PT_var { var }
 
 let pp_term fmt term =
   let term = tt_print term in
@@ -120,7 +125,7 @@ module Perror = struct
 
   type error =
     | PE_loc of { loc : Location.t; error : error }
-    | PE_type_clash of { left : term; right : term }
+    | PE_type_clash
     | PE_unknown_var of { name : Name.t }
     | PE_not_a_forall of { type_ : term }
     | PE_hoist_not_implemented
@@ -144,9 +149,7 @@ module Perror = struct
   let rec pp_error fmt error =
     match error with
     | PE_loc { loc; error } -> fprintf fmt "%a\n%a" pp_loc loc pp_error error
-    | PE_type_clash { left; right } ->
-        fprintf fmt "type clash\nreceived : %a\nexpected : %a" pp_term left
-          pp_term right
+    | PE_type_clash -> fprintf fmt "type clash"
     | PE_unknown_var { name } -> fprintf fmt "unknown variable %a" Name.pp name
     | PE_not_a_forall { type_ } ->
         fprintf fmt "expected forall\nreceived : %a" pp_term type_
@@ -177,11 +180,7 @@ let rec te_print error =
             PE_loc { loc; error }
       in
       loop loc error
-  (* TODO: drop falback *)
-  | TError_type_clash ->
-      let left = tt_print left in
-      let right = tt_print right in
-      PE_type_clash { left; right }
+  | TError_type_clash -> PE_type_clash
   | TError_unknown_var { name } -> PE_unknown_var { name }
   | TError_not_a_forall { type_ } ->
       let type_ = tt_print type_ in
