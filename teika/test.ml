@@ -228,11 +228,33 @@ module Typer = struct
 
   let tests =
     [
-      check "let_alias"
+      check "nat_256_equality"
         {|
-          Id : (A : Type) -> Type = A => A;
-          (A => x => x : (A : Type) -> (x : A) -> ((l : A) & Id A))
-        |};
+          Eq : (A : Type) -> (x : A) -> (y : A) -> Type
+            = A => x => y => (P : (z : A) -> Type) -> (l : P x) -> P y;
+          refl : (A : Type) -> (x : A) -> Eq A x x
+            = A => x => P => l => l;
+
+          Nat = (A : Type) -> (z : A) -> (s : (acc : A) -> A) -> A;
+          zero : Nat = A => z => s => z;
+          succ : (pred : Nat) -> Nat = pred => A => z => s => s (pred A z s);
+          one = succ zero;
+
+          add : (a : Nat) -> (b : Nat) -> Nat
+            = a => b => a Nat b succ;
+          mul : (a : Nat) -> (b : Nat) -> Nat
+            = a => b => a Nat zero (n => add n b);
+
+          two = succ one;
+          three = succ two;
+          four = add two two;
+          eight = add four four;
+          sixteen = add eight eight;
+          n256 = mul sixteen sixteen;
+          sixteen_is_eight_times_two : Eq Nat sixteen (mul eight two)
+            = refl Nat sixteen;
+          (refl Nat n256 : Eq Nat (mul (mul eight eight) four) n256)
+      |};
     ]
 
   (* alcotest *)

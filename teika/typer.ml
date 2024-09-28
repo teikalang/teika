@@ -42,10 +42,6 @@ and equal_under ~at lhs_env lhs rhs_env rhs =
   in
   equal ~at lhs rhs
 
-let equal ~at lhs rhs =
-  Format.eprintf "%a == %a\n%!" pp_value lhs pp_value rhs;
-  equal ~at lhs rhs
-
 (* (M : LHS) :> RHS*)
 (* TODO: short circuits *)
 let rec coerce ~at term lhs rhs =
@@ -72,7 +68,7 @@ let rec coerce ~at term lhs rhs =
 
 (* TODO: where to do path compression? *)
 let split_forall value =
-  match value with
+  match head value with
   | V_forall { param; env; body } ->
       let param = head param in
       (param, env, body)
@@ -106,9 +102,7 @@ let rec infer_term ~at vars env term =
       let annot = check_annot ~at vars env annot in
       check_term ~at vars env term ~expected:annot;
       annot
-  | T_var { var } ->
-      Format.eprintf "var (%a) %a\n%!" Index.pp var pp_value @@ solve vars var;
-      solve vars var
+  | T_var { var } -> solve vars var
   | T_let { bound; arg; body } ->
       let value_type =
         match infer_pat ~at vars env bound with
@@ -127,7 +121,6 @@ let rec infer_term ~at vars env term =
   | T_apply { funct; arg } ->
       let funct_type = infer_term ~at vars env funct in
       let param_type, body_env, body_type = split_forall funct_type in
-      Format.eprintf "forall, (%a) (%a)\n%!" pp_term funct pp_term arg;
       check_term ~at vars env arg ~expected:param_type;
       let body_env =
         let thunk = thunk env arg in
@@ -173,8 +166,6 @@ and check_term ~at vars env term ~expected =
       check_term ~at vars env body ~expected:expected_body
   | term, expected ->
       let received = infer_term ~at vars env term in
-      Format.eprintf "(%a : %a) :> %a\n%!" pp_term term pp_value received
-        pp_value expected;
       let term = eval env term in
       coerce ~at term received expected
 
