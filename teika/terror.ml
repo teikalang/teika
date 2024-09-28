@@ -8,7 +8,7 @@ type error =
          Probably because things like macros exists *)
   | TError_loc of { error : error; loc : Location.t [@opaque] }
   (* equal *)
-  | TError_type_clash of { left : term; right : term }
+  | TError_type_clash
   (* typer *)
   | TError_unknown_var of { name : Name.t }
   | TError_not_a_forall of { type_ : term }
@@ -24,8 +24,13 @@ and t = error [@@deriving show { with_path = false }]
 
 exception TError of { error : error }
 
+let () =
+  Printexc.register_printer @@ function
+  | TError { error } -> Some (show_error error)
+  | _ -> None
+
 let terror error = raise (TError { error })
-let error_type_clash ~left ~right = terror @@ TError_type_clash { left; right }
+let error_type_clash () = terror @@ TError_type_clash
 let error_unknown_var ~name = terror @@ TError_unknown_var { name }
 let error_not_a_forall ~type_ = terror @@ TError_not_a_forall { type_ }
 let error_hoist_not_implemented () = terror @@ TError_hoist_not_implemented

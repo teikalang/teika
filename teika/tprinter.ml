@@ -69,17 +69,14 @@ let _pt_with_type ~type_ term =
 (* TODO: extract substitutions *)
 (* TODO: rename all tt_ to term_ *)
 let rec tt_print term =
-  let term =
-    match term with TTerm { term; type_ = _ } -> term | TType { term } -> term
-  in
   match term with
-  | TT_annot { term; annot } ->
+  | T_annot { term; annot } ->
       let term = tt_print term in
       let annot = tt_print annot in
       PT_annot { term; annot }
-  | TT_free_var { var } -> PT_free_var { var }
+  | T_var { var } -> PT_bound_var { var }
   (* TODO: expand subst sometimes? *)
-  | TT_bound_var { var } -> PT_bound_var { var }
+  | T_bound_var { var } -> PT_bound_var { var }
   | TT_forall { param; return } ->
       let param = tp_print param in
       let return = tt_print return in
@@ -181,7 +178,7 @@ let rec te_print error =
       in
       loop loc error
   (* TODO: drop falback *)
-  | TError_type_clash { left; right } ->
+  | TError_type_clash ->
       let left = tt_print left in
       let right = tt_print right in
       PE_type_clash { left; right }

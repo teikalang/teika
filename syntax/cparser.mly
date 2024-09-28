@@ -88,14 +88,14 @@ let term_extension ==
   | extension = EXTENSION;
     { ct_extension (mk $loc) ~extension:(Name.make extension) }
 let term_forall(self, lower) ==
-  | param = lower; ARROW; return = self;
-    { ct_forall (mk $loc) ~param ~return }
+  | param = lower; ARROW; body = self;
+    { ct_forall (mk $loc) ~param ~body }
 let term_lambda(self, lower) ==
-  | param = lower; FAT_ARROW; return = self;
-    { ct_lambda (mk $loc) ~param ~return }
+  | param = lower; FAT_ARROW; body = self;
+    { ct_lambda (mk $loc) ~param ~body }
 let term_apply(self, lower) ==
-  | lambda = self; arg = lower;
-    { ct_apply (mk $loc) ~lambda ~arg }
+  | funct = self; arg = lower;
+    { ct_apply (mk $loc) ~funct ~arg }
 let term_pair(self, lower) ==
   | left = lower; COMMA; right = self;
     { ct_pair (mk $loc) ~left ~right }
