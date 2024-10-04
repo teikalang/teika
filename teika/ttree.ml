@@ -7,6 +7,10 @@ type term =
   | T_var of { var : Index.t }
   (* P = N; M *)
   | T_let of { bound : pat; arg : term; body : term }
+  (* P : A; M *)
+  | T_hoist of { bound : pat; annot : term; body : term }
+  (* P : A; ...; P = N; M *)
+  | T_fix of { bound : pat; var : Index.t; arg : term; body : term }
   (* P => M *)
   | T_lambda of { bound : pat; body : term }
   (* M N *)
@@ -26,21 +30,33 @@ and pat =
 (* TODO: write docs for this *)
 (* TODO: non dependent version of this *)
 type value =
-  | V_var of { at : Level.t }
-  | V_apply of { funct : value; arg : value }
-  | V_lambda of { env : env; body : term }
+  | V_var of { at : Level.t; args : value list }
+  | V_forward of { forward : forward; args : value list }
+  | V_lambda of { env : env; [@opaque] body : term }
   | V_univ
-  | V_forall of { param : value; env : env; body : term }
-  | V_inter of { left : value; env : env; right : term }
+  | V_forall of { param : value; env : env; [@opaque] body : term }
+  | V_inter of { left : value; env : env; [@opaque] right : term }
   | V_thunk of { thunk : value Lazy.t }
 
-and env = Env of { values : value list }
-[@@ocaml.unboxed] [@@deriving show { with_path = false }]
+and env = Env of { values : value list } [@@ocaml.unboxed]
+
+and forward =
+  | Forward of { mutable value : value; [@opaque] mutable init : bool }
+[@@deriving show { with_path = false }]
+
+let same (left : value) (right : value) = left == right
+let same_forward (left : forward) (right : forward) = left == right
+let v_nil = V_var { at = Level.zero; args = [] }
 
 (* TODO: ideally env should be somewhere else *)
 let empty = Env { values = [] }
 let v_univ = V_univ
-let skolem ~at = V_var { at }
+
+let v_forward () =
+  let forward = Forward { value = v_nil; init = false } in
+  V_forward { forward; args = [] }
+
+let skolem ~at = V_var { at; args = [] }
 
 let access env var =
   let rec access values var =
@@ -58,35 +74,36 @@ let append env value =
   let values = value :: values in
   Env { values }
 
-let shift env ~by =
-  let rec shift values by =
-    match (values, by) with
-    | _value :: values, 0 -> values
-    | _value :: values, by -> shift values (by - 1)
-    | [], _var -> failwith "invalid shift"
-  in
-  let (Env { values }) = env in
-  let by = ((by : Index.t) :> int) in
-  let values = shift values by in
-  Env { values }
+let fix env var ~arg =
+  match access env var with
+  | V_forward { forward; args = [] } ->
+      let (Forward forward) = forward in
+      forward.value <- arg;
+      forward.init <- true
+  | V_forward _ | V_var _ | V_lambda _ | V_univ | V_forall _ | V_inter _
+  | V_thunk _ ->
+      failwith "invalid fix"
 
 let rec eval env term =
   match term with
   | T_annot { term; annot = _ } -> eval env term
-  | T_var { var } -> head @@ access env var
+  | T_var { var } -> weak_head @@ access env var
+  | T_hoist { bound = _; annot = _; body } ->
+      let arg = v_forward () in
+      let env = append env arg in
+      eval env body
+  | T_fix { bound = _; var; arg; body } ->
+      let arg = thunk env arg in
+      fix env var ~arg;
+      eval env body
   | T_let { bound = _; arg; body } ->
       let arg = thunk env arg in
       let env = append env arg in
       eval env body
-  | T_apply { funct; arg } -> (
+  | T_apply { funct; arg } ->
       let funct = eval env funct in
       let arg = thunk env arg in
-      match funct with
-      | V_lambda { env; body } ->
-          let env = append env arg in
-          eval env body
-      | V_var _ | V_apply _ | V_univ | V_forall _ | V_inter _ | V_thunk _ ->
-          V_apply { funct; arg })
+      eval_apply ~funct ~arg
   | T_lambda { bound = _; body } -> V_lambda { env; body }
   | T_forall { bound = _; param; body } ->
       let param = thunk env param in
@@ -95,11 +112,46 @@ let rec eval env term =
       let left = thunk env left in
       V_inter { left; env; right }
 
-and head value =
-  match value with
+and eval_apply ~funct ~arg =
+  match weak_head funct with
+  | V_lambda { env; body } ->
+      let env = append env arg in
+      eval env body
+  | V_var { at; args } ->
+      let args = arg :: args in
+      V_var { at; args }
+  | V_forward { forward; args } ->
+      let args = arg :: args in
+      V_forward { forward; args }
+  | V_univ | V_forall _ | V_inter _ | V_thunk _ ->
+      failwith "should be unrecheable"
+
+and weak_head initial =
+  match initial with
   | V_thunk { thunk } -> Lazy.force thunk
-  | V_var _ | V_apply _ | V_lambda _ | V_univ | V_forall _ | V_inter _ -> value
+  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_inter _ ->
+      initial
+
+and strong_head initial =
+  let initial = weak_head initial in
+  match initial with
+  | V_thunk { thunk } -> strong_head @@ Lazy.force thunk
+  | V_forward { forward; args } -> (
+      let (Forward { value; init }) = forward in
+      match init with
+      | false -> initial
+      | true ->
+          (* TODO: head_and_fix? *)
+          strong_head
+          @@ List.fold_right
+               (fun arg funct -> eval_apply ~funct ~arg)
+               args value)
+  | V_var _ | V_lambda _ | V_univ | V_forall _ | V_inter _ -> initial
 
 and thunk env term =
   let thunk = lazy (eval env term) in
+  V_thunk { thunk }
+
+let lazy_apply ~funct ~arg =
+  let thunk = lazy (eval_apply ~funct ~arg) in
   V_thunk { thunk }

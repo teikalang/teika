@@ -11,6 +11,7 @@ module Ptree = struct
     | PT_var of { var : Name.t }
     | PT_free_var of { var : Level.t }
     | PT_bound_var of { var : Index.t }
+    | PT_hoist of { bound : term; annot : term; body : term }
     | PT_let of { bound : term; arg : term; body : term }
     | PT_apply of { funct : term; arg : term }
     | PT_lambda of { param : term; body : term }
@@ -28,6 +29,8 @@ module Ptree = struct
     | PT_var { var } -> fprintf fmt "%s" (Name.repr var)
     | PT_free_var { var } -> fprintf fmt "\\+%a" Level.pp var
     | PT_bound_var { var } -> fprintf fmt "\\-%a" Index.pp var
+    | PT_hoist { bound; annot; body } ->
+        fprintf fmt "%a : %a; %a" pp_atom bound pp_funct annot pp_let body
     | PT_let { bound; arg; body } ->
         fprintf fmt "%a = %a; %a" pp_atom bound pp_funct arg pp_let body
     | PT_lambda { param; body } ->
@@ -52,12 +55,12 @@ module Ptree = struct
         (T_wrapped | T_let | T_funct | T_apply | T_atom) )
     | PT_apply _, (T_wrapped | T_let | T_funct | T_apply)
     | (PT_lambda _ | PT_forall _ | PT_inter _), (T_wrapped | T_let | T_funct)
-    | PT_let _, (T_wrapped | T_let)
+    | (PT_hoist _ | PT_let _), (T_wrapped | T_let)
     | PT_annot _, T_wrapped ->
         pp_term_syntax ~pp_wrapped ~pp_let ~pp_funct ~pp_apply ~pp_atom fmt term
     | PT_apply _, T_atom
     | (PT_lambda _ | PT_forall _ | PT_inter _), (T_apply | T_atom)
-    | PT_let _, (T_funct | T_apply | T_atom)
+    | (PT_hoist _ | PT_let _), (T_funct | T_apply | T_atom)
     | PT_annot _, (T_let | T_funct | T_apply | T_atom) ->
         fprintf fmt "(%a)" pp_wrapped term
 
@@ -79,6 +82,22 @@ let rec tt_print term =
       let annot = tt_print annot in
       PT_annot { term; annot }
   | T_var { var } -> PT_bound_var { var }
+  | T_let { bound; arg; body } ->
+      let bound = tp_print bound in
+      let arg = tt_print arg in
+      let body = tt_print body in
+      PT_let { bound; arg; body }
+  | T_hoist { bound; annot; body } ->
+      let bound = tp_print bound in
+      let annot = tt_print annot in
+      let body = tt_print body in
+      PT_hoist { bound; annot; body }
+  | T_fix { var = _; bound; arg; body } ->
+      (* TODO: proper var renaming *)
+      let bound = tp_print bound in
+      let arg = tt_print arg in
+      let body = tt_print body in
+      PT_let { bound; arg; body }
   | T_lambda { bound; body } ->
       let param = tp_print bound in
       let body = tt_print body in
@@ -87,11 +106,6 @@ let rec tt_print term =
       let funct = tt_print funct in
       let arg = tt_print arg in
       PT_apply { funct; arg }
-  | T_let { bound; arg; body } ->
-      let bound = tp_print bound in
-      let arg = tt_print arg in
-      let body = tt_print body in
-      PT_let { bound; arg; body }
   | T_forall { bound; param = _; body } ->
       let param = tp_print bound in
       let body = tt_print body in
