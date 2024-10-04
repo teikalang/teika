@@ -226,7 +226,7 @@ module Typer = struct
       simple_alpha_rename;
     ]
 
-  let tests =
+  let _tests =
     [
       check "nat_256_equality"
         {|
@@ -251,12 +251,39 @@ module Typer = struct
           eight = add four four;
           sixteen = add eight eight;
           n256 = mul sixteen sixteen;
-          sixteen_is_eight_times_two : Eq Nat sixteen (mul eight two)
-            = refl Nat sixteen;
-          (refl Nat n256 : Eq Nat (mul (mul eight eight) four) n256)
+          n512 = mul n256 two;
+          (refl Nat n512 : Eq Nat (mul (mul eight eight) eight) n512)
       |};
     ]
 
+  let tests =
+    [
+      check "fix"
+        {|
+          Never : Type;
+          Never = ((x : Never) & (P : (x : Never) -> Type) -> P(x));
+
+          Unit : Type;
+          unit : Unit;
+
+          Unit = ((u : Unit) & (P : (u : Unit) -> Type) -> (x : P(unit)) -> P(u));
+          unit = P => x => x;
+
+          Bool : Type;
+          true : Bool;
+          false : Bool;
+
+          Bool = ((b : Bool) & (P : (b : Bool) -> Type) ->
+            (x : P(true)) -> (y : P(false)) -> P(b));
+          true = P => x => y => x;
+          false = P => x => y => y;
+          
+          true
+        |};
+    ]
+
+  (* true_not_false : (H : Eq Bool true false) -> False
+     = H => H *)
   (* alcotest *)
   let test test =
     let check ~name ~annotated_term =

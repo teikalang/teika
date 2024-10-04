@@ -7,6 +7,10 @@ type term =
   | T_var of { var : Index.t }
   (* P = N; M *)
   | T_let of { bound : pat; arg : term; body : term }
+  (* P : A; M *)
+  | T_hoist of { bound : pat; annot : term; body : term }
+  (* P : A; ...; P = N; M *)
+  | T_fix of { bound : pat; var : Index.t; arg : term; body : term }
   (* P => M *)
   | T_lambda of { bound : pat; body : term }
   (* M N *)
@@ -26,9 +30,10 @@ and pat =
 (* TODO: write docs for this *)
 type value = private
   (* equality *)
-  | V_var of { at : Level.t }
+  | V_var of { at : Level.t; args : value list }
+  (* loops *)
+  | V_forward of { forward : forward; args : value list }
   (* functions *)
-  | V_apply of { funct : value; arg : value }
   | V_lambda of { env : env; body : term }
   (* types *)
   | V_univ
@@ -37,13 +42,24 @@ type value = private
   (* laziness *)
   | V_thunk of { thunk : value Lazy.t }
 
-and env [@@deriving show]
+and env
 
+and forward = private
+  | Forward of { mutable value : value; mutable init : bool }
+[@@deriving show]
+
+val same : value -> value -> bool
+val same_forward : forward -> forward -> bool
+val fix : env -> Index.index -> arg:value -> unit
 val empty : env
+val v_nil : value
 val v_univ : value
+val v_forward : unit -> value
 val skolem : at:Level.t -> value
+val access : env -> Index.t -> value
 val append : env -> value -> env
-val shift : env -> by:Index.t -> env
 val thunk : env -> term -> value
 val eval : env -> term -> value
-val head : value -> value
+val weak_head : value -> value
+val strong_head : value -> value
+val lazy_apply : funct:value -> arg:value -> value

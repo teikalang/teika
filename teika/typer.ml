@@ -2,15 +2,20 @@ open Ttree
 open Terror
 
 let rec equal ~at lhs rhs =
-  match (head lhs, head rhs) with
-  | V_var { at = lhs }, V_var { at = rhs } -> (
-      match Level.equal lhs rhs with
+  match (weak_head lhs, weak_head rhs) with
+  | V_var { at = lhs; args = lhs_args }, V_var { at = rhs; args = rhs_args } ->
+      (match Level.equal lhs rhs with
       | true -> ()
-      | false -> failwith "var clash")
-  | ( V_apply { funct = lhs_funct; arg = lhs_arg },
-      V_apply { funct = rhs_funct; arg = rhs_arg } ) ->
-      equal ~at lhs_funct rhs_funct;
-      equal ~at lhs_arg rhs_arg
+      | false -> failwith "var clash");
+      equal_args ~at lhs_args rhs_args
+  | ( V_forward { forward = lhs; args = lhs_args },
+      V_forward { forward = rhs; args = rhs_args } ) ->
+      (match same_forward lhs rhs with
+      | true -> ()
+      | false ->
+          (* TODO: check if they're literally the same *)
+          failwith "forward clash");
+      equal_args ~at lhs_args rhs_args
   | ( V_lambda { env = lhs_env; body = lhs_body },
       V_lambda { env = rhs_env; body = rhs_body } ) ->
       equal_under ~at lhs_env lhs_body rhs_env rhs_body
@@ -23,11 +28,15 @@ let rec equal ~at lhs rhs =
       V_inter { left = rhs_left; env = rhs_env; right = rhs_right } ) ->
       equal ~at lhs_left rhs_left;
       equal_under ~at lhs_env lhs_right rhs_env rhs_right
-  | ( ( V_var _ | V_apply _ | V_lambda _ | V_univ | V_forall _ | V_inter _
+  | ( ( V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_inter _
       | V_thunk _ ),
-      ( V_var _ | V_apply _ | V_lambda _ | V_univ | V_forall _ | V_inter _
+      ( V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_inter _
       | V_thunk _ ) ) ->
       error_type_clash ()
+
+and equal_args ~at lhs_args rhs_args =
+  (* TODO: iter2 clash *)
+  List.iter2 (fun lhs rhs -> equal ~at lhs rhs) lhs_args rhs_args
 
 and equal_under ~at lhs_env lhs rhs_env rhs =
   let skolem = skolem ~at in
@@ -42,10 +51,31 @@ and equal_under ~at lhs_env lhs rhs_env rhs =
   in
   equal ~at lhs rhs
 
+let equal ~at lhs rhs =
+  let lhs = strong_head lhs in
+  let rhs = strong_head rhs in
+  equal ~at lhs rhs
+
 (* (M : LHS) :> RHS*)
 (* TODO: short circuits *)
 let rec coerce ~at term lhs rhs =
-  match (head lhs, head rhs) with
+  match (weak_head lhs, weak_head rhs) with
+  | ( V_forall { param = lhs_param; env = lhs_env; body = lhs_body },
+      V_forall { param = rhs_param; env = rhs_env; body = rhs_body } ) ->
+      equal ~at lhs_param rhs_param;
+      (* TODO: eta *)
+      let skolem = skolem ~at in
+      let at = Level.next at in
+      let term = lazy_apply ~funct:term ~arg:skolem in
+      let lhs =
+        let lhs_env = append lhs_env skolem in
+        eval lhs_env lhs_body
+      in
+      let rhs =
+        let rhs_env = append rhs_env skolem in
+        eval rhs_env rhs_body
+      in
+      coerce ~at term lhs rhs
   | V_inter { left = lhs_left; env = lhs_env; right = lhs_right }, rhs -> (
       try coerce ~at term lhs_left rhs
       with _exn ->
@@ -62,18 +92,36 @@ let rec coerce ~at term lhs rhs =
         eval rhs_env rhs_right
       in
       coerce ~at term lhs rhs_right
-  | ( (V_var _ | V_apply _ | V_lambda _ | V_univ | V_forall _ | V_thunk _),
-      (V_var _ | V_apply _ | V_lambda _ | V_univ | V_forall _ | V_thunk _) ) ->
+  | ( (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _),
+      (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _) )
+    ->
       equal ~at lhs rhs
+
+let coerce ~at term lhs rhs =
+  let lhs = strong_head lhs in
+  let rhs = strong_head rhs in
+  (* TODO: this is garbage *)
+  coerce ~at term lhs rhs
 
 (* TODO: where to do path compression? *)
 let split_forall value =
-  match head value with
-  | V_forall { param; env; body } ->
-      let param = head param in
-      (param, env, body)
-  | V_var _ | V_apply _ | V_lambda _ | V_univ | V_inter _ | V_thunk _ ->
+  match strong_head value with
+  | V_forall { param; env; body } -> (param, env, body)
+  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_inter _ | V_thunk _ ->
+      Format.eprintf "value: %a\n%!" pp_value (strong_head value);
       failwith "not a forall"
+
+let split_self ~at ~forward value =
+  (* TODO: this is hackish *)
+  let value = strong_head value in
+  match value with
+  | V_inter { left; env; right } ->
+      (* TODO: what if this inter is not a self *)
+      equal ~at left value;
+      let env = append env forward in
+      eval env right
+  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _ ->
+      value
 
 (* infer *)
 type vars = Vars of { types : value list } [@@ocaml.unboxed]
@@ -96,6 +144,7 @@ let solve vars var =
   let var = ((var : Index.t) :> int) in
   solve types var
 
+(* TODO: ideally ensure that infer_term returns head normalized type *)
 let rec infer_term ~at vars env term =
   match term with
   | T_annot { term; annot } ->
@@ -103,6 +152,30 @@ let rec infer_term ~at vars env term =
       check_term ~at vars env term ~expected:annot;
       annot
   | T_var { var } -> solve vars var
+  | T_hoist { bound; annot; body } ->
+      (* TODO: ensure it's eventually bound *)
+      let annot = check_annot ~at vars env annot in
+      check_pat ~at vars env bound ~expected:annot;
+      let vars = enter vars ~type_:annot in
+      let env =
+        let value = v_forward () in
+        append env value
+      in
+      infer_term ~at vars env body
+  | T_fix { bound; var; arg; body } ->
+      (* TODO: ensure it's not trivially recursive; A = M(A) *)
+      let annot = solve vars var in
+      check_pat ~at vars env bound ~expected:annot;
+      let self_body =
+        let forward = access env var in
+        split_self ~at ~forward annot
+      in
+      check_term ~at vars env arg ~expected:self_body;
+      let () =
+        let arg = thunk env arg in
+        fix env var ~arg
+      in
+      infer_term ~at vars env body
   | T_let { bound; arg; body } ->
       let value_type =
         match infer_pat ~at vars env bound with
@@ -151,9 +224,9 @@ let rec infer_term ~at vars env term =
       v_univ
 
 and check_term ~at vars env term ~expected =
-  match (term, expected) with
-  | ( T_lambda { bound; body },
-      V_forall { param; env = expected_env; body = expected_body } ) ->
+  match term with
+  | T_lambda { bound; body } ->
+      let param, expected_env, expected_body = split_forall expected in
       check_pat ~at vars env bound ~expected:param;
       let skolem = skolem ~at in
       let at = Level.next at in
@@ -164,7 +237,7 @@ and check_term ~at vars env term ~expected =
         eval expected_env expected_body
       in
       check_term ~at vars env body ~expected:expected_body
-  | term, expected ->
+  | term ->
       let received = infer_term ~at vars env term in
       let term = eval env term in
       coerce ~at term received expected
