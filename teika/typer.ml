@@ -59,6 +59,10 @@ let equal ~at lhs rhs =
 (* (M : LHS) :> RHS*)
 (* TODO: short circuits *)
 let rec coerce ~at term lhs rhs =
+  (* TODO: this is super ugly *)
+  try equal ~at lhs rhs with _exn -> coerce_try ~at term lhs rhs
+
+and coerce_try ~at term lhs rhs =
   match (weak_head lhs, weak_head rhs) with
   | ( V_forall { param = lhs_param; env = lhs_env; body = lhs_body },
       V_forall { param = rhs_param; env = rhs_env; body = rhs_body } ) ->
@@ -95,6 +99,7 @@ let rec coerce ~at term lhs rhs =
   | ( (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _),
       (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _) )
     ->
+      (* TODO: this will always fail *)
       equal ~at lhs rhs
 
 let coerce ~at term lhs rhs =
@@ -110,18 +115,6 @@ let split_forall value =
   | V_var _ | V_forward _ | V_lambda _ | V_univ | V_inter _ | V_thunk _ ->
       Format.eprintf "value: %a\n%!" pp_value (strong_head value);
       failwith "not a forall"
-
-let split_self ~at ~forward value =
-  (* TODO: this is hackish *)
-  let value = strong_head value in
-  match value with
-  | V_inter { left; env; right } ->
-      (* TODO: what if this inter is not a self *)
-      equal ~at left value;
-      let env = append env forward in
-      eval env right
-  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _ ->
-      value
 
 (* infer *)
 type vars = Vars of { types : value list } [@@ocaml.unboxed]
@@ -166,11 +159,8 @@ let rec infer_term ~at vars env term =
       (* TODO: ensure it's not trivially recursive; A = M(A) *)
       let annot = solve vars var in
       check_pat ~at vars env bound ~expected:annot;
-      let self_body =
-        let forward = access env var in
-        split_self ~at ~forward annot
-      in
-      check_term ~at vars env arg ~expected:self_body;
+      let alias = access env var in
+      check_fix ~at vars env arg ~alias ~expected:annot;
       let () =
         let arg = thunk env arg in
         fix env var ~arg
@@ -241,6 +231,37 @@ and check_term ~at vars env term ~expected =
       let received = infer_term ~at vars env term in
       let term = eval env term in
       coerce ~at term received expected
+
+and check_fix ~at vars env term ~alias ~expected =
+  (* TODO: not principled, let will break this *)
+  let expected = strong_head expected in
+  match (term, expected) with
+  | ( T_lambda { bound; body },
+      V_forall { param; env = expected_env; body = expected_body } ) ->
+      (* TODO: this is almost a copy check_term *)
+      check_pat ~at vars env bound ~expected:param;
+      let skolem = skolem ~at in
+      let at = Level.next at in
+      let vars = enter vars ~type_:param in
+      let env = append env skolem in
+      let expected_body =
+        let expected_env = append expected_env skolem in
+        eval expected_env expected_body
+      in
+      (* TODO: this eval_apply seems hackish *)
+      let alias = eval_apply ~funct:alias ~arg:skolem in
+      check_fix ~at vars env body ~alias ~expected:expected_body
+  | term, V_inter { left; env = expected_env; right = expected_right } ->
+      (* TODO: what if this inter is not a self *)
+      equal ~at left expected;
+      let expected =
+        let env = append expected_env alias in
+        eval env expected_right
+      in
+      check_fix ~at vars env term ~alias ~expected
+  | term, (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _)
+    ->
+      check_term ~at vars env term ~expected
 
 and check_annot ~at vars env term =
   check_term ~at vars env term ~expected:v_univ;

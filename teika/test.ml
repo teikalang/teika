@@ -278,6 +278,13 @@ module Typer = struct
           true = P => x => y => x;
           false = P => x => y => y;
           
+          Equal : (A : Type) -> (x : A) -> (y : A) -> Type;
+          refl : (A : Type) -> (x : A) -> Equal A x x;
+
+          Equal = A => x => y => ((eq : Equal A x y) &
+            (P : (z : A) -> Type) -> (v : P(x)) -> P(y));
+          refl = A => x => P => v => v;
+
           true
         |};
     ]
