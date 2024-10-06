@@ -60,6 +60,7 @@ val access : env -> Index.t -> value
 val append : env -> value -> env
 val thunk : env -> term -> value
 val eval : env -> term -> value
+val eval_apply : funct:value -> arg:value -> value
 val weak_head : value -> value
 val strong_head : value -> value
 val lazy_apply : funct:value -> arg:value -> value
