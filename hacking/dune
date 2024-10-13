@@ -1,0 +1,11 @@
+(executable
+ (name fast_normal)
+ (modules Fast_normal)
+ (libraries syntax unix))
+
+(rule
+ (alias fast_normal)
+ (deps
+  (:exe ./fast_normal.exe))
+ (action
+  (run %{exe})))

@@ -261,7 +261,7 @@ module Typer = struct
       check "fix"
         {|
           Never : Type;
-          Never = ((x : Never) & (P : (x : Never) -> Type) -> P(x));
+          Never = (A : Type) -> A;
 
           Unit : Type;
           unit : Unit;
@@ -277,7 +277,9 @@ module Typer = struct
             (x : P(true)) -> (y : P(false)) -> P(b));
           true = P => x => y => x;
           false = P => x => y => y;
-          
+          ind_bool : (b : Bool) -> (P : (b : Bool) -> Type) ->
+            (x : P(true)) -> (y : P(false)) -> P(b) = b => b;
+
           Equal : (A : Type) -> (x : A) -> (y : A) -> Type;
           refl : (A : Type) -> (x : A) -> Equal A x x;
 
@@ -285,12 +287,27 @@ module Typer = struct
             (P : (z : A) -> Type) -> (v : P(x)) -> P(y));
           refl = A => x => P => v => v;
 
+          transport : (A : Type) -> (x : A) -> (y : A) -> 
+            (H : Equal A x y) -> (P : (z : A) -> Type) -> (v : P(x)) -> P(y);
+          transport = A => x => y => H => H;
+
+          true_not_false : (H : Equal Bool true false) -> Never;
+          true_not_false = H => (
+            P : (b : Bool) -> Type = b => ind_bool(b)(_ => Type)(Unit)(Never);
+            f : (x : Unit) -> Never = transport(Bool)(true)(false)(H)(P);
+            f(unit)
+          );
+
+          id : (A : Type) -> (x : A) -> A = A => x => x;
+
           true
         |};
     ]
 
-  (* true_not_false : (H : Eq Bool true false) -> False
-     = H => H *)
+  (* transport :
+     (A : Type) -> (x : A) -> (y : A) ->
+       (H : Equal A x y) -> (P : (z : A) -> Type) -> (v : P(x)) -> P(y)
+     = A => x => y => H => H; *)
   (* alcotest *)
   let test test =
     let check ~name ~annotated_term =

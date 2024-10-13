@@ -1,6 +1,18 @@
 open Ttree
 open Terror
 
+module M = struct
+  type term =
+    | T_var of { var : Index.t }
+    | T_let of { arg : term; body : term }
+    | T_lambda of { body : term }
+    | T_apply of { funct : term; arg : term }
+    | T_univ
+    | T_forall of { param : term; body : term }
+
+  let rec eval = assert false
+end
+
 let rec equal ~at lhs rhs =
   match (weak_head lhs, weak_head rhs) with
   | V_var { at = lhs; args = lhs_args }, V_var { at = rhs; args = rhs_args } ->
@@ -89,16 +101,9 @@ and coerce_try ~at term lhs rhs =
           eval lhs_env lhs_right
         in
         coerce ~at term lhs_right rhs)
-  | lhs, V_inter { left = rhs_left; env = rhs_env; right = rhs_right } ->
-      coerce ~at term lhs rhs_left;
-      let rhs_right =
-        let rhs_env = append rhs_env term in
-        eval rhs_env rhs_right
-      in
-      coerce ~at term lhs rhs_right
   | ( (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _),
-      (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _) )
-    ->
+      ( V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_inter _
+      | V_thunk _ ) ) ->
       (* TODO: this will always fail *)
       equal ~at lhs rhs
 

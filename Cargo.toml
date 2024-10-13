@@ -1,0 +1,13 @@
+[package]
+name = "teika"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+lalrpop = "0.20.2"
+
+[dependencies]
+im = "15.1.0"
+lalrpop-util = { version = "0.20.2", features = ["lexer", "unicode"] }
+logos = "0.14.0"
+typed-arena = "2.0.2"
