@@ -1,3 +1,7 @@
 open Syntax
 
-val solve_term : Ctree.term -> (Ttree.term, exn) result
+type context
+
+(* TODO: couple all the initial contexts *)
+val initial : context
+val solve_term : context -> Ctree.term -> (Ttree.term, exn) result

@@ -261,36 +261,48 @@ module Typer = struct
       check "fix"
         {|
           Never : Type;
-          Never = ((x : Never) & (P : (x : Never) -> Type) -> P(x));
+          Never = (A : Type) -> A;
 
           Unit : Type;
           unit : Unit;
 
-          Unit = ((u : Unit) & (P : (u : Unit) -> Type) -> (x : P(unit)) -> P(u));
+          Unit = (u : Unit) & (P : (u : Unit) -> Type) -> (x : P(unit)) -> P(u);
           unit = P => x => x;
 
           Bool : Type;
           true : Bool;
           false : Bool;
 
-          Bool = ((b : Bool) & (P : (b : Bool) -> Type) ->
-            (x : P(true)) -> (y : P(false)) -> P(b));
+          Bool = (b : Bool) & (P : (b : Bool) -> Type) ->
+            (x : P(true)) -> (y : P(false)) -> P(b);
           true = P => x => y => x;
           false = P => x => y => y;
-          
+          ind_bool : (b : Bool) -> (P : (b : Bool) -> Type) ->
+            (x : P(true)) -> (y : P(false)) -> P(b) = b => b;
+
           Equal : (A : Type) -> (x : A) -> (y : A) -> Type;
           refl : (A : Type) -> (x : A) -> Equal A x x;
 
-          Equal = A => x => y => ((eq : Equal A x y) &
-            (P : (z : A) -> Type) -> (v : P(x)) -> P(y));
+          Equal = A => x => y => (eq : Equal A x y) &
+            (P : (z : A) -> Type) -> (v : P(x)) -> P(y);
           refl = A => x => P => v => v;
+
+          transport : (A : Type) -> (x : A) -> (y : A) -> 
+            (H : Equal A x y) -> (P : (z : A) -> Type) -> (v : P(x)) -> P(y);
+          transport = A => x => y => H => H;
+
+          true_not_false : (H : Equal(Bool)(true)(false)) -> Never;
+          true_not_false = H => (
+            P : (b : Bool) -> Type = b => ind_bool(b)(_ => Type)(Unit)(Never);
+            transport(Bool)(true)(false)(H)(P)(unit)
+          );
+
+          id : (A : Type) -> (x : A) -> A = A => x => x;
 
           true
         |};
     ]
 
-  (* true_not_false : (H : Eq Bool true false) -> False
-     = H => H *)
   (* alcotest *)
   let test test =
     let check ~name ~annotated_term =
@@ -301,7 +313,7 @@ module Typer = struct
         | None -> failwith "failed to parse"
       in
       let ttree =
-        match Solve.solve_term ctree with
+        match Solve.(solve_term initial ctree) with
         | Ok ttree -> ttree
         | Error exn ->
             failwith
@@ -324,7 +336,7 @@ module Typer = struct
         | None -> failwith "failed to parse"
       in
       let ttree =
-        match Solve.solve_term ctree with
+        match Solve.(solve_term initial ctree) with
         | Ok ttree -> ttree
         | Error exn ->
             failwith

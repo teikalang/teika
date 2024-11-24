@@ -20,29 +20,25 @@ let enter ctx ~hoist pat =
   let next = Level.next next in
   Context { names; next }
 
-let index_offset ~from ~to_ =
-  let to_ = ((to_ : Level.t) :> int) in
-  let from = ((from : Level.t) :> int) in
-  match Index.of_int (to_ - from - 1) with
-  | Some var -> var
-  | None ->
-      (* TODO: proper errors *)
-      failwith "invariant lookup"
-
 let lookup ctx name =
   let (Context { names; next }) = ctx in
   match Name.Map.find_opt name names with
-  | Some (_is_hoist, from) -> index_offset ~from ~to_:next
+  | Some (_is_hoist, from) -> (
+      match Level.offset ~from ~to_:next with
+      | Some var -> var
+      | None -> failwith "compiler bug invalid var")
   | None -> error_unknown_var ~name
 
 let enter_or_close ctx pat =
   let (Context { names; next }) = ctx in
   let name = name_of_pat pat in
   match Name.Map.find_opt name names with
-  | Some (true, from) ->
-      let var = index_offset ~from ~to_:next in
-      let names = Name.Map.add name (false, from) names in
-      (`Fix var, Context { names; next })
+  | Some (true, from) -> (
+      match Level.offset ~from ~to_:next with
+      | Some var ->
+          let names = Name.Map.add name (false, from) names in
+          (`Fix var, Context { names; next })
+      | None -> failwith "compiler bug invalid var on fix")
   | Some (_, _) | None ->
       let names = Name.Map.add name (false, next) names in
       let next = Level.next next in
@@ -81,12 +77,12 @@ let rec solve_term ctx term =
       in
       T_forall { bound; param; body }
   | CT_both { left; right } ->
-      let bound, left = solve_infer_pat ctx left in
-      let right =
+      let bound, self = solve_infer_pat ctx left in
+      let body =
         let ctx = enter ctx ~hoist:false bound in
         solve_term ctx right
       in
-      T_inter { bound; left; right }
+      T_self { bound; self; body }
   | CT_pair _ | CT_bind _ | CT_number _ | CT_braces _ | CT_string _ ->
       error_invalid_notation ()
 
@@ -145,6 +141,8 @@ and solve_check_pat ctx pat =
   | _ -> error_invalid_notation ()
 
 (* external *)
+let solve_term ctx term = try Ok (solve_term ctx term) with exn -> Error exn
+
 let initial =
   (* TODO: duplicated from Typer *)
   let next = Level.(next zero) in
@@ -153,5 +151,3 @@ let initial =
   let type_ = Name.make "Type" in
   let names = Name.Map.(empty |> add type_ (false, Level.zero)) in
   Context { names; next }
-
-let solve_term term = try Ok (solve_term initial term) with exn -> Error exn
