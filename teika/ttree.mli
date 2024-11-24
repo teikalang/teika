@@ -18,7 +18,7 @@ type term =
   (* (P : A) -> B *)
   | T_forall of { bound : pat; param : term; body : term }
   (* (P : A) & B *)
-  | T_inter of { bound : pat; left : term; right : term }
+  | T_self of { bound : pat; self : term; body : term }
 
 and pat =
   (* (P : A) *)
@@ -38,7 +38,7 @@ type value = private
   (* types *)
   | V_univ
   | V_forall of { param : value; env : env; body : term }
-  | V_inter of { left : value; env : env; right : term }
+  | V_self of { env : env; body : term }
   (* laziness *)
   | V_thunk of { thunk : value Lazy.t }
 
