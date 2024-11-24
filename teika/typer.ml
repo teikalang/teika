@@ -56,26 +56,21 @@ let equal ~at lhs rhs =
   let rhs = strong_head rhs in
   equal ~at lhs rhs
 
+let rec inst_self term type_ =
+  match strong_head type_ with
+  | V_self { env; body } ->
+      let type_ =
+        let env = append env term in
+        eval env body
+      in
+      inst_self term type_
+  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _ ->
+      type_
+
 (* (M : LHS) :> RHS*)
 (* TODO: short circuits *)
 let rec coerce ~at term lhs rhs =
   match (weak_head lhs, weak_head rhs) with
-  | ( V_forall { param = lhs_param; env = lhs_env; body = lhs_body },
-      V_forall { param = rhs_param; env = rhs_env; body = rhs_body } ) ->
-      equal ~at lhs_param rhs_param;
-      (* TODO: eta *)
-      let skolem = skolem ~at in
-      let at = Level.next at in
-      let term = lazy_apply ~funct:term ~arg:skolem in
-      let lhs =
-        let lhs_env = append lhs_env skolem in
-        eval lhs_env lhs_body
-      in
-      let rhs =
-        let rhs_env = append rhs_env skolem in
-        eval rhs_env rhs_body
-      in
-      coerce ~at term lhs rhs
   | V_self { env = lhs_env; body = lhs_body }, rhs ->
       let lhs =
         let env = append lhs_env term in
@@ -107,6 +102,8 @@ let split_forall value =
   | V_var _ | V_forward _ | V_lambda _ | V_univ | V_self _ | V_thunk _ ->
       Format.eprintf "value: %a\n%!" pp_value (strong_head value);
       failwith "not a forall"
+
+let split_forall_with_self ~self value = split_forall @@ inst_self self value
 
 (* infer *)
 type vars = Vars of { types : value list } [@@ocaml.unboxed]
@@ -175,7 +172,10 @@ let rec infer_term ~at vars env term =
   | T_lambda { bound = _; body = _ } -> failwith "infer not supported"
   | T_apply { funct; arg } ->
       let funct_type = infer_term ~at vars env funct in
-      let param_type, body_env, body_type = split_forall funct_type in
+      let param_type, body_env, body_type =
+        let self = thunk env funct in
+        split_forall_with_self ~self funct_type
+      in
       check_term ~at vars env arg ~expected:param_type;
       let body_env =
         let thunk = thunk env arg in
