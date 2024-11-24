@@ -37,12 +37,8 @@ let term_opt :=
 let term := term_rec_pair
 
 let term_rec_pair :=
-  | term_rec_both
-  | term_pair(term_rec_pair, term_rec_both)
-
-let term_rec_both :=
   | term_semi_or_annot
-  | term_both(term_rec_both, term_semi_or_annot)
+  | term_pair(term_rec_pair, term_semi_or_annot)
 
 let term_semi_or_annot :=
   | term_rec_annot
@@ -68,6 +64,7 @@ let term_rec_funct :=
   | term_rec_apply
   | term_forall(term_rec_funct, term_rec_apply)
   | term_lambda(term_rec_funct, term_rec_apply)
+  | term_both(term_rec_funct, term_rec_apply)
 
 let term_rec_apply :=
   | term_atom

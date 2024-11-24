@@ -1,3 +1,4 @@
+open Utils
 open Ttree
 open Terror
 
@@ -24,13 +25,12 @@ let rec equal ~at lhs rhs =
       V_forall { param = rhs_param; env = rhs_env; body = rhs_body } ) ->
       equal ~at lhs_param rhs_param;
       equal_under ~at lhs_env lhs_body rhs_env rhs_body
-  | ( V_inter { left = lhs_left; env = lhs_env; right = lhs_right },
-      V_inter { left = rhs_left; env = rhs_env; right = rhs_right } ) ->
-      equal ~at lhs_left rhs_left;
-      equal_under ~at lhs_env lhs_right rhs_env rhs_right
-  | ( ( V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_inter _
+  | ( V_self { env = lhs_env; body = lhs_body },
+      V_self { env = rhs_env; body = rhs_body } ) ->
+      equal_under ~at lhs_env lhs_body rhs_env rhs_body
+  | ( ( V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_self _
       | V_thunk _ ),
-      ( V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_inter _
+      ( V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_self _
       | V_thunk _ ) ) ->
       error_type_clash ()
 
@@ -56,46 +56,33 @@ let equal ~at lhs rhs =
   let rhs = strong_head rhs in
   equal ~at lhs rhs
 
+let rec inst_self term type_ =
+  match strong_head type_ with
+  | V_self { env; body } ->
+      let type_ =
+        let env = append env term in
+        eval env body
+      in
+      inst_self term type_
+  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _ ->
+      type_
+
 (* (M : LHS) :> RHS*)
 (* TODO: short circuits *)
 let rec coerce ~at term lhs rhs =
-  (* TODO: this is super ugly *)
-  try equal ~at lhs rhs with _exn -> coerce_try ~at term lhs rhs
-
-and coerce_try ~at term lhs rhs =
   match (weak_head lhs, weak_head rhs) with
-  | ( V_forall { param = lhs_param; env = lhs_env; body = lhs_body },
-      V_forall { param = rhs_param; env = rhs_env; body = rhs_body } ) ->
-      equal ~at lhs_param rhs_param;
-      (* TODO: eta *)
-      let skolem = skolem ~at in
-      let at = Level.next at in
-      let term = lazy_apply ~funct:term ~arg:skolem in
+  | V_self { env = lhs_env; body = lhs_body }, rhs ->
       let lhs =
-        let lhs_env = append lhs_env skolem in
-        eval lhs_env lhs_body
-      in
-      let rhs =
-        let rhs_env = append rhs_env skolem in
-        eval rhs_env rhs_body
+        let env = append lhs_env term in
+        eval env lhs_body
       in
       coerce ~at term lhs rhs
-  | V_inter { left = lhs_left; env = lhs_env; right = lhs_right }, rhs -> (
-      try coerce ~at term lhs_left rhs
-      with _exn ->
-        (* TODO: properly handle this exception *)
-        let lhs_right =
-          let lhs_env = append lhs_env term in
-          eval lhs_env lhs_right
-        in
-        coerce ~at term lhs_right rhs)
-  | lhs, V_inter { left = rhs_left; env = rhs_env; right = rhs_right } ->
-      coerce ~at term lhs rhs_left;
-      let rhs_right =
-        let rhs_env = append rhs_env term in
-        eval rhs_env rhs_right
+  | lhs, V_self { env = rhs_env; body = rhs_body } ->
+      let rhs =
+        let env = append rhs_env term in
+        eval env rhs_body
       in
-      coerce ~at term lhs rhs_right
+      coerce ~at term lhs rhs
   | ( (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _),
       (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _) )
     ->
@@ -112,9 +99,11 @@ let coerce ~at term lhs rhs =
 let split_forall value =
   match strong_head value with
   | V_forall { param; env; body } -> (param, env, body)
-  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_inter _ | V_thunk _ ->
+  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_self _ | V_thunk _ ->
       Format.eprintf "value: %a\n%!" pp_value (strong_head value);
       failwith "not a forall"
+
+let split_forall_with_self ~self value = split_forall @@ inst_self self value
 
 (* infer *)
 type vars = Vars of { types : value list } [@@ocaml.unboxed]
@@ -183,7 +172,10 @@ let rec infer_term ~at vars env term =
   | T_lambda { bound = _; body = _ } -> failwith "infer not supported"
   | T_apply { funct; arg } ->
       let funct_type = infer_term ~at vars env funct in
-      let param_type, body_env, body_type = split_forall funct_type in
+      let param_type, body_env, body_type =
+        let self = thunk env funct in
+        split_forall_with_self ~self funct_type
+      in
       check_term ~at vars env arg ~expected:param_type;
       let body_env =
         let thunk = thunk env arg in
@@ -201,15 +193,15 @@ let rec infer_term ~at vars env term =
         check_term ~at vars env body ~expected:v_univ
       in
       v_univ
-  | T_inter { bound; left; right } ->
-      let left = check_annot ~at vars env left in
-      check_pat ~at vars env bound ~expected:left;
+  | T_self { bound; self; body } ->
+      let self = check_annot ~at vars env self in
+      check_pat ~at vars env bound ~expected:self;
       let () =
         let skolem = skolem ~at in
         let at = Level.next at in
-        let vars = enter vars ~type_:left in
+        let vars = enter vars ~type_:self in
         let env = append env skolem in
-        check_term ~at vars env right ~expected:v_univ
+        check_term ~at vars env body ~expected:v_univ
       in
       v_univ
 
@@ -251,14 +243,14 @@ and check_fix ~at vars env term ~alias ~expected =
       (* TODO: this eval_apply seems hackish *)
       let alias = eval_apply ~funct:alias ~arg:skolem in
       check_fix ~at vars env body ~alias ~expected:expected_body
-  | term, V_inter { left; env = expected_env; right = expected_right } ->
-      (* TODO: what if this inter is not a self *)
-      equal ~at left expected;
-      let expected =
+  | term, V_self { env = expected_env; body = expected_body } ->
+      let received =
         let env = append expected_env alias in
-        eval env expected_right
+        eval env expected_body
       in
-      check_fix ~at vars env term ~alias ~expected
+      (* TODO: this is weird *)
+      coerce ~at alias received expected;
+      check_fix ~at vars env term ~alias ~expected:received
   | term, (V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_thunk _)
     ->
       check_term ~at vars env term ~expected

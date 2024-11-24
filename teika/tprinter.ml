@@ -110,9 +110,11 @@ let rec tt_print term =
       let param = tp_print bound in
       let body = tt_print body in
       PT_forall { param; body }
-  | T_inter { bound; left = _; right } ->
-      let left = tp_print bound in
-      let right = tt_print right in
+  | T_self { bound; self; body } ->
+      (* TODO: bad *)
+      let left = tp_print @@ P_annot { pat = bound; annot = self } in
+      let right = tt_print body in
+      (* TODO: self *)
       PT_inter { left; right }
 (* | TT_string { literal } -> PT_string { literal } *)
 

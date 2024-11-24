@@ -18,7 +18,7 @@ type term =
   (* (P : A) -> B *)
   | T_forall of { bound : pat; param : term; body : term }
   (* (P : A) & B *)
-  | T_inter of { bound : pat; left : term; right : term }
+  | T_self of { bound : pat; self : term; body : term }
 
 and pat =
   (* (P : A) *)
@@ -35,7 +35,7 @@ type value =
   | V_lambda of { env : env; [@opaque] body : term }
   | V_univ
   | V_forall of { param : value; env : env; [@opaque] body : term }
-  | V_inter of { left : value; env : env; [@opaque] right : term }
+  | V_self of { env : env; [@opaque] body : term }
   | V_thunk of { thunk : value Lazy.t }
 
 and env = Env of { values : value list } [@@ocaml.unboxed]
@@ -80,7 +80,7 @@ let fix env var ~arg =
       let (Forward forward) = forward in
       forward.value <- arg;
       forward.init <- true
-  | V_forward _ | V_var _ | V_lambda _ | V_univ | V_forall _ | V_inter _
+  | V_forward _ | V_var _ | V_lambda _ | V_univ | V_forall _ | V_self _
   | V_thunk _ ->
       failwith "invalid fix"
 
@@ -108,9 +108,7 @@ let rec eval env term =
   | T_forall { bound = _; param; body } ->
       let param = thunk env param in
       V_forall { param; env; body }
-  | T_inter { bound = _; left; right } ->
-      let left = thunk env left in
-      V_inter { left; env; right }
+  | T_self { bound = _; self = _; body } -> V_self { env; body }
 
 and eval_apply ~funct ~arg =
   match weak_head funct with
@@ -123,13 +121,13 @@ and eval_apply ~funct ~arg =
   | V_forward { forward; args } ->
       let args = arg :: args in
       V_forward { forward; args }
-  | V_univ | V_forall _ | V_inter _ | V_thunk _ ->
+  | V_univ | V_forall _ | V_self _ | V_thunk _ ->
       failwith "should be unrecheable"
 
 and weak_head initial =
   match initial with
   | V_thunk { thunk } -> Lazy.force thunk
-  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_inter _ ->
+  | V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_self _ ->
       initial
 
 and strong_head initial =
@@ -146,7 +144,7 @@ and strong_head initial =
           @@ List.fold_right
                (fun arg funct -> eval_apply ~funct ~arg)
                args value)
-  | V_var _ | V_lambda _ | V_univ | V_forall _ | V_inter _ -> initial
+  | V_var _ | V_lambda _ | V_univ | V_forall _ | V_self _ -> initial
 
 and thunk env term =
   let thunk = lazy (eval env term) in
