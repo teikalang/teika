@@ -64,3 +64,4 @@ val eval_apply : funct:value -> arg:value -> value
 val weak_head : value -> value
 val strong_head : value -> value
 val lazy_apply : funct:value -> arg:value -> value
+val eta_lambda : skolem:value -> value -> value

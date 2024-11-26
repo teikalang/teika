@@ -24,6 +24,7 @@ and pat =
   (* (P : A) *)
   | P_annot of { pat : pat; annot : term }
   (* x *)
+  (* TODO: drop names and uses receipts *)
   | P_var of { var : Name.t }
 [@@deriving show { with_path = false }]
 
@@ -153,3 +154,18 @@ and thunk env term =
 let lazy_apply ~funct ~arg =
   let thunk = lazy (eval_apply ~funct ~arg) in
   V_thunk { thunk }
+
+let eta_lambda ~skolem lambda =
+  (* TODO: this will do eta *)
+  match weak_head lambda with
+  | V_lambda { env; body } ->
+      let env = append env skolem in
+      eval env body
+  | V_var { at; args } ->
+      let args = skolem :: args in
+      V_var { at; args }
+  | V_forward { forward; args } ->
+      let args = skolem :: args in
+      V_forward { forward; args }
+  | V_univ | V_forall _ | V_self _ | V_thunk _ ->
+      failwith "not a lambda during eta"
