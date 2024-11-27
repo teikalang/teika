@@ -268,6 +268,8 @@ module Typer = struct
 
           Unit = (u : Unit) & (P : (u : Unit) -> Type) -> (x : P(unit)) -> P(u);
           unit = P => x => x;
+          ind_unit : (u : Unit) -> (P : (u : Unit) -> Type) ->
+            (x : P(unit)) -> P(u) = u => u;
 
           Bool : Type;
           true : Bool;
@@ -297,7 +299,9 @@ module Typer = struct
             transport(Bool)(true)(false)(H)(P)(unit)
           );
 
-          id : (A : Type) -> (x : A) -> A = A => x => x;
+          id : (A : Type) -> (x : A) -> A = (
+            (A : Type) => (x : A) => x
+          );
 
           true
         |};
