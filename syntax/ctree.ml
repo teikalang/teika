@@ -16,7 +16,7 @@ and term_syntax =
   | CT_semi of { left : term; right : term }
   | CT_annot of { value : term; annot : term }
   | CT_string of { literal : string }
-  | CT_number of { literal : int }
+  | CT_number of { literal : Z.t [@printer Z.pp_print] }
   | CT_parens of { content : term }
   | CT_braces of { content : term }
 [@@deriving show { with_path = false }]
