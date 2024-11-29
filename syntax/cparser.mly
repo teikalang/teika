@@ -15,7 +15,7 @@ let mk (loc_start, loc_end) =
 %token AMPERSAND (* & *)
 %token SEMICOLON (* ; *)
 %token <string> STRING (* "abc" *)
-%token <int> NUMBER (* 123 *)
+%token <Z.t> NUMBER (* 123 *)
 %token LEFT_PARENS (* ( *)
 %token RIGHT_PARENS (* ) *)
 %token LEFT_BRACE (* { *)

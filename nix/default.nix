@@ -25,6 +25,7 @@ with ocamlPackages; buildDunePackage rec {
     eio
     eio_main
     ppx_sexp_conv
+    zarith
   ]
   # checkInputs are here because when cross compiling dune needs test dependencies
   # but they are not available for the build phase. The issue can be seen by adding strictDeps = true;.

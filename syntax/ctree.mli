@@ -14,7 +14,7 @@ and term_syntax =
   | CT_semi of { left : term; right : term }
   | CT_annot of { value : term; annot : term }
   | CT_string of { literal : string }
-  | CT_number of { literal : int }
+  | CT_number of { literal : Z.t }
   | CT_parens of { content : term }
   | CT_braces of { content : term }
 [@@deriving show]
@@ -30,6 +30,6 @@ val ct_bind : Location.t -> bound:term -> value:term -> term
 val ct_semi : Location.t -> left:term -> right:term -> term
 val ct_annot : Location.t -> value:term -> annot:term -> term
 val ct_string : Location.t -> literal:string -> term
-val ct_number : Location.t -> literal:int -> term
+val ct_number : Location.t -> literal:Z.t -> term
 val ct_parens : Location.t -> content:term -> term
 val ct_braces : Location.t -> content:term -> term
