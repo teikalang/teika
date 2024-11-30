@@ -8,7 +8,7 @@
 
 (menhir
  (modules cparser)
- (flags --dump --explain))
+ (flags --dump --explain --table))
 
 (executable
  (name test)
