@@ -12,7 +12,7 @@
       let pkgs = (nixpkgs.makePkgs {
         inherit system;
       }).extend (self: super: {
-        ocamlPackages = super.ocaml-ng.ocamlPackages_5_2;
+        ocamlPackages = super.ocaml-ng.ocamlPackages_5_3;
       }); in
       let teika = pkgs.callPackage ./nix {
         inherit nix-filter;
