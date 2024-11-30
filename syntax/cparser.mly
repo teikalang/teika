@@ -25,7 +25,6 @@ let mk (loc_start, loc_end) =
 %token EOF
 
 %start <Ctree.term option> term_opt
-
 %%
 
 let term_opt :=
@@ -78,12 +77,6 @@ let term_atom :=
   | term_parens(term)
   | term_braces(term)
 
-let term_var ==
-  | var = VAR;
-    { ct_var (mk $loc) ~var:(Name.make var) }
-let term_extension ==
-  | extension = EXTENSION;
-    { ct_extension (mk $loc) ~extension:(Name.make extension) }
 let term_forall(self, lower) ==
   | param = lower; ARROW; body = self;
     { ct_forall (mk $loc) ~param ~body }
@@ -108,6 +101,12 @@ let term_semi(self, lower) ==
 let term_annot(self, lower) ==
   | value = lower; COLON; annot = self;
     { ct_annot (mk $loc) ~value ~annot }
+let term_var ==
+  | var = VAR;
+    { ct_var (mk $loc) ~var:(Name.make var) }
+let term_extension ==
+  | extension = EXTENSION;
+    { ct_extension (mk $loc) ~extension:(Name.make extension) }
 let term_string ==
   | literal = STRING;
     { ct_string (mk $loc) ~literal }
