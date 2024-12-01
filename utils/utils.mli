@@ -11,9 +11,14 @@ module Level : sig
   type level = private int
   type t = level [@@deriving show, eq]
 
+  val min : level -> level -> level
+  val max : level -> level -> level
   val zero : level
   val next : level -> level
+  val init : level -> (level -> 'a) -> 'a list
   val offset : from:level -> to_:level -> Index.t option
+
+  module Map : Map.S with type key = level
 end
 
 module Name : sig

@@ -7,6 +7,9 @@ let on_request (type response) context _channel
   (* TODO: use channel? *)
   match request with
   | Initialize params -> Server_life_cycle.initialize context ~params
+  | TextDocumentHover params ->
+      (* TODO: this should never crash the lsp *)
+      Hover.hover context ~params
   | _request ->
       (* TODO: print which requests are not supported *)
       fail Error_unsupported_request
@@ -43,7 +46,11 @@ let on_notification context channel notification =
       (* TODO: log *)
       (* TODO: server can send some notifications during handshake *)
       fail Error_notification_before_initialize
-  | Running -> on_notification context channel notification
+  | Running ->
+      let notifications = on_notification context channel notification in
+      List.iter
+        (fun notification -> Lsp_channel.notify channel notification)
+        notifications
 
 let on_notification_error _context channel error =
   let open Lsp.Types in

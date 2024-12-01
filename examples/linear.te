@@ -1,0 +1,9 @@
+
+
+
+Id = (A : Type) -> (x : A) -> A;
+id : Id = A => (x :) => x;
+id
+
+
+

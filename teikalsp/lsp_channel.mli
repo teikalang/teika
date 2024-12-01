@@ -15,8 +15,8 @@ type on_request = {
 
 (* TODO: request*)
 val listen :
-  input:#Eio.Flow.source ->
-  output:#Eio.Flow.sink ->
+  input:_ Eio.Flow.source ->
+  output:_ Eio.Flow.sink ->
   on_request:on_request ->
   on_notification:(channel -> Lsp.Client_notification.t -> unit) ->
   unit

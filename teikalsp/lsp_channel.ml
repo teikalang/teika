@@ -45,13 +45,13 @@ module Chan : sig
   type output
 
   (* eio *)
-  val of_source : #Eio.Flow.source -> input
-  val with_sink : #Eio.Flow.sink -> (output -> 'a) -> 'a
+  val of_source : _ Eio.Flow.source -> input
+  val with_sink : _ Eio.Flow.sink -> (output -> 'a) -> 'a
 
   (* lsp *)
   val read_line : input -> string option Io.t
   val read_exactly : input -> int -> string option Io.t
-  val write : output -> string -> unit Io.t
+  val write : output -> string list -> unit Io.t
 end = struct
   type input = Input of { mutex : Eio.Mutex.t; buf : Eio.Buf_read.t }
   type output = Output of { mutex : Eio.Mutex.t; buf : Eio.Buf_write.t }
@@ -87,11 +87,19 @@ end = struct
     | true -> Ok None
     | false -> Ok (Some (Eio.Buf_read.take size buf))
 
-  let write output str =
+  let write_single output str =
     let (Output { mutex; buf }) = output in
     Io.async @@ fun ~sw:_ ->
     Eio.Mutex.use_rw ~protect:true mutex @@ fun () ->
     Ok (Eio.Buf_write.string buf str)
+
+  let rec write output str_l =
+    let open Io.O in
+    match str_l with
+    | [] -> Io.return ()
+    | str :: str_l ->
+        let* () = write_single output str in
+        write output str_l
 end
 
 module Lsp_io = Lsp.Io.Make (Io) (Chan)

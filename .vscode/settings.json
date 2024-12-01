@@ -1,0 +1,10 @@
+{
+  "ocaml.sandbox": {
+    "kind": "global"
+  },
+  "teika.server.path": "/home/eduardo/teika/_build/default/src/teikalsp/teikalsp.exe",
+  "teika.trace.server": "messages",
+  "ocaml.server.duneDiagnostics": false,
+  "ocaml.server.codelens": true,
+  "ocaml.server.inlay_hints ": false
+}

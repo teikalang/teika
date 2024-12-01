@@ -4,13 +4,23 @@ open Ctree
 open Ttree
 open Terror
 
+exception Solve_error of { loc : Location.t; exn : exn }
+
 (* TODO: context vs env *)
 type context =
   | Context of { names : (bool * Level.t) Name.Map.t; next : Level.t }
 
-let rec name_of_pat pat =
+let with_loc ~loc f =
+  try f () with
+  | Solve_error { loc; exn } ->
+      (* TODO: reraise *)
+      raise @@ Solve_error { loc; exn }
+  | exn -> raise @@ Solve_error { loc; exn }
+
+let name_of_pat pat =
+  let (Pat { struct_ = pat; annot = _; loc = _ }) = pat in
   match pat with
-  | P_annot { pat; annot = _ } -> name_of_pat pat
+  (* | P_annot { pat; annot = _ } -> name_of_pat pat *)
   | P_var { var } -> var
 
 let enter ctx ~hoist pat =
@@ -45,99 +55,104 @@ let enter_or_close ctx pat =
       (`Let, Context { names; next })
 
 let rec solve_term ctx term =
-  (* TODO: use this location *)
-  let (CTerm { term; loc = _ }) = term in
+  let (CTerm { term; loc }) = term in
+  with_loc ~loc @@ fun () ->
   match term with
   | CT_parens { content = term } -> solve_term ctx term
   | CT_annot { value = term; annot } ->
       let annot = solve_term ctx annot in
       let term = solve_term ctx term in
-      T_annot { term; annot }
+      t_wrap ~loc @@ T_annot { term; annot }
   | CT_var { var = name } ->
       let var = lookup ctx name in
-      T_var { var }
-  | CT_semi { left; right } -> solve_semi ctx ~left ~right
+      t_wrap ~loc @@ T_var { var }
+  | CT_semi { left; right } -> solve_semi ctx ~loc ~left ~right
   | CT_extension _ -> error_extensions_not_implemented ()
   | CT_apply { funct; arg } ->
       let funct = solve_term ctx funct in
       let arg = solve_term ctx arg in
-      T_apply { funct; arg }
+      t_wrap ~loc @@ T_apply { funct; arg }
   | CT_lambda { param; body } ->
-      let bound = solve_check_pat ctx param in
+      let param = solve_pat ctx param in
       let body =
-        let ctx = enter ctx ~hoist:false bound in
+        let ctx = enter ctx ~hoist:false param in
         solve_term ctx body
       in
-      T_lambda { bound; body }
+      t_wrap ~loc @@ T_lambda { param; body }
   | CT_forall { param; body } ->
-      let bound, param = solve_infer_pat ctx param in
+      let param = solve_pat ctx param in
       let body =
-        let ctx = enter ctx ~hoist:false bound in
+        let ctx = enter ctx ~hoist:false param in
         solve_term ctx body
       in
-      T_forall { bound; param; body }
+      t_wrap ~loc @@ T_forall { param; body }
   | CT_both { left; right } ->
-      let bound, self = solve_infer_pat ctx left in
+      let self = solve_pat ctx left in
       let body =
-        let ctx = enter ctx ~hoist:false bound in
+        let ctx = enter ctx ~hoist:false self in
         solve_term ctx right
       in
-      T_self { bound; self; body }
+      t_wrap ~loc @@ T_self { self; body }
   | CT_pair _ | CT_bind _ | CT_number _ | CT_braces _ | CT_string _ ->
       error_invalid_notation ()
 
-and solve_semi ctx ~left ~right =
-  let (CTerm { term = left; loc = _ }) = left in
-  match left with
-  | CT_parens { content = left } -> solve_semi ctx ~left ~right
+and solve_semi ctx ~loc ~left ~right =
+  (* TODO: this is a lookahead *)
+  match
+    let (CTerm { term = left; loc = _ }) = left in
+    (* TODO: with loc here? *)
+    left
+  with
   | CT_bind { bound; value } -> (
-      let bound = solve_check_pat ctx bound in
+      let bound = solve_pat ctx bound in
       let arg = solve_term ctx value in
       let tag, body =
         let tag, ctx = enter_or_close ctx bound in
         (tag, solve_term ctx right)
       in
       match tag with
-      | `Let -> T_let { bound; arg; body }
-      | `Fix var -> T_fix { bound; var; arg; body })
-  | CT_annot { value; annot } ->
-      let bound = solve_check_pat ctx value in
-      let annot = solve_term ctx annot in
+      | `Let -> t_wrap ~loc @@ T_let { bound; arg; body }
+      | `Fix var -> t_wrap ~loc @@ T_fix { bound; var; arg; body })
+  | CT_annot { value = _; annot = _ } ->
+      let bound = solve_pat ctx left in
       let body =
         let ctx = enter ctx ~hoist:true bound in
         solve_term ctx right
       in
-      T_hoist { bound; annot; body }
-  | CT_var _ | CT_extension _ | CT_forall _ | CT_lambda _ | CT_apply _
-  | CT_pair _ | CT_both _ | CT_semi _ | CT_string _ | CT_number _ | CT_braces _
-    ->
+      t_wrap ~loc @@ T_hoist { bound; body }
+  | CT_parens _ | CT_var _ | CT_extension _ | CT_forall _ | CT_lambda _
+  | CT_apply _ | CT_pair _ | CT_both _ | CT_semi _ | CT_string _ | CT_number _
+  | CT_braces _ ->
       error_invalid_notation ()
 
-and solve_infer_pat ctx pat =
+and solve_pat ctx pat =
   (* TODO: duplicated *)
   (* TODO: to_ here *)
-  (* TODO: use this location *)
-  let (CTerm { term = pat; loc = _ }) = pat in
+  let (CTerm { term = pat; loc }) = pat in
+  with_loc ~loc @@ fun () ->
   match pat with
-  | CT_parens { content = pat } -> solve_infer_pat ctx pat
-  | CT_var { var = _ } -> error_missing_annotation ()
+  | CT_parens { content = pat } -> solve_pat ctx pat
+  | CT_var { var } ->
+      (* TODO: this sounds bad *)
+      let annot = t_null in
+      p_wrap ~loc ~annot @@ P_var { var }
   | CT_annot { value = pat; annot } ->
       let annot = solve_term ctx annot in
-      let pat = solve_check_pat ctx pat in
-      (P_annot { pat; annot }, annot)
+      (* TODO: P_annot is lost, but otherwise it would duplicate annots *)
+      solve_check_pat ctx pat ~annot
   | _ -> error_invalid_notation ()
 
-and solve_check_pat ctx pat =
-  (* TODO: to_ here *)
-  (* TODO: use this location *)
-  let (CTerm { term = pat; loc = _ }) = pat in
+and solve_check_pat ctx pat ~annot =
+  let (CTerm { term = pat; loc }) = pat in
+  with_loc ~loc @@ fun () ->
   match pat with
-  | CT_parens { content = pat } -> solve_check_pat ctx pat
-  | CT_var { var } -> P_var { var }
+  | CT_parens { content = pat } -> solve_check_pat ctx pat ~annot
+  | CT_var { var } -> p_wrap ~loc ~annot @@ P_var { var }
   | CT_annot { value = pat; annot } ->
       let annot = solve_term ctx annot in
-      let pat = solve_check_pat ctx pat in
-      P_annot { pat; annot }
+      solve_check_pat ctx pat ~annot
+      (* TODO: recover P_annot on the tree *)
+      (* p_wrap ~loc ~annot @@ P_annot { pat; annot } *)
   | _ -> error_invalid_notation ()
 
 (* external *)

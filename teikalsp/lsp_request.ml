@@ -2,6 +2,7 @@ open Lsp.Types
 open Lsp_context
 open Lsp_error
 
+(* TODO: Server_lifecycle? *)
 module Server_life_cycle = struct
   let initialize context ~params =
     let () =
@@ -36,4 +37,15 @@ module Server_life_cycle = struct
     in
     (* TODO: server_info *)
     InitializeResult.create ~capabilities ()
+end
+
+module Hover = struct
+  let hover _context ~params =
+    let HoverParams.{ position = _; textDocument = { uri }; workDoneToken } =
+      params
+    in
+    assert (Option.is_none workDoneToken);
+    let contents = Format.asprintf "%s : Tuturu" @@ DocumentUri.to_string uri in
+    let contents = MarkedString.{ value = contents; language = None } in
+    Some (Hover.create ~contents:(`MarkedString contents) ())
 end

@@ -10,12 +10,13 @@ val status : context -> status
 val initialize : context -> unit
 
 (* documents *)
+val find_document : context -> DocumentUri.t -> Lsp_text_document.t
 val open_text_document : context -> DocumentUri.t -> Lsp_text_document.t -> unit
 
 val change_text_document :
   context ->
   DocumentUri.t ->
   (Lsp_text_document.t -> Lsp_text_document.t) ->
-  unit
+  Lsp_text_document.t
 
 val close_text_document : context -> DocumentUri.t -> unit

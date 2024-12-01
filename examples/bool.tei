@@ -1,0 +1,20 @@
+#mod(name = Bool; version = 1);
+%sig({
+  Bool : Data;
+  true : Bool;
+  false : Bool;
+  ind : <P>(b : Bool, t : P(true), f : P(false)) -> P(b);
+
+  not : (b : Bool) -> Bool;
+  and : (l : Bool, r : Bool) -> Bool;
+  xor : (l : Bool, r : Bool) -> Bool;
+});
+
+Bool = (b : Bool) & <P>(t : P(true), f : P(false)) -> P(b);
+true = <P>(t, f) => t;
+false = <P>(t, f) => f;
+ind = <P>(b : Bool, t, f) => b<P>(t, f);
+
+not = (b) => ind(b, false, true);
+and = (l, r) => ind(l, r, false);
+xor = (l, r) => ind(l, not(r), r);

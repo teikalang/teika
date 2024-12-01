@@ -2,315 +2,201 @@ open Utils
 open Ttree
 open Terror
 
-module Value : sig
-  (* TODO: write docs for this *)
-  type value
-
-  and value_struct =
-    (* inference *)
-    | V_hole of { hole : hole }
-    (* equality *)
-    | V_var of { at : Level.t; args : value list }
-    (* loops *)
-    | V_forward of { forward : forward; args : value list }
-    (* functions *)
-    | V_lambda of { env : env; body : term }
-    (* types *)
-    | V_univ
-    | V_forall of { param : value; env : env; body : term }
-    | V_self of { env : env; body : term }
-    (* laziness *)
-    | V_thunk of { thunk : value Lazy.t }
-
-  and env
-
-  (* TODO: exposing this is clearly bad *)
-  and hole = { mutable level : Level.t; mutable link : value }
-
-  (* TODO: not ideal to expose this either *)
-  and forward = { mutable inner : value } [@@deriving show]
-
-  val struct_ : value -> value_struct
-  val same_value : value -> value -> bool
-  val same_hole : hole -> hole -> bool
-  val same_forward : forward -> forward -> bool
-  val fix : env -> Index.index -> arg:value -> unit
-  val empty : env
-  val v_null : value
-  val v_univ : value
-  val v_hole : at:Level.t -> unit -> value
-  val v_forward : unit -> value
-  val skolem : at:Level.t -> value
-  val access : env -> Index.t -> value
-  val append : env -> value -> env
-  val thunk : env -> term -> value
-  val eval : env -> term -> value
-  val eval_apply : funct:value -> arg:value -> value
-  val weak_head : value -> value
-  val strong_head : value -> value
-  val link : hole -> to_:value -> unit
-  val link_hole : hole -> to_:hole -> unit
-end = struct
-  (* TODO: write docs for this *)
-  (* TODO: non dependent version of this *)
-  type value = value_struct
-
-  and value_struct =
-    | V_hole of { hole : hole }
-    | V_var of { at : Level.t; args : value list }
-    | V_forward of { forward : forward; args : value list }
-    | V_lambda of { env : env; [@opaque] body : term }
-    | V_univ
-    | V_forall of { param : value; env : env; [@opaque] body : term }
-    | V_self of { env : env; [@opaque] body : term }
-    | V_thunk of { thunk : value Lazy.t }
-
-  and env = Env of { values : value list } [@@ocaml.unboxed]
-  and hole = { mutable level : Level.t; mutable link : value }
-
-  and forward = { mutable inner : value [@opaque] }
-  [@@deriving show { with_path = false }]
-
-  let same_value (left : value) (right : value) = left == right
-  let same_hole (left : hole) (right : hole) = left == right
-  let same_forward (left : forward) (right : forward) = left == right
-  let v_null = V_var { at = Level.zero; args = [] }
-  let is_null value = same_value value v_null
-
-  let rec repr value =
-    match value with
-    | V_hole { hole } when not (is_null hole.link) -> repr hole.link
-    | V_hole _ | V_forward _ | V_var _ | V_lambda _ | V_univ | V_forall _
-    | V_self _ | V_thunk _ ->
-        value
-
-  let repr value =
-    match value with
-    | V_hole { hole } when not (is_null hole.link) ->
-        (* path compression *)
-        let value = repr hole.link in
-        hole.link <- value;
-        value
-    | V_hole _ | V_forward _ | V_var _ | V_lambda _ | V_univ | V_forall _
-    | V_self _ | V_thunk _ ->
-        value
-
-  let link hole ~to_ =
-    (* TODO: better error here *)
-    (match is_null hole.link with
-    | true -> ()
-    | false -> failwith "linked twice");
-    hole.link <- to_
-
-  let link_hole hole ~to_ =
-    let to_ = V_hole { hole = to_ } in
-    link hole ~to_
-
-  let struct_ value = repr value
-
-  (* TODO: ideally env should be somewhere else *)
-  let empty = Env { values = [] }
-  let v_univ = V_univ
-
-  let v_hole ~at () =
-    let hole = { level = at; link = v_null } in
-    V_hole { hole }
-
-  let v_forward () =
-    let forward = { inner = v_null } in
-    V_forward { forward; args = [] }
-
-  let skolem ~at = V_var { at; args = [] }
-
-  let access env var =
-    let rec access values var =
-      match (values, var) with
-      | value :: _values, 0 -> value
-      | _value :: values, var -> access values (var - 1)
-      | [], _var -> failwith "invalid access"
-    in
-    let (Env { values }) = env in
-    let var = ((var : Index.t) :> int) in
-    access values var
-
-  let append env value =
-    let (Env { values }) = env in
-    let values = value :: values in
-    Env { values }
-
-  let fix env var ~arg =
-    match access env var with
-    | V_forward { forward; args = [] } -> forward.inner <- arg
-    | V_forward _ | V_hole _ | V_var _ | V_lambda _ | V_univ | V_forall _
-    | V_self _ | V_thunk _ ->
-        failwith "invalid fix"
-
+module Eval = struct
   let rec eval env term =
+    let (Term { struct_ = term; loc = _ }) = term in
     match term with
+    | T_hole { hole } -> weak_force hole
     | T_annot { term; annot = _ } -> eval env term
-    | T_var { var } -> weak_head @@ access env var
-    | T_hoist { bound = _; annot = _; body } ->
-        let arg = v_forward () in
+    | T_var { var } -> weak_force @@ access env var
+    | T_hoist { bound = _; body } ->
+        let arg = fresh_v_forward () in
         let env = append env arg in
         eval env body
     | T_fix { bound = _; var; arg; body } ->
-        let arg = thunk env arg in
-        fix env var ~arg;
+        let arg = eval env arg in
+        let forward = access env var in
+        init_forward forward ~to_:arg;
         eval env body
     | T_let { bound = _; arg; body } ->
-        let arg = thunk env arg in
+        let arg = eval env arg in
         let env = append env arg in
         eval env body
     | T_apply { funct; arg } ->
         let funct = eval env funct in
-        let arg = thunk env arg in
+        let arg = eval env arg in
         eval_apply ~funct ~arg
-    | T_lambda { bound = _; body } -> V_lambda { env; body }
-    | T_forall { bound = _; param; body } ->
-        let param = thunk env param in
-        V_forall { param; env; body }
-    | T_self { bound = _; self = _; body } -> V_self { env; body }
+    | T_lambda { param; body } ->
+        let param = eval_pat env param in
+        v_lambda ~param ~env ~body
+    | T_forall { param; body } ->
+        let param = eval_pat env param in
+        v_forall ~param ~env ~body
+    | T_self { self; body } ->
+        let self = eval_pat env self in
+        v_self ~self ~env ~body
+
+  and eval_pat env bound =
+    let (Pat { struct_ = pat; annot; loc = _ }) = bound in
+    match pat with
+    (* | P_annot { pat; annot = _ } -> eval_pat env pat *)
+    | P_var { var } ->
+        let type_ = eval env annot in
+        VPat { name = var; type_ }
+
+  and with_pat env bound ~arg =
+    let (VPat { name = _; type_ = _ }) = bound in
+    (* TODO: name and maybe type here? *)
+    append env arg
 
   and eval_apply ~funct ~arg =
     (* TODO: this is super hackish *)
-    let funct = weak_head funct in
-    match funct with
-    | V_lambda { env; body } ->
-        let env = append env arg in
+    let funct = repr funct in
+    match struct_ funct with
+    | V_lambda { param; env; body } ->
+        let env = with_pat env param ~arg in
         eval env body
-    | V_hole { hole = _ } -> failwith "not implemented hole apply"
-    | V_var { at; args } ->
-        let args = arg :: args in
-        V_var { at; args }
-    | V_forward { forward; args } ->
-        let args = arg :: args in
-        V_forward { forward; args }
-    | V_univ | V_forall _ | V_self _ | V_thunk _ ->
-        failwith "should be unrecheable"
+    | V_var _ | V_forward _ | V_apply _ -> v_apply ~funct ~arg
+    | V_hole | V_univ | V_forall _ | V_self _ ->
+        failwith "eval_apply: type clash"
+    | V_link _ | V_thunk _ -> failwith "eval_apply: unreacheable"
 
-  and weak_head initial =
-    let initial = repr initial in
-    match initial with
-    | V_thunk { thunk } -> Lazy.force thunk
-    | V_var _ | V_hole _ | V_forward _ | V_lambda _ | V_univ | V_forall _
-    | V_self _ ->
-        initial
+  and weak_force value =
+    (* TODO: forcing every time removes some short circuits *)
+    let value = repr value in
+    match struct_ value with
+    | V_thunk { env; term } ->
+        (* TODO: detect recursive force? *)
+        let final = eval env term in
+        thunk_link value ~to_:final;
+        final
+    | V_hole | V_var _ | V_forward _ | V_apply _ | V_lambda _ | V_univ
+    | V_forall _ | V_self _ | V_link _ ->
+        value
 
-  and strong_head initial =
-    let initial = weak_head initial in
-    match initial with
-    | V_thunk { thunk } -> strong_head @@ Lazy.force thunk
-    | V_forward { forward; args } -> (
-        let { inner } = forward in
-        match is_null inner with
-        | true -> initial
-        | false ->
-            (* TODO: head_and_fix? *)
-            strong_head
-            @@ List.fold_right
-                 (fun arg funct -> eval_apply ~funct ~arg)
-                 args inner)
-    | V_hole _ | V_var _ | V_lambda _ | V_univ | V_forall _ | V_self _ ->
-        initial
-
-  and thunk env term =
-    let thunk = lazy (eval env term) in
-    V_thunk { thunk }
+  let rec strong_force value =
+    (* TODO: forcing every time removes some short circuits *)
+    let value = weak_force value in
+    match struct_ value with
+    | V_forward { inner } -> (
+        (* TODO: detect recursive force? *)
+        (* TODO: this is not ideal *)
+        match same inner v_null with
+        | true -> value
+        | false -> strong_force inner)
+    | V_apply { funct; arg } ->
+        (* TODO: avoid unneeded allocation when funct doesn't change *)
+        let funct = strong_force funct in
+        (* TODO: strong force on return of apply? *)
+        eval_apply ~funct ~arg
+    | V_hole | V_var _ | V_lambda _ | V_univ | V_forall _ | V_self _ | V_link _
+    | V_thunk _ ->
+        value
 end
 
-module Machinery = struct
-  open Value
+module Unify = struct
+  open Eval
 
-  let rec unify_check ~hole ~max_level in_ =
+  let rec unify_check ~at ~hole in_ =
+    (* TODO: short circuit on level *)
+    (* TODO: color to avoid size explosion *)
+    let in_ = weak_force in_ in
     match struct_ in_ with
-    | V_hole { hole = in_ } -> (
-        match same_hole hole in_ with
+    | V_hole -> (
+        match same hole in_ with
         | true -> failwith "occurs check"
-        | false ->
-            (* TODO: is this lowering correct? *)
-            in_.level <- Level.min in_.level max_level)
-    | V_var { at; args } ->
+        | false -> hole_lower in_ ~to_:at)
+    | V_var { name = _ } -> (
         (* TODO: poly comparison *)
-        (match at >= max_level with
+        match level in_ >= at with
         | true -> failwith "escape check"
-        | false -> ());
-        List.iter (fun in_ -> unify_check ~hole ~max_level in_) args
-    | V_forward { forward; args } ->
-        (* TODO: forward level *)
-        (* TODO: this is not perfect, it will give false positives *)
-        (* TODO: this is super hackish *)
-        let { inner } = forward in
-        forward.inner <- v_null;
-        unify_check ~hole ~max_level inner;
-        (* TODO: undo on exception *)
-        forward.inner <- inner;
-        List.iter (fun in_ -> unify_check ~hole ~max_level in_) args
+        | false -> ())
+    | V_forward { inner } ->
+        lock_forward in_ @@ fun () -> unify_check ~at ~hole inner
+    | V_apply { funct; arg } ->
+        unify_check ~at ~hole funct;
+        unify_check ~at ~hole arg
     | V_univ -> ()
-    | V_lambda { env; body } -> unify_check_under ~hole ~max_level env body
+    | V_lambda { param = _; env; body } -> unify_check_under ~at ~hole env body
     | V_forall { param; env; body } ->
-        unify_check ~hole ~max_level param;
-        unify_check_under ~hole ~max_level env body
-    | V_self { env; body } -> unify_check_under ~hole ~max_level env body
-    | V_thunk { thunk } -> unify_check ~hole ~max_level @@ Lazy.force thunk
+        unify_check_pat ~at ~hole param;
+        unify_check_under ~at ~hole env body
+    | V_self { self; env = _; body = _ } ->
+        (* TODO: is check on both sides needed? *)
+        unify_check_pat ~at ~hole self
+    | V_thunk _ | V_link _ -> failwith "unify_check: unreacheable"
 
-  and unify_check_under ~hole ~max_level env body =
+  and unify_check_pat ~at ~hole in_ =
+    let (VPat { name = _; type_ }) = in_ in
+    unify_check ~at ~hole type_
+
+  and unify_check_under ~at ~hole env body =
+    (* TODO: fill this *)
+    let name = Name.make "**unify_check_under**" in
+    let skolem = v_var ~at ~name in
+    let at = Level.next at in
     let body =
-      let skolem = skolem ~at:max_level in
       let env = append env skolem in
       eval env body
     in
-    let max_level = Level.next max_level in
-    unify_check ~hole ~max_level body
+    unify_check ~at ~hole body
+
+  let unify_hole ~at ~hole ~to_ =
+    match same hole to_ with
+    | true -> ()
+    | false ->
+        unify_check ~at ~hole to_;
+        hole_link hole ~to_
 
   let rec unify ~at lhs rhs =
-    let lhs = weak_head lhs in
-    let rhs = weak_head rhs in
-    match same_value lhs rhs with
-    | true -> ()
-    | false -> unify_struct ~at lhs rhs
+    (* TODO: do repr shortcircuit first *)
+    let lhs = weak_force lhs in
+    let rhs = weak_force rhs in
+    match same lhs rhs with true -> () | false -> unify_struct ~at lhs rhs
 
   and unify_struct ~at lhs rhs =
-    match (struct_ @@ lhs, struct_ @@ rhs) with
-    | V_hole { hole }, _ -> unify_hole ~hole rhs
-    | _, V_hole { hole } -> unify_hole ~hole lhs
-    | V_var { at = lhs; args = lhs_args }, V_var { at = rhs; args = rhs_args }
-      ->
-        (match Level.equal lhs rhs with
-        | true -> ()
-        | false -> failwith "var clash");
-        unify_args ~at lhs_args rhs_args
-    | ( V_forward { forward = lhs; args = lhs_args },
-        V_forward { forward = rhs; args = rhs_args } ) ->
-        (match same_forward lhs rhs with
-        | true -> ()
+    match (struct_ lhs, struct_ rhs) with
+    | V_hole, _ -> unify_hole ~at ~hole:lhs ~to_:rhs
+    | _, V_hole -> unify_hole ~at ~hole:rhs ~to_:lhs
+    | V_var { name = _ }, V_var { name = _ } -> failwith "var clash"
+    | V_forward { inner = lhs_inner }, V_forward { inner = rhs_inner } -> (
+        match same lhs_inner v_null || same rhs_inner v_null with
+        | true -> failwith "forward clash"
         | false ->
-            (* TODO: check if they're literally the same *)
-            failwith "forward clash");
-        unify_args ~at lhs_args rhs_args
-    | ( V_lambda { env = lhs_env; body = lhs_body },
-        V_lambda { env = rhs_env; body = rhs_body } ) ->
+            lock_forward lhs @@ fun () ->
+            lock_forward rhs @@ fun () -> unify ~at lhs_inner rhs_inner)
+    | ( V_apply { funct = lhs_funct; arg = lhs_arg },
+        V_apply { funct = rhs_funct; arg = rhs_arg } ) ->
+        unify ~at lhs_funct rhs_funct;
+        unify ~at lhs_arg rhs_arg
+    | ( V_lambda { env = lhs_env; param = _; body = lhs_body },
+        V_lambda { env = rhs_env; param = _; body = rhs_body } ) ->
         unify_under ~at lhs_env lhs_body rhs_env rhs_body
     | V_univ, V_univ -> ()
     | ( V_forall { param = lhs_param; env = lhs_env; body = lhs_body },
         V_forall { param = rhs_param; env = rhs_env; body = rhs_body } ) ->
-        unify ~at lhs_param rhs_param;
+        unify_pat ~at lhs_param rhs_param;
         unify_under ~at lhs_env lhs_body rhs_env rhs_body
-    | ( V_self { env = lhs_env; body = lhs_body },
-        V_self { env = rhs_env; body = rhs_body } ) ->
-        unify_under ~at lhs_env lhs_body rhs_env rhs_body
-    | ( ( V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_self _
-        | V_thunk _ ),
-        ( V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _ | V_self _
-        | V_thunk _ ) ) ->
+    | ( V_self { self = lhs_self; env = _; body = _ },
+        V_self { self = rhs_self; env = _; body = _ } ) ->
+        (* TODO: check body?? *)
+        unify_pat ~at lhs_self rhs_self
+    | ( ( V_var _ | V_forward _ | V_apply _ | V_lambda _ | V_univ | V_forall _
+        | V_self _ | V_thunk _ | V_link _ ),
+        ( V_var _ | V_forward _ | V_apply _ | V_lambda _ | V_univ | V_forall _
+        | V_self _ | V_thunk _ | V_link _ ) ) ->
         error_type_clash ()
 
-  and unify_args ~at lhs_args rhs_args =
-    (* TODO: iter2 clash *)
-    (* TODO: this can happen for sink types *)
-    List.iter2 (fun lhs rhs -> unify ~at lhs rhs) lhs_args rhs_args
+  and unify_pat ~at lhs rhs =
+    let (VPat { name = _; type_ = lhs_type }) = lhs in
+    let (VPat { name = _; type_ = rhs_type }) = rhs in
+    unify ~at lhs_type rhs_type
 
   and unify_under ~at lhs_env lhs rhs_env rhs =
-    let skolem = skolem ~at in
+    (* TODO: should use pattern *)
+    (* TODO: fill this *)
+    let name = Name.make "**unify_check_under**" in
+    let skolem = v_var ~at ~name in
     let at = Level.next at in
     let lhs =
       let lhs_env = append lhs_env skolem in
@@ -322,78 +208,71 @@ module Machinery = struct
     in
     unify ~at lhs rhs
 
-  and unify_hole ~hole to_ =
-    match struct_ to_ with
-    | V_hole { hole = to_ } -> (
-        match same_hole hole to_ with
-        | true -> ()
-        | false -> (
-            (* TODO: poly > *)
-            (* TODO: unecessary allocation *)
-            match hole.level > to_.level with
-            | true -> link_hole to_ ~to_:hole
-            | false ->
-                (* TODO: which direction when both are the same level *)
-                link_hole hole ~to_))
-    | V_forward _ | V_var _ | V_lambda _ | V_univ | V_forall _ | V_self _
-    | V_thunk _ ->
-        unify_check ~hole ~max_level:hole.level to_;
-        link hole ~to_
-
   let unify ~at lhs rhs =
-    let lhs = strong_head lhs in
-    let rhs = strong_head rhs in
+    Format.eprintf "%a == %a\n%!" pp_value lhs pp_value rhs;
     unify ~at lhs rhs
+end
+
+module Machinery = struct
+  open Eval
 
   let rec inst_self ~self type_ =
-    let type_ = strong_head type_ in
+    let type_ = strong_force type_ in
     match struct_ @@ type_ with
-    | V_self { env; body } ->
+    | V_self { self = self_pat; env; body } ->
         let type_ =
-          let env = append env self in
+          let env = with_pat env self_pat ~arg:self in
           eval env body
         in
         inst_self ~self type_
-    | V_hole _ | V_var _ | V_forward _ | V_lambda _ | V_univ | V_forall _
-    | V_thunk _ ->
+    | V_hole | V_var _ | V_forward _ | V_apply _ | V_lambda _ | V_univ
+    | V_forall _ | V_thunk _ | V_link _ ->
         type_
 
-  let coerce ~at term lhs rhs =
-    let lhs = inst_self ~self:term lhs in
-    let rhs = inst_self ~self:term rhs in
-    (* TODO: this is garbage *)
-    unify ~at lhs rhs
-  (* TODO: where to do path compression? *)
-
   let split_forall value =
-    match struct_ @@ strong_head value with
+    let value = strong_force value in
+    match struct_ value with
     | V_forall { param; env; body } -> (param, env, body)
-    | V_hole { hole = _ } -> failwith "hole is not a forall"
-    | V_var _ | V_forward _ | V_lambda _ | V_univ | V_self _ | V_thunk _ ->
-        Format.eprintf "value: %a\n%!" pp_value (strong_head value);
+    | V_hole -> failwith "hole is not a forall"
+    | V_var _ | V_forward _ | V_apply _ | V_lambda _ | V_univ | V_self _
+    | V_thunk _ | V_link _ ->
         failwith "not a forall"
-
-  let split_forall_with_self ~self value = split_forall @@ inst_self ~self value
 end
 
-open Value
+open Eval
+open Unify
 open Machinery
 
 type nonrec value = value
 
 (* infer *)
-type vars = Vars of { types : value list } [@@ocaml.unboxed]
+type vars = Vars of { types : (Name.t * value) list } [@@ocaml.unboxed]
 
-let enter vars ~type_ =
+let v_skolem ~at pat =
+  let (VPat { name; type_ = _ }) = pat in
+  v_var ~at ~name
+
+let type_of_pat pat =
+  let (VPat { name = _; type_ }) = pat in
+  match same type_ v_null with
+  | true -> failwith "pat not initialized"
+  | false -> type_
+
+let enter vars pat =
+  let (VPat { name; type_ }) = pat in
   let (Vars { types }) = vars in
-  let types = type_ :: types in
+  (* TODO: why this *)
+  let type_ = strong_force type_ in
+  let types = (name, type_) :: types in
   Vars { types }
 
 let solve vars var =
   let rec solve types var =
     match (types, var) with
-    | type_ :: _types, 0 -> type_
-    | _type :: types, var -> solve types (var - 1)
+    | (_name, type_) :: _types, 0 ->
+        (* Format.eprintf "var : %s\n%!" @@ Name.repr name; *)
+        type_
+    | (_name, _type) :: types, var -> solve types (var - 1)
     | [], _var ->
         (* TODO: this is a problem *)
         failwith "unexpected unbound variable"
@@ -403,158 +282,179 @@ let solve vars var =
   solve types var
 
 (* TODO: ideally ensure that infer_term returns head normalized type *)
-let rec infer_term ~at vars env term =
+let rec infer_term vars env ~at term =
   let self = None in
-  let expected = v_hole ~at () in
-  check_term ~at vars env term ~self ~expected;
-  expected
+  let expected = fresh_v_hole ~at in
+  check_term vars env ~at term ~self ~expected;
+  (* TODO: is this correct or a good idea? *)
+  let self = v_thunk ~env ~term in
+  inst_self ~self expected
 
-and check_term ~at vars env term ~self ~expected =
+and check_term vars env ~at term ~self ~expected =
   (* TODO: not principled, let and annot will break this *)
+  let (Term { struct_ = term; loc = _ }) = term in
+  (* TODO: this is bad, a proper implementation would not need it *)
+  let expected =
+    match self with
+    | Some self -> inst_self ~self expected
+    | None -> strong_force expected
+  in
   match term with
+  | T_hole { hole = _ } -> failwith "check_term: hole should never happen"
   | T_annot { term; annot } ->
-      let annot = check_annot ~at vars env annot ~expected in
-      check_term ~at vars env term ~self ~expected:annot
+      let annot = check_annot vars env ~at annot ~self ~expected in
+      check_term vars env ~at term ~self ~expected:annot
   | T_var { var } ->
       let received = solve vars var in
-      let var = access env var in
-      (* TODO: coerce here? *)
-      coerce ~at var received expected
-  | T_hoist { bound; annot; body } ->
-      (* TODO: ensure it's eventually bound *)
-      let annot = infer_annot ~at vars env annot in
-      check_pat ~at vars env bound ~expected:annot;
-      let vars = enter vars ~type_:annot in
-      let env =
-        let value = v_forward () in
-        append env value
-      in
-      check_term ~at vars env body ~self ~expected
-  | T_fix { bound; var; arg; body } ->
-      (* TODO: ensure it's not trivially recursive; A = M(A) *)
-      let annot = solve vars var in
-      check_pat ~at vars env bound ~expected:annot;
-      let () =
-        let self = Some (access env var) in
-        check_term ~at vars env arg ~self ~expected:annot
-      in
-      let () =
-        let arg = thunk env arg in
-        fix env var ~arg
-      in
-      check_term ~at vars env body ~self ~expected
-  | T_let { bound; arg; body } ->
-      let value_type =
-        match infer_pat ~at vars env bound with
-        | Some value_type ->
-            (* TODO: self here? *)
-            let self = None in
-            check_term ~at vars env arg ~self ~expected:value_type;
-            value_type
-        | None -> infer_term ~at vars env arg
-      in
-      let vars = enter vars ~type_:value_type in
-      let env =
-        let value = thunk env arg in
-        append env value
-      in
-      check_term ~at vars env body ~self ~expected
-  | T_lambda { bound; body } ->
-      let param, expected_env, expected_body =
+      let received =
         match self with
-        | None -> split_forall expected
-        | Some self -> split_forall_with_self ~self expected
+        | Some self -> inst_self ~self received
+        | None -> strong_force received
       in
-      check_pat ~at vars env bound ~expected:param;
-      let skolem = skolem ~at in
+      (* Format.eprintf "%a == %a\n%!" pp_value received pp_value expected; *)
+      unify ~at received expected
+  | T_hoist { bound; body } ->
+      (* TODO: ensure it's eventually bound *)
+      let _bound = infer_pat vars env ~at bound in
+      let bound = eval_pat env bound in
+      let vars = enter vars bound in
+      let arg = fresh_v_forward () in
+      let env = with_pat env bound ~arg in
+      check_term vars env ~at body ~self ~expected
+  | T_fix { bound; var; arg; body } ->
+      (* TODO: ensure it's not trivially recursive? A = M(A) *)
+      let annot = solve vars var in
+      check_pat vars env ~at bound ~expected:annot;
+      let () =
+        let self = access env var in
+        (* TODO: this should also include the pattern? *)
+        let expected = inst_self ~self annot in
+        let self = Some self in
+        check_term vars env ~at arg ~self ~expected
+      in
+      let () =
+        let var = access env var in
+        let arg = v_thunk ~env ~term:arg in
+        init_forward var ~to_:arg
+      in
+      check_term vars env ~at body ~self ~expected
+  | T_let { bound; arg; body } ->
+      let () =
+        let value_type = infer_pat vars env ~at bound in
+        check_term vars env ~at arg ~self ~expected:value_type
+      in
+      let bound = eval_pat env bound in
+      let arg = v_thunk ~env ~term:arg in
+      let vars = enter vars bound in
+      let env = with_pat env bound ~arg in
+      check_term vars env ~at body ~self ~expected
+  | T_lambda { param; body } ->
+      Format.eprintf "forall: %a\n%!" pp_value (strong_force @@ expected);
+      let expected_param, expected_env, expected_body = split_forall expected in
+      let () =
+        (* TODO: is this one okay? *)
+        let expected = type_of_pat expected_param in
+        check_pat vars env ~at param ~expected
+      in
+      let param = eval_pat env param in
+      let skolem = v_skolem ~at param in
+      let vars = enter vars param in
+      let env = with_pat env param ~arg:skolem in
       let at = Level.next at in
-      let vars = enter vars ~type_:param in
-      let env = append env skolem in
-      let expected_body =
+      let expected =
         let expected_env = append expected_env skolem in
         eval expected_env expected_body
       in
+      Format.eprintf "param: %a\n%!" pp_value (strong_force @@ type_of_pat param);
+      Format.eprintf "expected: %a\n%!" pp_value expected;
       (* TODO: apply null *)
       let self =
         match self with
-        | Some self -> Some (eval_apply ~funct:self ~arg:skolem)
+        | Some self ->
+            let self = eval_apply ~funct:self ~arg:skolem in
+            Some self
         | None -> None
       in
-      check_term ~at vars env body ~self ~expected:expected_body
+      check_term vars env ~at body ~self ~expected
   | T_apply { funct; arg } ->
-      let funct_type = infer_term ~at vars env funct in
-      let param_type, body_env, body_type =
-        let self = thunk env funct in
-        split_forall_with_self ~self funct_type
-      in
+      let funct_type = infer_term vars env ~at funct in
+      let param, body_env, body_type = split_forall funct_type in
       let () =
         let self = None in
-        check_term ~at vars env arg ~self ~expected:param_type
+        let param_type = type_of_pat param in
+        check_term vars env ~at arg ~self ~expected:param_type
       in
-      let body_env =
-        let thunk = thunk env arg in
-        append body_env thunk
+      let received =
+        let arg = v_thunk ~env ~term:arg in
+        let body_env = with_pat body_env param ~arg in
+        eval body_env body_type
       in
-      let received = eval body_env body_type in
-      (* TODO: drop unify *)
       unify ~at received expected
-  | T_forall { bound; param; body } ->
+  | T_forall { param; body } ->
       unify ~at v_univ expected;
-      let param = infer_annot ~at vars env param in
-      check_pat ~at vars env bound ~expected:param;
-      let skolem = skolem ~at in
+      let _param_type = infer_pat vars env ~at param in
+      let param = eval_pat env param in
+      let skolem = v_skolem ~at param in
       let at = Level.next at in
-      let vars = enter vars ~type_:param in
+      let vars = enter vars param in
       let env = append env skolem in
       (* TODO: self here? *)
       let self = None in
-      check_term ~at vars env body ~self ~expected:v_univ
-  | T_self { bound; self = term_self; body } ->
+      check_term vars env ~at body ~self ~expected:v_univ
+  | T_self { self = received_self; body } ->
       (* TODO: this is really ugly *)
       unify ~at v_univ expected;
-      let self_type =
+      let self =
         match self with
-        | Some self -> check_annot ~at vars env term_self ~expected:self
+        | Some self -> self
         | None -> failwith "self is only supported in a fixpoint"
       in
-      check_pat ~at vars env bound ~expected:self_type;
-      let skolem = skolem ~at in
+      check_pat vars env ~at received_self ~expected:self;
+      let self = eval_pat env received_self in
+      let skolem = v_skolem ~at self in
       let at = Level.next at in
-      let vars = enter vars ~type_:self_type in
-      let env = append env skolem in
-      check_term ~at vars env body ~self ~expected:v_univ
+      let vars = enter vars self in
+      let env = with_pat env self ~arg:skolem in
+      (* TODO: this self:None seems weird *)
+      check_term vars env ~at body ~self:None ~expected:v_univ
 
-and infer_annot ~at vars env annot =
+and infer_annot vars env ~at annot =
   let self = None in
-  check_term ~at vars env annot ~self ~expected:v_univ;
+  check_term vars env ~at annot ~self ~expected:v_univ;
   eval env annot
 
-and check_annot ~at vars env annot ~expected =
-  let received = infer_annot ~at vars env annot in
+and check_annot vars env ~at annot ~self ~expected =
+  let received = infer_annot vars env ~at annot in
+  let received =
+    match self with Some self -> inst_self ~self received | None -> received
+  in
   unify ~at received expected;
   received
 
-and infer_pat ~at vars env pat =
-  match pat with
-  | P_annot { pat; annot } ->
-      let annot = infer_annot ~at vars env annot in
-      check_pat ~at vars env pat ~expected:annot;
-      Some annot
-  | P_var { var = _ } -> None
+and infer_pat vars env ~at pat : value =
+  let expected = fresh_v_hole ~at in
+  check_pat vars env ~at pat ~expected;
+  expected
 
-and check_pat ~at vars env pat ~(expected : value) =
-  match pat with
-  | P_annot { pat; annot } ->
-      let annot = check_annot ~at vars env annot ~expected in
-      check_pat ~at vars env pat ~expected:annot
+and check_pat vars env ~at pat ~expected =
+  (* TODO: this duplicated the checking of some annotations *)
+  let (Pat { struct_ = pat_struct; annot; loc = _ }) = pat in
+  (* TODO: this is hackish *)
+  let _received =
+    match same_term annot t_null with
+    | true -> p_init_hole ~at pat
+    | false -> check_annot vars env ~at annot ~self:None ~expected
+  in
+  (* TODO: use this received *)
+  match pat_struct with
   | P_var { var = _ } -> ()
 
 (* external *)
 let infer_term term =
   let at = Level.(next zero) in
   let vars =
-    let types = [ v_univ ] in
+    let types = [ (Name.make "Type", v_univ) ] in
     Vars { types }
   in
   let env = append empty v_univ in
-  try Ok (infer_term ~at vars env term) with exn -> Error exn
+  try Ok (infer_term vars env ~at term) with exn -> Error exn

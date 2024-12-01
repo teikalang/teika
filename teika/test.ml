@@ -293,10 +293,12 @@ module Typer = struct
             (H : Equal A x y) -> (P : (z : A) -> Type) -> (v : P(x)) -> P(y);
           transport = A => x => y => H => H;
 
-          true_not_false : (H : Equal(Bool)(true)(false)) -> Never;
+          
+          true_not_false : (H : Equal(Bool)(true)(false)) -> Unit;
           true_not_false = H => (
             P : (b : Bool) -> Type = b => ind_bool(b)(_ => Type)(Unit)(Never);
-            transport(Bool)(true)(false)(H)(P)(unit)
+            f : (x : P(true)) -> P(false) = transport(Bool)(true)(false)(H)(P);
+            unit
           );
 
           id : (A : Type) -> (x : A) -> A = (

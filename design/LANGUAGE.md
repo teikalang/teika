@@ -9,8 +9,19 @@ Those are the current goals in order of importance and they may change.
 1. Soundness, type preservation
 2. Convenience, inference and effects
 3. Uniformity, calculus of construction
-4. Logical consistency, predicativity
+4. Logical consistency, sizing
 5. Decidability, subtyping
+
+## Smol
+
+This intends to be a core language, it shuold contain all the proof power of Teika, other features should be described in terms of Smol.
+
+Additionally it should be possible to expand the features of Teika to Smol in a reasonably readable way for experienced humans.
+
+
+## Warning Before the Warning
+
+This document was written by me(@EduardoRFS) when I was way less proficient in type theory, so there were mistakes.
 
 ## Warning
 

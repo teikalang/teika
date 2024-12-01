@@ -24,9 +24,25 @@ and t = error [@@deriving show { with_path = false }]
 
 exception TError of { error : error }
 
+let show_hum_error error =
+  match error with
+  | TError_loc { error = _; loc = _ } -> show_error error
+  | TError_type_clash -> "type clash"
+  | TError_unknown_var { name } ->
+      Format.asprintf "unknown var: %a" Name.pp name
+  | TError_not_a_forall { type_ } ->
+      Format.asprintf "not a forall: %a" pp_term type_
+  | TError_hoist_not_implemented -> "hoist not implemented"
+  | TError_extensions_not_implemented -> "extensions not implemented"
+  | TError_pairs_not_implemented -> "pairs not implemented"
+  | TError_unknown_native { native } ->
+      Format.asprintf "unknown native: %s" native
+  | TError_missing_annotation -> "missing annotation"
+  | TError_invalid_notation -> "invalid notation"
+
 let () =
   Printexc.register_printer @@ function
-  | TError { error } -> Some (show_error error)
+  | TError { error } -> Some (show_hum_error error)
   | _ -> None
 
 let terror error = raise (TError { error })

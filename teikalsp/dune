@@ -1,5 +1,5 @@
 (executable
  (name teikalsp)
- (libraries lsp eio eio_main)
+ (libraries lsp eio eio_main syntax teika ocaml-compiler-libs.common)
  (preprocess
   (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord sedlex.ppx)))

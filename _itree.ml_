@@ -1,0 +1,1385 @@
+type index = int
+type level = int
+
+type term =
+  | T_var of { var : index }
+  | T_let of { arg : term; body : term }
+  | T_apply of { funct : term; arg : term }
+  | T_lambda of { body : term }
+
+type program =
+  | P_lambda of { context : level; body : block; next : program }
+  | P_main of { body : block }
+
+and block =
+  | B_let of { arg : code; body : block }
+  | B_return of { code : code }
+
+and code =
+  | C_var of { var : level }
+  | C_apply of { funct : level; arg : level }
+  | C_closure of { funct : level }
+
+type var = level
+
+module Context : sig
+  type context
+
+  val solve : context -> index -> var
+
+  (* *)
+
+  val fork_and_write_lambda : context -> (context -> code) -> var
+  val write_let : context -> code -> var
+  val emit_program : context -> code -> program
+end = struct
+  module Free_vars = Set.Make (Int)
+
+  type context = {
+    mutable program : (level * block) list;
+    mutable next_global : level;
+    mutable block : code list;
+    mutable next_local : level;
+    mutable env : level list;
+  }
+
+  let solve ctx var =
+    match List.nth_opt ctx.env var with
+    | Some var -> var
+    | None -> failwith "unknown var somehow"
+
+  let emit_block block last =
+    let last = B_return { code = last } in
+    List.fold_left (fun body code -> B_let { arg = code; body }) last block
+
+  let emit_program ctx last =
+    let main =
+      let body = emit_block ctx.block last in
+      P_main { body }
+    in
+    List.fold_left
+      (fun next (context, body) -> P_lambda { context; body; next })
+      main ctx.program
+
+  let fork_and_write_lambda ctx k =
+    let {
+      program = _;
+      next_global = _;
+      block = block_snapshot;
+      next_local = context;
+      env = env_snapshot;
+    } =
+      ctx
+    in
+    ctx.block <- [];
+    ctx.env <- [];
+    let last = k ctx in
+    let body = emit_block ctx.block last in
+    let funct = ctx.next_global in
+    ctx.program <- (context, body) :: ctx.program;
+    ctx.next_global <- 1 + funct;
+    ctx.block <- block_snapshot;
+    ctx.next_local <- context;
+    ctx.env <- env_snapshot;
+    funct
+
+  let write_let ctx code =
+    let var = ctx.next_local in
+    ctx.block <- code :: ctx.block;
+    ctx.next_local <- 1 + var;
+    ctx.env <- var :: ctx.env;
+    var
+end
+
+open Context
+
+let rec let_or_var ctx code =
+  match code with
+  | C_var { var } -> var
+  | C_apply { funct = _; arg = _ } | C_closure { funct = _ } ->
+      write_let ctx code
+
+let rec lower ctx term : code =
+  match term with
+  | T_var { var } ->
+      let var = solve ctx var in
+      C_var { var }
+  | T_let { arg; body } ->
+      let arg = lower ctx arg in
+      let _arg = write_let ctx arg in
+      lower ctx body
+  | T_apply { funct; arg } ->
+      let funct =
+        let funct = lower ctx funct in
+        let_or_var ctx funct
+      in
+      let arg =
+        let arg = lower ctx arg in
+        let_or_var ctx arg
+      in
+      C_apply { funct; arg }
+  | T_lambda { body } ->
+      let funct = fork_and_write_lambda ctx @@ fun ctx -> lower ctx body in
+      C_closure { funct }
+
+module Context = struct
+  module Free_vars = Set.Make (Int)
+
+  type position = Global | Local
+
+  type context = {
+    mutable next : level;
+    mutable env : (position * level) ref list;
+    mutable vars : Free_vars.t;
+  }
+
+  let lookup ctx var =
+    match List.nth_opt ctx.env var with
+    | Some { contents = Local, var } -> var
+    | Some { contents = Global, var } ->
+        ctx.vars <- Free_vars.add var ctx.vars;
+        var
+    | None -> failwith "unknown var somehow"
+
+  let enter ctx =
+    let var = ctx.next in
+    ctx.next <- 1 + var;
+    ctx.env <- ref (Local, var) :: ctx.env
+
+  let start_function ctx =
+    let { next; env; vars } = ctx in
+    let vars = assert false in
+    assert false
+end
+
+let rec compile program block term =
+  match term with
+  | T_var { var } ->
+      let var = assert false in
+      block := C_var { var } :: !block
+  | T_let { arg; body } ->
+      compile program block arg;
+      compile program block body
+  | T_lambda { body } ->
+      let body_block = ref [] in
+      compile program body_block body;
+      program := !body_block :: !program;
+      block := C_closure { funct = assert false } :: !block
+
+module Flatten = struct
+  type block =
+    | B_let of { arg : code; body : block }
+    | B_return of { code : code }
+
+  and code = C_var of { var : index } | C_lambda of { body : block }
+
+  let rec eval term k =
+    match term with
+    | T_var { var } ->
+        let var = assert false in
+        k @@ C_var { var }
+    | T_let { arg; body } ->
+        eval arg @@ fun arg ->
+        let body = eval body k in
+        B_let { arg; body }
+    | T_lambda { body } ->
+        let body = eval body @@ fun code -> B_return { code } in
+        k @@ C_lambda { body }
+end
+
+module Closure = struct
+  open Flatten
+
+  type term = T_var of { var : index } | T_lambda of { body : term }
+
+  type program =
+    | P_lambda of { body : code; next : program }
+    | P_main of { body : code }
+
+  and block =
+    | B_let of { arg : code; body : block }
+    | B_return of { code : code }
+
+  and code = C_var of { var : index } | C_closure of { funct : level }
+
+  let rec eval_program (block : Flatten.block) k : program =
+    match block with
+    | B_let { arg; body } ->
+        eval_code arg @@ fun arg ->
+        let body = eval_block body k in
+        P_main { body }
+    | B_return { code } -> eval_code code k
+
+  and eval_block (block : Flatten.block) k : block = assert false
+
+  and eval_code (code : Flatten.code) k =
+    match code with
+    | C_var { var } ->
+        let var = assert false in
+        k @@ C_var { var }
+    | C_lambda { body } ->
+        eval_program body @@ fun body ->
+        let funct = assert false in
+        let next = k @@ C_closure { funct } in
+        P_lambda { body; next }
+
+  let rec eval term k : program =
+    match term with
+    | T_var { var } ->
+        let var = assert false in
+        k @@ C_var { var }
+    | T_lambda { body } ->
+        eval body @@ fun body ->
+        let funct = assert false in
+        let next = k @@ C_closure { funct } in
+        P_lambda { body; next }
+end
+
+type program =
+  | P_lambda of { body : block; next : program }
+  | P_main of { body : block }
+
+and block =
+  | B_let of { arg : code; body : block }
+  | B_return of { code : code }
+
+and code =
+  | C_var of { var : index }
+  | C_apply of { funct : index; arg : index }
+  | C_closure of { funct : level }
+
+type env
+
+let ( let@@ ) f v = f v
+
+type 'a tag = T_program : program tag | T_block : block tag
+
+type 'a cont =
+  | K_done : 'k cont
+  | K_let : 'k tag * env * term * 'k cont -> 'k cont
+  | K_lambda : 'k cont -> 'k cont
+
+type value = V_var of { var : index } | V_lambda of { body : term }
+
+let rec eval env term with_lambda k =
+  match term with
+  | T_var { var } ->
+      let var = assert false in
+      k @@ V_var { var }
+  | T_let { arg; body } ->
+      eval env arg with_lambda @@ fun arg k -> k @@ B_let { arg; body }
+  | T_apply { funct; arg } -> assert false
+  | T_lambda { body } -> with_lambda env term k
+
+let x env term = eval env term (fun body -> assert false)
+
+let rec eval : type k. _ -> _ -> k cont -> k =
+ fun env term cont ->
+  match term with
+  | T_var { var } ->
+      let var = assert false in
+      eval_up cont @@ V_var { var }
+  | T_let { arg; body } -> eval env arg @@ K_let (env, body, cont)
+  | T_apply { funct; arg } -> assert false
+  | T_lambda { body } ->
+      let env = assert false in
+      let x = eval env body in
+      assert false
+
+and eval_up : type k. k cont -> value -> k =
+ fun cont arg ->
+  match arg with
+  | V_var _ ->
+      let var = assert false in
+      eval_up_up cont @@ C_var { var }
+  | V_lambda _ -> assert false
+
+and eval_up_up : type k. k cont -> code -> k =
+ fun cont arg ->
+  match cont with
+  | K_done -> assert false
+  | K_let (tag, env, body, cont) -> (
+      let body = eval env body cont in
+      match tag with
+      | T_program -> P_let { body = arg; next = body }
+      | T_block -> B_let { arg; body })
+  | K_lambda _ -> assert false
+
+let append : env -> level -> env = assert false
+
+type 'a cont =
+  | K_halt : 'a cont
+  | K_let : env * term * 'a cont -> 'a cont
+  | K_lambda : 'k cont -> (program * 'k) cont
+
+and env
+
+let rec eval env term k =
+  match term with
+  | T_var { var } ->
+      let var = assert false in
+      k @@ C_var { var }
+  | T_let { arg; body } ->
+      let@@ arg = eval env arg in
+      let env = assert false in
+      let body = eval env body in
+      assert false
+  | T_apply { funct; arg } -> assert false
+  | T_lambda { body } ->
+      let body =
+        let env = assert false in
+        eval_down env body K_halt
+      in
+      assert false
+
+let rec eval_down : type k. _ -> _ -> k cont -> k =
+ fun env term k ->
+  match term with
+  | T_var { var } ->
+      let var = assert false in
+      eval_up k @@ C_var { var }
+  | T_let { arg; body } -> eval_down env arg @@ K_let (env, body, k)
+  | T_apply { funct; arg } -> assert false
+  | T_lambda { body } ->
+      let body =
+        let env = assert false in
+        eval_down env body K_halt
+      in
+      assert false
+
+and eval_up : type k. k cont -> _ -> k =
+ fun k arg ->
+  match k with
+  | K_halt -> B_return { code = arg }
+  | K_let (env, body, k) ->
+      let body = eval_down env body k in
+      B_let { arg; body }
+
+and eval_up_block : type k. k cont -> _ -> k = assert false
+and eval_lambda env body = assert false
+
+let rec eval_program env term = assert false
+and eval_block env term = keval_block env term @@ fun code -> B_return { code }
+
+and keval_block env term k =
+  match term with
+  | T_var { var } ->
+      let var = assert false in
+      k @@ C_var { var }
+  | T_let { arg; body } ->
+      let@@ arg = keval_block env arg in
+      let@@ env, arg = enter_let env arg in
+      (* TODO: TMC *)
+      keval_block env body k
+  | T_apply { funct; arg } ->
+      let@@ funct = keval_block env funct in
+      let@@ env, funct = enter_let env funct in
+      let@@ arg = keval_block env arg in
+      let@@ env, arg = enter_let env arg in
+      (* TODO: TMC *)
+      k (C_apply { funct; arg })
+  | T_lambda { body } ->
+      let body =
+        let env = assert false in
+        eval_block env body
+      in
+      k @@ C_closure { body }
+
+and enter_let env (arg : code) k : block =
+  match arg with
+  | C_var { var } ->
+      let level = assert false in
+      let env = append env level in
+      k (env, level)
+  | C_apply { funct = _; arg = _ } | C_closure { body = _ } ->
+      (* TODO: TMC *)
+      let level = assert false in
+      let env = append env level in
+      let body = k (env, level) in
+      B_let { arg; body }
+
+let rec eval env term =
+  match term with
+  | T_var { var } ->
+      let var = assert false in
+      let code = C_var { var } in
+      B_return { code }
+  | T_let { arg; body } -> eval_let env arg @@ K_eval body
+  | T_apply { funct; arg } -> eval_apply env funct arg
+  | T_lambda { body } ->
+      let body =
+        let env = assert false in
+        eval env body
+      in
+      let code = C_lambda { body } in
+      B_return { code }
+
+and eval_up env code cont =
+  (* TODO: TMC *)
+  match cont with
+  | K_eval body ->
+      let env = assert false in
+      let body = eval env body in
+      B_let { arg = code; body }
+  | K_let_flat (arg_body, cont) ->
+      let env = assert false in
+      let body = eval_let env arg_body cont in
+      B_let { arg = code; body }
+  | K_apply_arg (arg, cont) ->
+      let funct = assert false in
+      let cont = K_apply (funct, cont) in
+      let body = eval_let env arg cont in
+      B_let { arg = code; body }
+  | K_apply (funct, cont) ->
+      let body = eval env cont in
+      let apply = C_apply { funct; arg = 0 } in
+      B_let { arg = code; body }
+
+and eval_let env arg cont =
+  match arg with
+  | T_var { var = arg } ->
+      let arg = C_var { var = arg } in
+      eval_let_up env arg cont
+  | T_lambda { body } -> assert false
+  | T_apply { funct; arg } -> assert false
+  | T_let { arg = arg_arg; body = arg_body } ->
+      let cont = K_let_flat (arg_body, cont) in
+      eval_let env arg_arg cont
+
+and eval_apply env funct arg =
+  match funct with
+  | T_var { var = funct } ->
+      let funct = assert false in
+      let arg =
+        let env = assert false in
+        eval_let
+      in
+      let code = C_apply { funct; arg } in
+      B_return { code }
+  | T_let _ | T_apply _ | T_lambda _ -> assert false
+
+and eval_head term =
+  match term with
+  | T_var { var } -> V_var { var }
+  | T_let { arg; body } -> eval_head_let arg body
+
+and eval_head_let arg body =
+  match arg with
+  | T_var { var = arg } -> V_let { arg; body }
+  | T_let { arg = arg_arg; body = arg_body } ->
+      V_let_flat { arg_arg; arg_body; body }
+
+let rec eval term k =
+  match term with
+  | T_var { var } ->
+      let x = assert false in
+      write heap "var"
+  | T_let { arg; body } ->
+      let heap = eval heap arg in
+      let heap = write heap "let" in
+      eval heap body
+
+let write _ = assert false
+
+let rec eval term =
+  match term with
+  | T_var { var } -> write "var"
+  | T_let { arg; body } ->
+      eval arg;
+      write "let";
+      eval body
+
+let write _ _ = assert false
+
+let rec eval heap term =
+  match term with
+  | T_var { var } -> write heap "var"
+  | T_let { arg; body } ->
+      let heap = eval heap arg in
+      let heap = write heap "let" in
+      eval heap body
+
+let rec eval heap term =
+  match term with
+  | T_var { var } -> write heap "var"
+  | T_let { arg; body } ->
+      let heap = eval heap arg in
+      let heap = write heap "let" in
+      eval heap body
+
+let rec eval env term k =
+  match term with
+  | T_var { var } -> k var
+  | T_let { arg; body } ->
+      let x =
+        eval env arg @@ fun arg ->
+        let env = assert false in
+        eval env body @@ fun body ->
+        let body = k body in
+        B_let { arg; body }
+      in
+      eval env arg @@ fun arg ->
+      let env = assert false in
+      let body = eval env body k in
+      B_let { arg; body }
+
+let rec eval env term cont =
+  match term with
+  | T_var { var } -> eval_up var cont
+  | T_let { arg; body } ->
+      let cont = (env, body) :: cont in
+      eval env arg cont
+
+and eval_up arg cont =
+  match cont with
+  | [] -> B_return { var = arg }
+  | (env, body) :: cont ->
+      (* TODO: TMC *)
+      let env = assert false in
+      let body = eval env body [] in
+      B_let { arg; body }
+
+let rec eval env term =
+  match eval_head env term with
+  | V_var { var } -> B_return { var }
+  | V_let { arg; body } ->
+      let body = eval env body in
+      B_let { arg; body }
+  | V_let_flat { arg_arg; arg_body; body } ->
+      eval_let_flat env arg_arg arg_body body
+
+and eval_let_flat env arg_arg arg_body body =
+  match eval_head env arg_arg with
+  | V_var { var } ->
+      let body =
+        match eval_head env arg_body with
+        | V_var { var = arg } ->
+            let body = eval env body in
+            B_let { arg; body }
+      in
+      B_let { arg = var; body }
+  | V_let { arg = arg_arg; body = arg_body } ->
+      let x = eval env arg_body in
+      let body = eval env body in
+      B_let { arg = arg_arg; body }
+  | V_let_flat { arg_arg; arg_body; body } -> assert false
+
+and eval_head env term =
+  match term with
+  | T_var { var } -> V_var { var }
+  | T_let { arg; body } -> (
+      match arg with
+      | T_var { var } -> V_let { arg = var; body }
+      | T_let { arg = arg_arg; body = arg_body } ->
+          V_let_flat { arg_arg; arg_body; body })
+
+type index = int
+type level = int
+type term = T_var of { var : index } | T_let of { arg : term; body : term }
+(* | T_apply of { funct : term; arg : term }
+   | T_lambda of { body : term } *)
+
+type value_block =
+  | V_let of { env : env; arg : term; body : term }
+  | V_var of { var : level }
+
+and env
+
+type block =
+  | B_let of { arg : level; body : block }
+  | B_return of { var : index }
+
+let rec eval env term k =
+  match eval_head env term with
+  | V_let { env; arg; body } -> eval_let env arg body k
+  | V_var { var } -> k @@ B_return { var }
+
+and eval_let env arg body k =
+  match eval_head env arg with
+  | V_let { env = arg_env; arg = arg_arg; body = arg_body } -> assert false
+  | V_var { var } -> (
+      match eval_head env body with
+      | V_let { env; arg; body } ->
+          eval_let env arg body @@ fun body -> k @@ B_let { arg = var; body }
+      | V_var { var } -> k @@ B_let { arg = var; body = B_return { var } })
+
+and eval_head env term = assert false
+
+let rec eval env term =
+  match eval_head env term with
+  | V_let { env; arg; body } -> assert false
+  | V_var { var } ->
+      let var = assert false in
+      B_return { var }
+
+and eval_let env arg body =
+  match eval_head env arg with
+  | V_let { env = arg_env; arg = arg_arg; body = arg_body } ->
+      let x = eval_let env arg_body body in
+      assert false
+  | V_var { var } ->
+      let body = eval env body in
+      B_let { arg = var; body }
+
+and eval_head env term =
+  match term with
+  | T_var { var } ->
+      let var = assert false in
+      V_var { var }
+  | T_let { arg; body } -> V_let { env; arg; body }
+
+and eval_head_let arg env body =
+  match arg with
+  | V_let { arg = arg_arg; env = arg_env; body = arg_body } ->
+      let x = eval_head_let arg_arg env body in
+      assert false
+  | V_return { code = arg } -> V_let { arg; env; body }
+
+type block =
+  | B_let of { arg : code; body : block }
+  | B_return of { code : code }
+
+and code =
+  | C_var of { var : index }
+  | C_apply of { funct : index; arg : index }
+  | C_lambda of { body : block }
+
+let rec eval env term =
+  let block = eval_head env term in
+  reify_block block
+
+and reify_block block =
+  match block with
+  | V_let { env; arg; body } -> assert false
+  | V_return { code } ->
+      let code = reify code in
+      B_return { code }
+
+and eval_head env term =
+  match term with
+  | T_var { var } -> assert false
+  | T_let { arg; body } ->
+      let arg = eval_head env arg in
+      eval_head_let arg env body
+  | T_apply { funct; arg } ->
+      let funct = eval_head env funct in
+      assert false
+  | T_lambda { body } -> V_lambda { env; body }
+
+and eval_head_let arg env body =
+  match arg with
+  | V_let { arg = arg_arg; env = arg_env; body = arg_body } ->
+      let x = eval_head_let arg_arg env body in
+      assert false
+  | V_return { code = arg } -> V_let { arg; env; body }
+
+and reify _ = assert false
+
+let rec eval env term =
+  match eval_head env term with
+  | V_let { arg; body } -> assert false
+  | V_return { code } ->
+      let code = reify code in
+      B_return { code }
+
+and eval_head env term =
+  match term with
+  | T_var { var } -> assert false
+  | T_let { arg; body } -> V_let { arg; env; body }
+  | T_apply { funct; arg } -> _
+  | T_lambda { body } ->
+      let code = V_lambda { body } in
+      V_return { code }
+
+and eval_head_apply env funct args =
+  match funct with
+  | T_var { var } -> assert false
+  | T_let { arg; body } ->
+      let body = T_shift { depth = 1; by = 1; body } in
+      V_let { arg; env; body }
+  | T_apply { funct; arg } -> _
+  | T_lambda { body } ->
+      let code = V_lambda { body } in
+      V_return { code }
+
+and reify (_ : value_code) : code = _
+
+let rec eval env term =
+  match eval_head env term with
+  | V_let { arg; body } ->
+      let arg = reify arg in
+      let body = eval env body in
+      B_let { arg; body }
+  | V_return { code } ->
+      let code = reify code in
+      B_return { code }
+
+and eval_head env term =
+  match term with
+  | T_var { var } -> assert false
+  | T_let { arg; body } ->
+      let arg = eval env arg in
+      _
+  | T_apply { funct; arg } -> _
+  | T_lambda { body } ->
+      let code = V_lambda { body } in
+      V_return { code }
+
+and eval_head_let env arg body =
+  match eval_head env arg with
+  | V_let { arg = arg_arg; body = arg_body } ->
+      let x = assert false in
+      V_let { arg = arg_arg; body = _ }
+  | V_return { code = arg } -> V_let { arg; body }
+
+and eval_let env arg body =
+  match eval_head env arg with
+  | V_let { arg = arg_arg; body = arg_body } ->
+      (* TODO: TMC *)
+      let arg = reify arg_arg in
+      let body =
+        let env = assert false in
+        eval_let env arg_body body
+      in
+      B_let { arg; body }
+  | V_return { code = arg } ->
+      let arg = reify arg in
+      let body = eval env body in
+      B_let { arg; body }
+
+and eval_apply env funct arg =
+  match eval_head env funct with
+  | V_let { arg = funct_arg; body = funct } ->
+      let funct_arg = reify funct_arg in
+      let body =
+        let env = assert false in
+        eval_apply env funct arg
+      in
+      B_let { arg = funct_arg; body }
+  | V_return { code = funct } ->
+      (*  *)
+      let funct = reify funct in
+      let body =
+        let funct = assert false in
+        let env = assert false in
+        eval_apply_arg env funct arg
+      in
+      B_let { arg = funct; body }
+
+and eval_apply_arg env funct arg =
+  match eval_head env arg with
+  | V_let { arg = arg_arg; body = arg_body } ->
+      (* TODO: TMC *)
+      let arg = reify arg_arg in
+      let body = eval_apply_arg env funct arg_body in
+      B_let { arg; body }
+  | V_return { code = arg } ->
+      (* TODO: TMC *)
+      let arg = reify arg in
+      let body =
+        let funct = assert false in
+        (* TODO: hard coded number *)
+        let code = C_apply { funct; arg = 0 } in
+        B_return { code }
+      in
+      B_let { arg; body }
+
+and eval_let env arg body =
+  match eval_head env arg with
+  | V_let { arg = arg_arg; body = arg_body } ->
+      (* TODO: TMC *)
+      let arg = reify arg_arg in
+      let body =
+        let env = assert false in
+        eval_let env arg_body body
+      in
+      B_let { arg; body }
+  | V_return { code = arg } ->
+      let arg = reify arg in
+      let body = eval env body in
+      B_let { arg; body }
+
+and reify code : code = assert false
+
+let rec eval env term = match eval_head env term with _ -> assert false
+
+and eval_head env term =
+  match term with
+  | T_var { var } -> assert false
+  | T_let { arg; body } -> eval_head_let env arg body
+  | T_apply { funct; arg } ->
+      let funct = eval env funct in
+      let arg = eval env arg in
+      assert false
+  | T_lambda { body } ->
+      let code = V_lambda { body } in
+      V_return { code }
+
+and eval_head_let env arg body =
+  match eval_head env arg with
+  | V_let { arg = arg_arg; body = arg_body } ->
+      (* TMC *)
+      let body = T_shift { depth = 1; by = 1; body } in
+      let body =
+        let env = assert false in
+        eval_head_let env arg_body body
+      in
+      V_let { arg = arg_arg; body = T_let { arg = arg_body; body } }
+  | V_return { code = arg } -> V_let { arg; body }
+
+(* TODO: substituion of linear variables *)
+(* TODO: substitution of very small variables *)
+let rec eval env term = assert false
+
+and eval_head env term =
+  match term with
+  | T_var { var } -> assert false
+  | T_let { arg; body } -> assert false
+  | T_apply { funct; arg } ->
+      (* TODO: at a distance *)
+      assert false
+  | T_lambda { body } -> assert false
+
+and eval_apply env funct arg = match funct with V_let _ -> assert false
+
+and eval_apply_code env funct arg =
+  match funct with
+  | V_var _ -> assert false
+  | V_lambda { body } ->
+      (* TODO: intro let *)
+      assert false
+  | V_apply _ -> assert false
+
+type block =
+  | B_let of { arg : code; body : block }
+  | B_return of { code : code }
+
+and code =
+  | C_var of { var : index }
+  | C_apply of { funct : index; arg : index }
+  | C_lambda of { body : block }
+
+open Either
+
+let rec flatten term =
+  match term with
+  | T_let { arg = T_let { arg = arg_arg; body = body_arg }; body } ->
+      let body = T_shift { depth = 1; by = 1; body } in
+      flatten @@ T_let { arg = arg_arg; body = T_let { arg = body_arg; body } }
+  | T_let { arg; body } ->
+      let arg = flatten arg in
+      flatten @@ T_let { arg; body }
+  | T_apply { funct; arg } ->
+      let arg = T_shift { depth = 0; by = 1; body = arg } in
+      let apply =
+        T_apply { funct = T_var { var = 1 }; arg = T_var { var = 0 } }
+      in
+      flatten @@ T_let { arg = funct; body = T_let { arg; body = apply } }
+  | T_shift { depth; by; body = T_var { var } } -> assert false
+  | T_shift { depth; by; body = T_lambda { body } } ->
+      let body = T_shift { depth = depth + 1; by; body } in
+      flatten @@ T_lambda { body }
+  | T_shift { depth; by; body = T_apply { funct; arg } } ->
+      let funct = T_shift { depth; by; body = funct } in
+      let arg = T_shift { depth; by; body = arg } in
+      flatten @@ T_apply { funct; arg }
+  | T_shift { depth; by; body = T_let { arg; body } } ->
+      let arg = T_shift { depth; by; body = arg } in
+      let body = T_shift { depth = 1 + depth; by; body } in
+      flatten @@ T_let { arg; body }
+  | T_shift { depth; by; body = T_shift _ as body } ->
+      let body = flatten body in
+      flatten @@ T_shift { depth; by; body }
+  | T_lambda { body } ->
+      let body = flatten body in
+      assert false
+  | T_var _ | T_lambda _ -> term
+
+let is_code term =
+  match term with
+  | T_var { var } -> assert false
+  | T_lambda { body } ->
+      (* TMC *)
+      let body = flatten body in
+      Some (C_lambda { body })
+  | T_apply { funct = T_var { var = funct }; arg = T_var { var = arg } } ->
+      Some (C_apply { funct; arg })
+  | T_let _ | T_apply _ | T_shift _ -> None
+
+(* TODO: document this, head of output code *)
+type value =
+  | V_let of { arg : value_code; body : term }
+  | V_return of { code : value_code }
+
+and value_code =
+  | V_var of { var : index }
+  | V_lambda of { body : term }
+  | V_apply of { funct : index; arg : index }
+
+let rec flatten term =
+  match flatten_head term with
+  | V_let { arg; body } ->
+      (* TODO: TMC *)
+      let arg = reify_code arg in
+      let body = flatten body in
+      B_let { arg; body }
+  | V_return { code } ->
+      (* TODO: TMC *)
+      let code = reify_code code in
+      B_return { code }
+
+and flatten_head term : value =
+  match term with
+  | T_apply { funct = T_var { var = funct }; arg } ->
+      let code = V_apply { funct; arg } in
+      V_return { code }
+  | T_var { var } ->
+      let code = V_var { var } in
+      V_return { code }
+  | T_lambda { body } ->
+      let code = V_lambda { body } in
+      V_return { code }
+  | T_let { arg; body } -> (
+      match flatten_head arg with
+      | V_let { arg = arg_arg; body = arg_body } ->
+          let body = T_shift { depth = 1; by = 1; body } in
+          V_let { arg = arg_arg; body = T_let { arg = arg_body; body } }
+      | V_return { code = arg } -> V_let { arg; body })
+  | T_apply { funct; arg } ->
+      let arg = T_shift { depth = 0; by = 1; body = arg } in
+      let apply =
+        T_apply { funct = T_var { var = 1 }; arg = T_var { var = 0 } }
+      in
+      flatten_head @@ V_let { arg = funct; body = T_let { arg; body = apply } }
+  | T_shift { depth; by; body } ->
+      let body = flatten_head body in
+      flatten_shift ~depth ~by body
+
+and flatten_shift ~depth ~by body =
+  match body with
+  | V_let { arg; body } ->
+      let arg = flatten_shift_code ~depth ~by arg in
+      let body = T_shift { depth = 1 + depth; by; body } in
+      V_let { arg; body }
+  | V_return { code } ->
+      let code = flatten_shift_code ~depth ~by code in
+      V_return { code }
+
+and flatten_shift_code ~depth ~by code =
+  match code with
+  | V_var { var } -> assert false
+  | V_lambda { body } ->
+      let body = T_shift { depth = depth + 1; by; body } in
+      V_lambda { body }
+  | V_apply { funct; arg } ->
+      let funct = assert false in
+      let arg = assert false in
+      V_apply { funct; arg }
+
+and reify_code value =
+  match value with
+  | V_var { var } -> C_var { var }
+  | V_lambda { body } ->
+      let body = flatten body in
+      C_lambda { body }
+  | V_apply { funct; arg } -> C_apply { funct; arg }
+
+and is_code term =
+  match term with
+  | T_var { var } -> assert false
+  | T_lambda { body } ->
+      (* TMC *)
+      let body = flatten body in
+      Some (C_lambda { body })
+  | T_apply { funct = T_var { var = funct }; arg = T_var { var = arg } } ->
+      Some (C_apply { funct; arg })
+  | T_let _ | T_apply _ | T_shift _ -> None
+
+let rec flatten term =
+  match flatten_once term with
+  | T_var _ | T_lambda _ | T_apply _ | T_shift _ -> (
+      match is_code term with
+      | Some code -> B_return { code }
+      | None -> flatten term)
+  | T_let { arg; body } -> (
+      match is_code arg with
+      | Some arg ->
+          let body = flatten body in
+          B_let { arg; body }
+      | None -> flatten term)
+
+and flatten_once term =
+  match term with
+  | T_let { arg = T_let { arg = arg_arg; body = body_arg }; body } ->
+      let body = T_shift { depth = 1; by = 1; body } in
+      T_let { arg = arg_arg; body = T_let { arg = body_arg; body } }
+  | T_let { arg; body } ->
+      let arg = flatten_once arg in
+      T_let { arg; body }
+  | T_apply { funct; arg } ->
+      let arg = T_shift { depth = 0; by = 1; body = arg } in
+      let apply =
+        T_apply { funct = T_var { var = 1 }; arg = T_var { var = 0 } }
+      in
+      T_let { arg = funct; body = T_let { arg; body = apply } }
+  | T_shift { depth; by; body = T_var { var } } -> assert false
+  | T_shift { depth; by; body = T_lambda { body } } ->
+      let body = T_shift { depth = depth + 1; by; body } in
+      T_lambda { body }
+  | T_shift { depth; by; body = T_apply { funct; arg } } ->
+      let funct = T_shift { depth; by; body = funct } in
+      let arg = T_shift { depth; by; body = arg } in
+      T_apply { funct; arg }
+  | T_shift { depth; by; body = T_let { arg; body } } ->
+      let arg = T_shift { depth; by; body = arg } in
+      let body = T_shift { depth = 1 + depth; by; body } in
+      T_let { arg; body }
+  | T_shift { depth; by; body = T_shift _ as body } ->
+      let body = flatten_once body in
+      T_shift { depth; by; body }
+  | T_var _ | T_lambda _ -> term
+
+and is_code term =
+  match term with
+  | T_var { var } -> assert false
+  | T_lambda { body } ->
+      (* TMC *)
+      let body = flatten body in
+      Some (C_lambda { body })
+  | T_apply { funct = T_var { var = funct }; arg = T_var { var = arg } } ->
+      Some (C_apply { funct; arg })
+  | T_let _ | T_apply _ | T_shift _ -> None
+
+let rec flatten term =
+  match term with
+  | T_let { arg = T_let { arg = arg_arg; body = body_arg }; body } ->
+      let body = T_shift { depth = 1; by = 1; body } in
+      flatten @@ T_let { arg = arg_arg; body = T_let { arg = body_arg; body } }
+  | T_let { arg; body } -> assert false
+  | T_apply { funct = T_var { var = funct }; arg = T_var { var = arg } } ->
+      let code = C_apply { funct; arg } in
+      B_return { code }
+  | T_apply { funct; arg } ->
+      let arg = T_shift { depth = 0; by = 1; body = arg } in
+      let apply =
+        T_apply { funct = T_var { var = 1 }; arg = T_var { var = 0 } }
+      in
+      flatten @@ T_let { arg = funct; body = T_let { arg; body = apply } }
+  | T_shift { depth; by; body } -> flatten_shift ~depth ~by body
+  | T_var { var } ->
+      let code = C_var { var } in
+      B_return { code }
+  | T_lambda { body } ->
+      (* TMC *)
+      let body = flatten body in
+      let code = C_lambda { body } in
+      B_return { code }
+
+and flatten_shift ~depth ~by body = assert false
+
+type term =
+  | T_var of { var : index }
+  | T_let of { arg : term; body : term }
+  | T_hoist of { body : term }
+  | T_fix of { var : index; arg : term; body : term }
+  | T_apply of { funct : term; arg : term }
+  | T_lambda of { body : term }
+
+type instr =
+  | I_VAR of index
+  | I_LET
+  | I_END_LET
+  | I_HOIST
+  | I_FIX
+  | I_APPLY
+  | I_LAMBDA
+  | I_RET
+
+let write _ _ = assert false
+
+let rec dump ctx term =
+  match term with
+  | T_var { var } -> write ctx "var"
+  | T_let { arg; body } ->
+      dump ctx arg;
+      write ctx "let";
+      dump ctx body;
+      write ctx "endlet"
+  | T_hoist { body } ->
+      write ctx "hoist";
+      write ctx "let";
+      dump ctx body;
+      write ctx "endlet"
+  | T_fix { var; arg; body } ->
+      dump ctx arg;
+      write ctx "fix";
+      dump ctx body
+  | T_apply { funct; arg } ->
+      dump ctx funct;
+      dump ctx arg;
+      write ctx "apply"
+  | T_lambda { body } ->
+      write ctx "lambda";
+      dump ctx body;
+      write ctx "ret"
+
+(* TODO: purity based optimizations *)
+(* TODO: stack size based optimizations *)
+(* TODO: usage based optimizations  *)
+type block =
+  | B_let of { arg : code; body : block }
+  | B_hoist of { body : block }
+  | B_fix of { var : index; arg : code; body : block }
+  | B_return of { code : code }
+
+and code =
+  | C_var of { var : index }
+  | C_apply of { funct : index; arg : index }
+  (* TODO: n-ary and blocks *)
+  | C_lambda of { body : block }
+  | C_pair of { left : index; right : index }
+  | C_fst of { pair : index }
+  | C_snd of { pair : index }
+
+type cont =
+  | K_nil
+  | K_let of { env : level list; body : term; cont : cont }
+  | K_apply_arg of { env : level list; arg : term; cont : cont }
+  | K_apply of { funct : level; cont : cont }
+
+let rec compile env term =
+  (* TODO: non-cps version of this? *)
+  match term with
+  | T_let { arg; body } ->
+      let arg = compile env arg in
+      let body = compile env body in
+      B_let { arg; body }
+  | T_var { var } ->
+      let var = List.nth env var in
+      k level @@ C_var { var }
+  | T_apply { funct; arg } ->
+      compile env level funct @@ fun funct_level funct ->
+      (* TMC *)
+      let body =
+        compile env (1 + funct_level) arg @@ fun arg_level arg ->
+        (* TMC *)
+        let body =
+          let funct = arg_level - funct_level in
+          let arg = 0 in
+          k (1 + arg_level) @@ C_apply { funct; arg }
+        in
+        B_let { arg; body }
+      in
+      B_let { arg = funct; body }
+  | T_lambda { body } -> assert false
+
+let rec compile env level term k =
+  (* TODO: non-cps version of this? *)
+  match term with
+  | T_let { arg; body } ->
+      compile env level arg @@ fun level arg ->
+      (* TMC *)
+      let env = _ :: env in
+      let body = compile env level body k in
+      B_let { arg; body }
+  | T_var { var } ->
+      let var = List.nth env var in
+      k level @@ C_var { var }
+  | T_apply { funct; arg } ->
+      compile env level funct @@ fun funct_level funct ->
+      (* TMC *)
+      let body =
+        compile env (1 + funct_level) arg @@ fun arg_level arg ->
+        (* TMC *)
+        let body =
+          let funct = arg_level - funct_level in
+          let arg = 0 in
+          k (1 + arg_level) @@ C_apply { funct; arg }
+        in
+        B_let { arg; body }
+      in
+      B_let { arg = funct; body }
+  | T_lambda { body } -> assert false
+
+let rec compile env level term k =
+  (* TODO: non-cps version of this? *)
+  match term with
+  | T_let { arg; body } ->
+      compile env level arg @@ fun level arg ->
+      (* TMC *)
+      let env = _ :: env in
+      let body = compile env level body k in
+      B_let { arg; body }
+  | T_var { var } ->
+      let var = List.nth env var in
+      k level @@ C_var { var }
+  | T_apply { funct; arg } ->
+      compile env level funct @@ fun funct_level funct ->
+      (* TMC *)
+      let body =
+        compile env (1 + funct_level) arg @@ fun arg_level arg ->
+        (* TMC *)
+        let body =
+          let funct = arg_level - funct_level in
+          let arg = 0 in
+          k (1 + arg_level) @@ C_apply { funct; arg }
+        in
+        B_let { arg; body }
+      in
+      B_let { arg = funct; body }
+  | T_lambda { body } -> assert false
+
+let rec compile env level term k =
+  (* TODO: non-cps version of this? *)
+  match term with
+  | T_let { arg; body } ->
+      compile env level arg @@ fun level arg ->
+      (* TMC *)
+      let env = _ :: env in
+      let body = compile env level body k in
+      B_let { arg; body }
+  | T_var { var } ->
+      let var = List.nth env var in
+      k level @@ C_var { var }
+  | T_apply { funct; arg } ->
+      compile env level funct @@ fun funct_level funct ->
+      (* TMC *)
+      let body =
+        compile env (1 + funct_level) arg @@ fun arg_level arg ->
+        (* TMC *)
+        let body =
+          let funct = arg_level - funct_level in
+          let arg = 0 in
+          k (1 + arg_level) @@ C_apply { funct; arg }
+        in
+        B_let { arg; body }
+      in
+      B_let { arg = funct; body }
+  | T_lambda { body } -> assert false
+
+let rec compile_down env level term write =
+  (* TODO: non-cps version of this? *)
+  match term with
+  | T_let { arg; body } ->
+      let level, arg, new_write = compile env level arg in
+      (* TMC *)
+      let env = _ :: env in
+      let write = B_let { arg; body = _ } in
+
+      compile env level body write
+  | T_var { var } ->
+      let var = List.nth env var in
+      k level @@ C_var { var }
+  | T_apply { funct; arg } ->
+      compile env level funct @@ fun funct_level funct ->
+      (* TMC *)
+      let body =
+        compile env (1 + funct_level) arg @@ fun arg_level arg ->
+        (* TMC *)
+        let body =
+          let funct = arg_level - funct_level in
+          let arg = 0 in
+          k (1 + arg_level) @@ C_apply { funct; arg }
+        in
+        B_let { arg; body }
+      in
+      B_let { arg = funct; body }
+  | T_lambda { body } -> assert false
+
+and compile_up : level * code = assert false
+
+let rec compile env term =
+  (* TODO: non-cps version of this? *)
+  match term with
+  | T_let { arg; body } ->
+      let cont = K_let { env; body; cont } in
+      compile_down env arg cont
+  | T_var { var } ->
+      let var = List.nth env var in
+      let code = C_var { var } in
+      compile_up code cont
+  | T_apply { funct; arg } -> assert false
+  | T_lambda _ -> assert false
+
+and compile_tail dst env term =
+  (* TODO: non-cps version of this? *)
+  match term with
+  | T_let { arg; body } ->
+      let x = compile in
+      assert false
+  | T_var { var } -> assert false
+  | T_apply { funct; arg } -> assert false
+  | T_lambda _ -> assert false
+
+let rec compile_down env term cont =
+  (* TODO: non-cps version of this? *)
+  match term with
+  | T_let { arg; body } ->
+      let cont = K_let { env; body; cont } in
+      compile_down env arg cont
+  | T_var { var } ->
+      let var = List.nth env var in
+      let code = C_var { var } in
+      compile_up code cont
+  | T_apply { funct; arg } -> assert false
+  | T_lambda _ -> assert false
+
+let rec compile_down env term cont =
+  (* TODO: non-cps version of this? *)
+  match term with
+  | T_let { arg; body } ->
+      let cont = K_let { env; body; cont } in
+      compile_down env arg cont
+  | T_var { var } ->
+      let var = List.nth env var in
+      let code = C_var { var } in
+      compile_up code cont
+  | T_apply { funct; arg } -> assert false
+  | T_lambda _ -> assert false
+
+and compile_up code cont =
+  match cont with
+  | K_nil -> B_return { code }
+  | K_let { env; body; cont } ->
+      (* TODO: TMC *)
+      let body = compile_down env body cont in
+      B_let { arg = code; body }
+  | K_apply_arg { env; arg; cont } ->
+      (* TODO: TMC *)
+      let funct = code in
+      let cont = K_apply { cont } in
+      let body = compile_down env arg cont in
+      B_let { arg = funct; body }
+  | K_apply { funct; cont } ->
+      (* TODO: TMC *)
+      let arg = code in
+      let apply = C_apply { funct; arg = 0 } in
+      let body = compile_up code cont in
+      B_let { arg; body = B_let { arg = apply; body } }
+
+type block =
+  | B_let of { arg : code; body : block }
+  | B_return of { code : code }
+
+and code =
+  | C_var of { var : index }
+  | C_call of { funct : block; args : index list }
+
+type env = level list
+type kind = Code | Value
+
+let lookup : env -> index -> level = assert false
+
+let rec eval heap env block =
+  match block with
+  | B_let { arg; body } ->
+      let arg = eval_code heap env arg in
+      eval heap env body
+  | B_return { code } -> eval_code heap env code
+
+and eval_code heap env code =
+  match code with
+  | C_var { var } -> lookup env var
+  | C_call { funct; args } ->
+      let env = List.rev_map (fun arg -> lookup env arg) args in
+      eval heap env funct
