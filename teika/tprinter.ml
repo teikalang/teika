@@ -11,7 +11,7 @@ module Ptree = struct
     | PT_var of { var : Name.t }
     | PT_free_var of { var : Level.t }
     | PT_bound_var of { var : Index.t }
-    | PT_hoist of { bound : term; annot : term; body : term }
+    | PT_hoist of { bound : term; body : term }
     | PT_let of { bound : term; arg : term; body : term }
     | PT_apply of { funct : term; arg : term }
     | PT_lambda of { param : term; body : term }
@@ -29,8 +29,9 @@ module Ptree = struct
     | PT_var { var } -> fprintf fmt "%s" (Name.repr var)
     | PT_free_var { var } -> fprintf fmt "\\+%a" Level.pp var
     | PT_bound_var { var } -> fprintf fmt "\\-%a" Index.pp var
-    | PT_hoist { bound; annot; body } ->
-        fprintf fmt "%a : %a; %a" pp_atom bound pp_funct annot pp_let body
+    | PT_hoist { bound; body } ->
+        (* TODO: is pp_wrapped correct here? *)
+        fprintf fmt "%a; %a" pp_wrapped bound pp_let body
     | PT_let { bound; arg; body } ->
         fprintf fmt "%a = %a; %a" pp_atom bound pp_funct arg pp_let body
     | PT_lambda { param; body } ->
@@ -76,6 +77,7 @@ let _pt_with_type ~type_ term =
 (* TODO: extract substitutions *)
 (* TODO: rename all tt_ to term_ *)
 let rec tt_print term =
+  let (Term { struct_ = term; loc = _ }) = term in
   match term with
   | T_annot { term; annot } ->
       let term = tt_print term in
@@ -87,12 +89,11 @@ let rec tt_print term =
       let arg = tt_print arg in
       let body = tt_print body in
       PT_let { bound; arg; body }
-  | T_hoist { bound; annot; body } ->
+  | T_hoist { bound; body } ->
       let bound = tp_print bound in
-      let annot = tt_print annot in
       let body = tt_print body in
-      PT_hoist { bound; annot; body }
-  | T_fix { var = _; bound; arg; body } ->
+      PT_hoist { bound; body }
+  | T_fix { bound; var = _; arg; body } ->
       (* TODO: proper var renaming *)
       let bound = tp_print bound in
       let arg = tt_print arg in
@@ -106,19 +107,22 @@ let rec tt_print term =
       let funct = tt_print funct in
       let arg = tt_print arg in
       PT_apply { funct; arg }
-  | T_forall { bound; param = _; body } ->
-      let param = tp_print bound in
+  | T_forall { bound; param; body } ->
+      let param =
+        let pat = tp_print bound in
+        let annot = tt_print param in
+        PT_annot { term = pat; annot }
+      in
       let body = tt_print body in
       PT_forall { param; body }
-  | T_self { bound; self; body } ->
-      (* TODO: bad *)
-      let left = tp_print @@ P_annot { pat = bound; annot = self } in
+  | T_self { bound; body } ->
+      let left = tp_print bound in
       let right = tt_print body in
       (* TODO: self *)
       PT_inter { left; right }
-(* | TT_string { literal } -> PT_string { literal } *)
 
 and tp_print pat =
+  let (Pat { struct_ = pat; loc = _ }) = pat in
   match pat with
   | P_annot { pat; annot } ->
       let pat = tp_print pat in
@@ -188,7 +192,9 @@ let rec te_print error =
         | TError_loc { error; loc = loc' } ->
             let loc =
               (* ignore none locations *)
-              match Location.is_none loc' with true -> loc | false -> loc'
+              match Location.is_none loc' with
+              | true -> loc
+              | false -> loc'
             in
             loop loc error
         | error ->
