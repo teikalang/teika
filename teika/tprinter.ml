@@ -90,12 +90,12 @@ let rec tt_print term =
       let body = tt_print body in
       PT_let { bound; arg; body }
   | T_hoist { bound; body } ->
-      let bound = tp_print bound in
+      let bound = vp_print bound in
       let body = tt_print body in
       PT_hoist { bound; body }
   | T_fix { bound; var = _; arg; body } ->
       (* TODO: proper var renaming *)
-      let bound = tp_print bound in
+      let bound = vp_print bound in
       let arg = tt_print arg in
       let body = tt_print body in
       PT_let { bound; arg; body }
@@ -116,10 +116,20 @@ let rec tt_print term =
       let body = tt_print body in
       PT_forall { param; body }
   | T_self { bound; body } ->
-      let left = tp_print bound in
+      let left = vp_print bound in
       let right = tt_print body in
       (* TODO: self *)
       PT_inter { left; right }
+  | T_tuple _ | T_exists _ -> failwith "not implemented"
+
+and vp_print pat =
+  let (VPat { struct_ = pat; loc = _ }) = pat in
+  match pat with
+  | VP_annot { pat; annot } ->
+      let pat = vp_print pat in
+      let annot = tt_print annot in
+      PT_annot { term = pat; annot }
+  | VP_var { var } -> PT_var { var }
 
 and tp_print pat =
   let (Pat { struct_ = pat; loc = _ }) = pat in
@@ -129,6 +139,7 @@ and tp_print pat =
       let annot = tt_print annot in
       PT_annot { term = pat; annot }
   | P_var { var } -> PT_var { var }
+  | P_tuple _ -> failwith "not implemented"
 
 let pp_term fmt term =
   let term = tt_print term in
