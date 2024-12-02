@@ -1,6 +1,6 @@
 (library
  (name syntax)
- (libraries menhirLib compiler-libs.common utils)
+ (libraries menhirLib compiler-libs.common utils zarith)
  (modules
   (:standard \ Test))
  (preprocess
@@ -8,7 +8,7 @@
 
 (menhir
  (modules cparser)
- (flags --dump --explain))
+ (flags --dump --explain --table))
 
 (executable
  (name test)

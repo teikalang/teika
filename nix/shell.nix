@@ -12,6 +12,6 @@ with pkgs; with ocamlPackages; mkShell {
     ocaml
     dune_3
     ocaml-lsp
-
+    utop
   ];
 }

@@ -1,8 +1,18 @@
 open Cparser
 open Sedlexing.Utf8
 
-(* TODO: more information *)
-exception Lexer_unknown_token
+exception Lexer_error of { loc : Location.t }
+exception Parser_error of { loc : Location.t }
+
+let () =
+  Printexc.register_printer @@ function
+  | Lexer_error { loc = _ } -> Some "lexer: syntax error"
+  | Parser_error { loc = _ } -> Some "parser: syntax error"
+  | _ -> None
+
+let loc buf =
+  let loc_start, loc_end = Sedlexing.lexing_positions buf in
+  Location.{ loc_start; loc_end; loc_ghost = false }
 
 let whitespace = [%sedlex.regexp? Plus (' ' | '\t' | '\n')]
 let alphabet = [%sedlex.regexp? 'a' .. 'z' | 'A' .. 'Z']
@@ -34,32 +44,56 @@ let rec tokenizer buf =
       (* TODO: this should probably be somewhere else *)
       let literal = lexeme buf in
       (* TODO: this is dangerous *)
-      let literal = int_of_string literal in
+      let literal = Z.of_string literal in
       NUMBER literal
   | "(" -> LEFT_PARENS
   | ")" -> RIGHT_PARENS
   | "{" -> LEFT_BRACE
   | "}" -> RIGHT_BRACE
   | eof -> EOF
-  | _ -> raise Lexer_unknown_token
+  | _ ->
+      let loc = loc buf in
+      raise @@ Lexer_error { loc }
 
-let provider buf () =
+let next buf =
   let token = tokenizer buf in
-  let start, stop = Sedlexing.lexing_positions buf in
-  (token, start, stop)
+  let start, end_ = Sedlexing.lexing_positions buf in
+  (token, start, end_)
 
-let from_string parser string =
+open Cparser.MenhirInterpreter
+
+let rec loop buf state =
+  match state with
+  | InputNeeded _env ->
+      (* The parser needs a token. Request one from the lexer,
+         and offer it to the parser, which will produce a new
+         checkpoint. Then, repeat. *)
+      let token, start, end_ = next buf in
+      let state = offer state (token, start, end_) in
+      loop buf state
+  | Shifting _ | AboutToReduce _ ->
+      let state = resume state in
+      loop buf state
+  | HandlingError _env ->
+      let loc = loc buf in
+      raise (Parser_error { loc })
+  | Accepted value -> value
+  | Rejected -> failwith "cdriver.loop: rejected reached"
+
+let buf_from_string string =
   (* TODO: from string seems to not trigger new line, likely a bug in sedlex *)
   let index = ref 0 in
   let length = String.length string in
-  let buf =
-    from_gen (fun () ->
-        match !index < length with
-        | true ->
-            let char = String.get string !index in
-            incr index;
-            Some char
-        | false -> None)
-  in
-  let provider = provider buf in
-  MenhirLib.Convert.Simplified.traditional2revised parser provider
+  from_gen (fun () ->
+      match !index < length with
+      | true ->
+          let char = String.get string !index in
+          incr index;
+          Some char
+      | false -> None)
+
+let term_opt_from_string string =
+  let buf = buf_from_string string in
+  (* TODO: allow to change this *)
+  let start, _end = Sedlexing.lexing_positions buf in
+  loop buf @@ Cparser.Incremental.term_opt start
