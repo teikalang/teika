@@ -1,0 +1,4 @@
+// Parsed and lowered successfully; the vendored typer then reports that
+// true and false are unbound. This deliberately exercises diagnostics.
+Bool = [true, false];
+Bool

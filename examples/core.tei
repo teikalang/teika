@@ -1,0 +1,4 @@
+// A dependent identity function accepted by the vendored typer.
+id(A : Type, x : A) : A;
+id(A, x) = x;
+id(Type, Type)

@@ -1,0 +1,42 @@
+{
+  "name": "teika-language",
+  "displayName": "Teika Language",
+  "description": "Teika language support backed by the OCaml language server.",
+  "version": "0.1.0",
+  "publisher": "teika-local",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "main": "./dist/vscode_extension.js",
+  "activationEvents": [
+    "onLanguage:teika",
+    "workspaceContains:**/*.te",
+    "workspaceContains:**/*.tei"
+  ],
+  "scripts": {
+    "build": "direnv exec \"$PWD/../..\" dune build --root \"$PWD/../..\" --build-dir \"$PWD/../_build\" @lsp/vscode-extension lsp/demo_lsp.exe && mkdir -p dist && rm -f dist/vscode_extension.js && NODE_PATH=node_modules esbuild ../_build/default/lsp/vscode_extension/lsp/vscode_extension.js --bundle --platform=node --external:vscode --outfile=dist/vscode_extension.js"
+  },
+  "dependencies": {
+    "vscode-languageclient": "10.1.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "teika",
+        "aliases": ["Teika", "teika"],
+        "extensions": [".te", ".tei"]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "teika",
+        "scopeName": "source.teika",
+        "path": "./teika.syntax.json"
+      }
+    ]
+  }
+}

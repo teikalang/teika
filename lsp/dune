@@ -1,0 +1,56 @@
+(library
+ (name language_server)
+ (modules language_server lsp_document lsp_transport)
+ (libraries jsonrpc lsp))
+
+(library
+ (name lsp_demo_syntax)
+ (modules cparser name ctree demo_lexer lparser syntax_tree_printer)
+ (libraries compiler-libs.common menhirLib zarith)
+ (preprocess
+  (pps sedlex.ppx)))
+
+(menhir
+ (modules cparser)
+ (flags --dump --explain --table))
+
+(library
+ (name lsp_demo_typer)
+ (modules typer)
+ (libraries lsp_demo_syntax))
+
+(library
+ (name demo_language)
+ (modules demo_analysis demo_hover demo_language)
+ (libraries language_server lsp_demo_syntax lsp_demo_typer))
+
+(executable
+ (name demo_lsp)
+ (modules demo_lsp)
+ (libraries demo_language))
+
+(test
+ (name test_language_server)
+ (modules test_language_server)
+ (libraries alcotest jsonrpc language_server lsp))
+
+(test
+ (name test_demo_language)
+ (modules test_demo_language)
+ (libraries alcotest demo_language jsonrpc lsp lsp_demo_syntax))
+
+(melange.emit
+ (target vscode_probe)
+ (alias vscode-probe)
+ (modules vscode_bindings vscode_probe)
+ (module_systems commonjs)
+ (preprocess
+  (pps melange.ppx)))
+
+(melange.emit
+ (target vscode_extension)
+ (alias vscode-extension)
+ (modules vscode_extension)
+ (module_systems commonjs)
+ (preprocess
+  (pps melange.ppx)))

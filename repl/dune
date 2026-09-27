@@ -1,0 +1,24 @@
+(library
+ (name repl_core)
+ (modules ctree cparser lparser lexer typer printer session)
+ (libraries compiler-libs.common menhirLib zarith)
+ (preprocess (pps ppx_deriving.show sedlex.ppx)))
+
+(executable
+ (name repl)
+ (modules repl)
+ (libraries repl_core unix))
+
+(test
+ (name test_typer)
+ (modules test_typer)
+ (libraries repl_core))
+
+(test
+ (name test_session)
+ (modules test_session)
+ (libraries repl_core))
+
+(menhir
+ (modules cparser)
+ (flags --dump --explain --table))
